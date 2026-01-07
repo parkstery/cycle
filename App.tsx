@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState } from './types';
 import { getCyclingStrategy } from './services/aiCoach';
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const tempMarker = useRef<any>(null);
   const panorama = useRef<any>(null);
   const geocoder = useRef<any>(null);
+  const elevationService = useRef<any>(null);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
@@ -41,7 +42,11 @@ const App: React.FC = () => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, address: string} | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    const saved = localStorage.getItem('recent_searches');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, address: string, elevation: number | null} | null>(null);
 
   // Helper: Speed KM/H to MS delay mapping
   const calculateDelay = (kmh: number) => {
@@ -112,6 +117,7 @@ const App: React.FC = () => {
       });
 
       geocoder.current = new google.maps.Geocoder();
+      elevationService.current = new google.maps.ElevationService();
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
         suppressMarkers: true,
@@ -157,11 +163,21 @@ const App: React.FC = () => {
                 strokeColor: '#ffffff'
               }
             });
-            setClickedLocation({
-              lat: latLng.lat(),
-              lng: latLng.lng(),
-              address: results[0].formatted_address
+
+            // Fetch elevation (Z coordinate)
+            elevationService.current.getElevationForLocations({
+              locations: [latLng]
+            }, (elevResults: any, elevStatus: string) => {
+              const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
+              
+              setClickedLocation({
+                lat: latLng.lat(),
+                lng: latLng.lng(),
+                address: results[0].formatted_address,
+                elevation: elevation
+              });
             });
+
             setRouteInputExpanded(true);
           }
         });
@@ -169,16 +185,37 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handlePlaceSearch = () => {
-    if (!searchTerm) return;
-    geocoder.current.geocode({ address: searchTerm }, (results: any, status: string) => {
+  const addToRecentSearches = (term: string) => {
+    if (!term.trim()) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(t => t !== term);
+      const updated = [term, ...filtered].slice(0, 4);
+      localStorage.setItem('recent_searches', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handlePlaceSearch = (termToSearch?: string) => {
+    const finalTerm = termToSearch || searchTerm;
+    if (!finalTerm) return;
+    
+    geocoder.current.geocode({ address: finalTerm }, (results: any, status: string) => {
       if (status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
         googleMap.current.setCenter(loc);
         googleMap.current.setZoom(17);
         if (tempMarker.current) tempMarker.current.setMap(null);
         tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
-        setClickedLocation({ lat: loc.lat(), lng: loc.lng(), address: results[0].formatted_address });
+        
+        elevationService.current.getElevationForLocations({
+          locations: [loc]
+        }, (elevResults: any, elevStatus: string) => {
+          const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
+          setClickedLocation({ lat: loc.lat(), lng: loc.lng(), address: results[0].formatted_address, elevation: elevation });
+        });
+        
+        addToRecentSearches(finalTerm);
+        setSearchExpanded(false);
       }
     });
   };
@@ -220,7 +257,6 @@ const App: React.FC = () => {
         
         setRoute(newRoute);
         
-        // 경로 선택 시 패널 접힘/펼침 방지 로직 (autoStart인 경우에만 접기/펼치기 수행)
         if (autoStart) {
           setElevationExpanded(true);
           setRouteInputExpanded(false);
@@ -234,7 +270,6 @@ const App: React.FC = () => {
           setAiCoachMsg(tip);
           speak(tip);
         } else {
-          // GO 버튼이 아닌 경로 변경(BIKE/WALK/DRIVE) 시에는 현재 시뮬레이션 상태 유지 (주행하지 않음)
           setSimulation(prev => ({ 
             ...prev, 
             isActive: false, 
@@ -253,7 +288,7 @@ const App: React.FC = () => {
   const handleModeChange = (newMode: TravelMode) => {
     setMode(newMode);
     if (origin && destination) {
-      calculateRoute(newMode, false); // 경로 비교만 수행 (주행 X, 패널 상태 변화 X)
+      calculateRoute(newMode, false);
     }
   };
 
@@ -329,7 +364,7 @@ const App: React.FC = () => {
       <div ref={mapRef} className={`flex-1 relative z-10`} />
 
       {/* 1. LOCATION SEARCH PANEL */}
-      <div className={`absolute top-4 left-4 z-[60] flex items-center transition-all duration-300 ease-out overflow-hidden ${searchExpanded ? 'w-[calc(100%-100px)] max-w-[240px]' : 'w-12 h-12'}`}>
+      <div className={`absolute top-4 left-4 z-[60] flex flex-col items-start transition-all duration-300 ease-out overflow-hidden ${searchExpanded ? 'w-[calc(100%-100px)] max-w-[240px]' : 'w-12 h-12'}`}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl flex items-center w-full h-12 border border-slate-200 pr-2">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
@@ -343,6 +378,31 @@ const App: React.FC = () => {
             className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2"
           />
         </div>
+        
+        {/* Recent Search History Box */}
+        {searchExpanded && recentSearches.length > 0 && (
+          <div className="mt-2 w-full bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in slide-in-from-top-1 duration-200">
+            <div className="px-3 py-1.5 border-b border-slate-100 flex items-center gap-2">
+              <History size={10} className="text-slate-400" />
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recent Searches</span>
+            </div>
+            <div className="flex flex-col">
+              {recentSearches.map((term, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => {
+                    setSearchTerm(term);
+                    handlePlaceSearch(term);
+                  }}
+                  className="px-3 py-1 text-left text-[12px] font-bold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b last:border-0 border-slate-50 flex items-center gap-2"
+                >
+                  <Search size={10} className="text-slate-300 flex-shrink-0" />
+                  <span className="truncate">{term}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* STREET VIEW TOGGLE (Pegman) */}
@@ -374,7 +434,7 @@ const App: React.FC = () => {
           {routeInputExpanded && (
             <>
               <div className="flex-1 px-2 py-2 space-y-2">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-[2px]">
                   <input type="text" placeholder="Start..." value={origin} onChange={(e) => setOrigin(e.target.value)} className="w-full bg-slate-50 rounded-xl py-2 px-3 text-slate-900 font-bold text-[12px] outline-none border border-transparent focus:border-blue-400" />
                   <input type="text" placeholder="Goal..." value={destination} onChange={(e) => setDestination(e.target.value)} className="w-full bg-slate-50 rounded-xl py-2 px-3 text-slate-900 font-bold text-[12px] outline-none border border-transparent focus:border-blue-400" />
                 </div>
@@ -396,13 +456,13 @@ const App: React.FC = () => {
 
               {/* VERTICAL SPEED DIAL (10km - 120km) */}
               <div className="w-12 flex flex-col items-center border-l border-slate-100 py-1 overflow-hidden">
-                <span className="text-[6px] font-black text-slate-400 uppercase mb-1">km/h</span>
-                <div className="flex-1 overflow-y-auto space-y-0.5 px-1 scrollbar-hide flex flex-col items-center max-h-[100px]">
+                <span className="text-[6px] font-black text-slate-400 uppercase mb-0.5">km/h</span>
+                <div className="flex-1 overflow-y-auto space-y-[1px] px-1 scrollbar-hide flex flex-col items-center max-h-[100px]">
                   {Array.from({length: 12}, (_, i) => (i + 1) * 10).map((speed) => (
                     <button
                       key={speed}
                       onClick={() => setSpeedKmH(speed)}
-                      className={`flex-shrink-0 w-full py-1.5 rounded-lg text-[12px] font-black transition-all text-center ${speedKmH === speed ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                      className={`flex-shrink-0 w-full py-0.5 rounded-lg text-[12px] font-black transition-all text-center ${speedKmH === speed ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
                     >
                       {speed}
                     </button>
@@ -458,16 +518,34 @@ const App: React.FC = () => {
 
       {/* CLICKED LOCATION POPUP */}
       {clickedLocation && (
-        <div className="absolute top-[30%] left-1/2 -translate-x-1/2 z-50 w-[70%] max-w-[240px] animate-in slide-in-from-bottom-2 duration-300">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-slate-200">
+        <div className="absolute top-[25%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[280px] animate-in slide-in-from-bottom-2 duration-300">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200">
             <button onClick={clearTempMarker} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5 shadow-lg"><X size={10}/></button>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1 bg-blue-100 rounded text-blue-600"><MapPin size={12} /></div>
-              <p className="text-slate-800 text-[12px] font-bold line-clamp-1">{clickedLocation.address}</p>
+            <div className="flex items-center gap-2 mb-[2px]">
+              <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600 flex-shrink-0"><MapPin size={14} /></div>
+              <p className="text-slate-800 text-[12px] font-bold leading-snug">{clickedLocation.address}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={handleSetStart} className="py-2 bg-blue-50 text-blue-700 rounded-lg text-[12px] font-black uppercase">START (A)</button>
-              <button onClick={handleSetEnd} className="py-2 bg-blue-600 text-white rounded-lg text-[12px] font-black uppercase">END (B)</button>
+            
+            {/* Simple XYZ Coordinates Display */}
+            <div className="mb-[2px] p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-slate-700 truncate">{clickedLocation.lat.toFixed(6)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-slate-700 truncate">{clickedLocation.lng.toFixed(6)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-blue-600 truncate">
+                    {clickedLocation.elevation !== null ? `${clickedLocation.elevation.toFixed(1)}m` : '---'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-[2px]">
+              <button onClick={handleSetStart} className="py-2.5 bg-blue-50 text-blue-700 rounded-xl text-[12px] font-black uppercase tracking-tight active:scale-95 transition-transform">START (A)</button>
+              <button onClick={handleSetEnd} className="py-2.5 bg-blue-600 text-white rounded-xl text-[12px] font-black uppercase tracking-tight active:scale-95 transition-transform shadow-md">END (B)</button>
             </div>
           </div>
         </div>

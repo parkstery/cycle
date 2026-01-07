@@ -1,5 +1,5 @@
 {
-  "name": "Fitness Pro Mobile GIS",
+  "name": "Cycle 1차 완성(구글맵)",
   "description": "A mobile-first cycling and fitness navigation app featuring real-time elevation analysis, street-view simulation, and a Gemini-powered cycling coach.",
   "requestFramePermissions": [
     "geolocation"
