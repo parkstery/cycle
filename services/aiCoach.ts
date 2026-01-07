@@ -3,13 +3,23 @@ import { GoogleGenAI } from "@google/genai";
 import { ElevationPoint } from "../types";
 
 export const getCyclingStrategy = async (elevationData: ElevationPoint[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
   
-  const samples = elevationData.filter((_, i) => i % 15 === 0).map(p => p.elevation.toFixed(0));
+  if (!apiKey) {
+    return "일정한 속도를 유지하고 전방을 주시하며 안전하게 라이딩하세요.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  // 고도 데이터 샘플링 (100개 중 10개만 추출하여 토큰 절약)
+  const samples = elevationData
+    .filter((_, i) => i % 10 === 0)
+    .map(p => p.elevation.toFixed(1));
+
   const prompt = `
-    Context: Cycling route elevation profile is [${samples.join(',')}]. 
-    Task: Give a pro cycling tip in EXACTLY one sentence, maximum 10 words. 
-    Focus on gear choice or physical effort.
+    당신은 프로 사이클링 코치입니다. 다음 고도 변화 데이터를 분석하여 라이더에게 필요한 짧은 조언을 한 문장(20자 이내)으로 하세요.
+    고도 데이터: [${samples.join(', ')}]
+    조건: 한국어로 답변하고, 매우 전문적이면서도 격려하는 말투를 사용하세요.
   `;
 
   try {
@@ -17,11 +27,9 @@ export const getCyclingStrategy = async (elevationData: ElevationPoint[]): Promi
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
-    // Truncate if model exceeds limit just in case
-    let text = response.text || "Keep a steady cadence.";
-    return text.split(' ').slice(0, 10).join(' ');
+    return response.text?.trim() || "오늘도 안전하고 즐거운 라이딩 되세요!";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Maintain steady effort.";
+    return "고도 변화에 맞춰 기어비를 조절하며 페이스를 유지하세요.";
   }
 };

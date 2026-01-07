@@ -12,9 +12,10 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
+      background-color: #0f172a;
     }
-    /* Hide Google Maps UI elements for a cleaner mobile look */
-    .gm-style-mtc, .gm-svpc, .gm-style-cc {
+    /* Google Maps UI 제거 */
+    .gm-style-mtc, .gm-svpc, .gm-style-cc, .gm-style-rt {
       display: none !important;
     }
   </style>
@@ -33,7 +34,11 @@
 </head>
 <body>
   <div id="root"></div>
-  <!-- Google Maps API Key from original project -->
+  
+  <!-- Google Maps API (Async 로딩 권장되나 현재 구조 유지하며 위치 보정) -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBYXu5yKdW71VuKmI-N2M2xbvMaYTK2HCg&libraries=places,geometry,elevation"></script>
+  
+  <!-- 앱 진입점 실행: 이 부분이 있어야 React가 화면을 그립니다 -->
+  <script type="module" src="./index.tsx"></script>
 </body>
 </html>

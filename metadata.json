@@ -1,5 +1,5 @@
 {
-  "name": "Fitness Pro Mobile GIS",
+  "name": "Cycling on Road",
   "description": "A mobile-first cycling and fitness navigation app featuring real-time elevation analysis, street-view simulation, and a Gemini-powered cycling coach.",
   "requestFramePermissions": [
     "geolocation"
