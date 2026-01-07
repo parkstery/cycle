@@ -3,6 +3,14 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
+    //  여기에서부터  by EG
+    plugins: [react()],
+    base: '/'
+    build:{
+        ouDir: 'dist',
+    }
+    // 여기까지... by EG
+    
     const env = loadEnv(mode, '.', '');
     return {
       server: {
