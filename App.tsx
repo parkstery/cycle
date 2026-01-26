@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History } from 'lucide-react';
-import { RouteInfo, TravelMode, SimulationState } from './types';
-import { getCyclingStrategy } from './services/aiCoach';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car } from 'lucide-react';
+import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
+import { getAdvancedCoaching } from './services/aiCoach';
 
 // Declare google global
 declare var google: any;
@@ -21,18 +21,25 @@ const App: React.FC = () => {
   const panorama = useRef<any>(null);
   const geocoder = useRef<any>(null);
   const elevationService = useRef<any>(null);
+  const polylineOverlay = useRef<any>(null);
+  const coverageLayer = useRef<any>(null);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 500 });
-  const [speedKmH, setSpeedKmH] = useState(60); // Default 60km/h
+  const [speedKmH, setSpeedKmH] = useState(60); 
   const [mode, setMode] = useState<TravelMode>(TravelMode.BICYCLING);
-  const [aiCoachMsg, setAiCoachMsg] = useState<string | null>(null);
-  const [showAiCoach, setShowAiCoach] = useState(true);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   
+  // Advanced Coach State
+  const [coachData, setCoachData] = useState<CoachingData | null>(null);
+  const [isCoachThinking, setIsCoachThinking] = useState(false);
+  const lastCoachedIndex = useRef<number>(-1);
+
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
@@ -48,17 +55,32 @@ const App: React.FC = () => {
   });
   const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, address: string, elevation: number | null} | null>(null);
 
-  // Helper: Speed KM/H to MS delay mapping
-  const calculateDelay = (kmh: number) => {
-    return Math.max(100, 2000 - (kmh * 15.8));
-  };
+  const calculateDelay = (kmh: number) => Math.max(100, 2000 - (kmh * 15.8));
 
-  // TTS Function
+  // Update simulation speed when dial changes
+  useEffect(() => {
+    if (simulation.isActive) {
+      setSimulation(prev => ({ ...prev, speed: calculateDelay(speedKmH) }));
+    }
+  }, [speedKmH]);
+
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US'; 
+    
+    // Attempt to select a female English voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
+    );
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
     utterance.rate = 1.0;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
@@ -69,12 +91,7 @@ const App: React.FC = () => {
     return new google.maps.Marker({
       position: latLng,
       map: googleMap.current,
-      label: {
-        text: label,
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: '14px'
-      },
+      label: { text: label, color: 'white', fontWeight: 'bold', fontSize: '14px' },
       icon: {
         path: google.maps.SymbolPath.CIRCLE,
         scale: 14,
@@ -88,22 +105,14 @@ const App: React.FC = () => {
 
   const clearMapOverlays = () => {
     if (directionsRenderer.current) directionsRenderer.current.setDirections({ routes: [] });
+    if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
     if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
     if (startMarker.current) { startMarker.current.setMap(null); startMarker.current = null; }
     if (endMarker.current) { endMarker.current.setMap(null); endMarker.current = null; }
     setRoute(null);
     setSimulation({ isActive: false, currentIndex: 0, speed: calculateDelay(speedKmH) });
-    setAiCoachMsg(null);
-    setOrigin('');
-    setDestination('');
-  };
-
-  const clearTempMarker = () => {
-    if (tempMarker.current) {
-      tempMarker.current.setMap(null);
-      tempMarker.current = null;
-    }
-    setClickedLocation(null);
+    setCoachData(null);
+    setRouteSource(null);
   };
 
   useEffect(() => {
@@ -113,26 +122,22 @@ const App: React.FC = () => {
         zoom: 15,
         mapId: 'ef6d149e63d71cf93952c9bb',
         disableDefaultUI: true,
-        clickableIcons: false,
       });
 
       geocoder.current = new google.maps.Geocoder();
       elevationService.current = new google.maps.ElevationService();
+      coverageLayer.current = new google.maps.StreetViewCoverageLayer();
+      
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
         suppressMarkers: true,
-        polylineOptions: {
-          strokeColor: '#3b82f6',
-          strokeWeight: 5,
-          strokeOpacity: 0.8
-        }
+        polylineOptions: { strokeColor: '#3b82f6', strokeWeight: 5, strokeOpacity: 0.8 }
       });
 
       panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
         visible: false,
         addressControl: false,
         linksControl: false,
-        panControl: true,
         enableCloseButton: true,
         zoomControl: false,
         fullscreenControl: false,
@@ -140,9 +145,7 @@ const App: React.FC = () => {
 
       panorama.current.addListener('visible_changed', () => {
         setIsSvActive(panorama.current.getVisible());
-        setTimeout(() => {
-          if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize');
-        }, 300);
+        setTimeout(() => { if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize'); }, 300);
       });
 
       googleMap.current.addListener('click', (e: any) => {
@@ -154,30 +157,13 @@ const App: React.FC = () => {
               position: latLng,
               map: googleMap.current,
               animation: google.maps.Animation.DROP,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 7,
-                fillColor: '#3b82f6',
-                fillOpacity: 1,
-                strokeWeight: 2,
-                strokeColor: '#ffffff'
-              }
+              icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
             });
 
-            // Fetch elevation (Z coordinate)
-            elevationService.current.getElevationForLocations({
-              locations: [latLng]
-            }, (elevResults: any, elevStatus: string) => {
+            elevationService.current.getElevationForLocations({ locations: [latLng] }, (elevResults: any, elevStatus: string) => {
               const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-              
-              setClickedLocation({
-                lat: latLng.lat(),
-                lng: latLng.lng(),
-                address: results[0].formatted_address,
-                elevation: elevation
-              });
+              setClickedLocation({ lat: latLng.lat(), lng: latLng.lng(), address: results[0].formatted_address, elevation: elevation });
             });
-
             setRouteInputExpanded(true);
           }
         });
@@ -185,20 +171,15 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const addToRecentSearches = (term: string) => {
-    if (!term.trim()) return;
-    setRecentSearches(prev => {
-      const filtered = prev.filter(t => t !== term);
-      const updated = [term, ...filtered].slice(0, 4);
-      localStorage.setItem('recent_searches', JSON.stringify(updated));
-      return updated;
-    });
-  };
+  useEffect(() => {
+    if (googleMap.current && coverageLayer.current) {
+      coverageLayer.current.setMap(showCoverage ? googleMap.current : null);
+    }
+  }, [showCoverage]);
 
   const handlePlaceSearch = (termToSearch?: string) => {
     const finalTerm = termToSearch || searchTerm;
     if (!finalTerm) return;
-    
     geocoder.current.geocode({ address: finalTerm }, (results: any, status: string) => {
       if (status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
@@ -206,275 +187,313 @@ const App: React.FC = () => {
         googleMap.current.setZoom(17);
         if (tempMarker.current) tempMarker.current.setMap(null);
         tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
-        
-        elevationService.current.getElevationForLocations({
-          locations: [loc]
-        }, (elevResults: any, elevStatus: string) => {
+        elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
           const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
           setClickedLocation({ lat: loc.lat(), lng: loc.lng(), address: results[0].formatted_address, elevation: elevation });
         });
-        
-        addToRecentSearches(finalTerm);
         setSearchExpanded(false);
       }
     });
   };
 
-  const calculateRoute = useCallback(async (targetMode?: TravelMode, autoStart: boolean = false) => {
+  const calculateRoute = useCallback(async (targetMode?: TravelMode, autoStart: boolean = false, customOrigin?: string, customDestination?: string) => {
     const activeMode = targetMode || mode;
-    if (!origin || !destination) return;
+    const finalOrigin = customOrigin || origin;
+    const finalDestination = customDestination || destination;
+
+    if (!finalOrigin || !finalDestination) return;
+    
     setLoading(true);
-    setAiCoachMsg(null);
-    setShowAiCoach(true);
-    clearTempMarker(); 
+    setCoachData(null);
+    setRouteSource(null);
+    lastCoachedIndex.current = -1;
+    if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
     
     const ds = new google.maps.DirectionsService();
     const es = new google.maps.ElevationService();
     
     try {
-      const result = await ds.route({ 
-        origin, 
-        destination, 
-        travelMode: google.maps.TravelMode[activeMode] 
-      });
-      
-      if (result.routes[0]) {
-        directionsRenderer.current?.setDirections(result);
-        const path = result.routes[0].overview_path;
+      let path: any[] = [];
+      let distText = '', durText = '';
+
+      try {
+        const result = await ds.route({ origin: finalOrigin, destination: finalDestination, travelMode: google.maps.TravelMode[activeMode] });
+        if (result.routes[0]) {
+          directionsRenderer.current?.setDirections(result);
+          path = result.routes[0].overview_path;
+          distText = result.routes[0].legs[0].distance?.text || '';
+          durText = result.routes[0].legs[0].duration?.text || '';
+          setRouteSource('GOOGLE');
+        }
+      } catch (e) {
+        const originLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalOrigin}, (r:any)=>res(r[0].geometry.location)));
+        const destLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalDestination}, (r:any)=>res(r[0].geometry.location)));
+        const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+        const url = `https://router.project-osrm.org/route/v1/${profile}/${originLatLng.lng()},${originLatLng.lat()};${destLatLng.lng()},${destLatLng.lat()}?overview=full&geometries=polyline`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.code === 'Ok') {
+          path = google.maps.geometry.encoding.decodePath(data.routes[0].geometry);
+          distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
+          durText = `${Math.round(data.routes[0].duration / 60)} min`;
+          setRouteSource('OSRM');
+          polylineOverlay.current = new google.maps.Polyline({ path, strokeColor: '#3b82f6', strokeWeight: 5, map: googleMap.current });
+          const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); googleMap.current.fitBounds(b);
+        }
+      }
+
+      if (path.length > 0) {
         const elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
-        
         if (startMarker.current) startMarker.current.setMap(null);
         if (endMarker.current) endMarker.current.setMap(null);
         startMarker.current = createCustomMarker(path[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
-
-        const newRoute: RouteInfo = {
-          origin, destination,
-          distance: result.routes[0].legs[0].distance?.text || '',
-          duration: result.routes[0].legs[0].duration?.text || '',
-          path, elevation: elevationRes.results,
-        };
-        
-        setRoute(newRoute);
+        setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path, elevation: elevationRes.results });
         
         if (autoStart) {
-          setElevationExpanded(true);
-          setRouteInputExpanded(false);
-          setSimulation(prev => ({ 
-            ...prev, 
-            isActive: true, 
-            currentIndex: 0,
-            speed: calculateDelay(speedKmH)
-          }));
-          const tip = await getCyclingStrategy(elevationRes.results);
-          setAiCoachMsg(tip);
-          speak(tip);
-        } else {
-          setSimulation(prev => ({ 
-            ...prev, 
-            isActive: false, 
-            currentIndex: prev.currentIndex,
-            speed: calculateDelay(speedKmH)
-          }));
+          setSimulation({ isActive: true, currentIndex: 0, speed: calculateDelay(speedKmH) });
+          // Initial Coaching
+          setIsCoachThinking(true);
+          const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
+          setCoachData(firstCoach);
+          speak(firstCoach.tip);
+          setIsCoachThinking(false);
+          lastCoachedIndex.current = 0;
         }
       }
-    } catch (err) {
-      console.error("Route calculation failed:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert("경로를 찾을 수 없습니다."); }
+    finally { setLoading(false); }
   }, [origin, destination, mode, speedKmH]);
 
-  const handleModeChange = (newMode: TravelMode) => {
-    setMode(newMode);
-    if (origin && destination) {
-      calculateRoute(newMode, false);
-    }
-  };
-
   const handleSetStart = () => {
-    if (!clickedLocation) return;
-    setOrigin(clickedLocation.address);
-    if (startMarker.current) startMarker.current.setMap(null);
-    startMarker.current = createCustomMarker({lat: clickedLocation.lat, lng: clickedLocation.lng}, 'A', '#3b82f6');
-    clearTempMarker();
-    if (destination) calculateRoute(mode, false);
+    if (clickedLocation) {
+      const newOrigin = clickedLocation.address;
+      setOrigin(newOrigin);
+      setClickedLocation(null);
+      if (destination) {
+        calculateRoute(mode, false, newOrigin, destination);
+      }
+    }
   };
 
   const handleSetEnd = () => {
-    if (!clickedLocation) return;
-    setDestination(clickedLocation.address);
-    if (endMarker.current) endMarker.current.setMap(null);
-    endMarker.current = createCustomMarker({lat: clickedLocation.lat, lng: clickedLocation.lng}, 'B', '#ef4444');
-    clearTempMarker();
-    if (origin) calculateRoute(mode, false);
+    if (clickedLocation) {
+      const newDest = clickedLocation.address;
+      setDestination(newDest);
+      setClickedLocation(null);
+      if (origin) {
+        calculateRoute(mode, false, origin, newDest);
+      }
+    }
+  };
+
+  const handleModeChange = (newMode: TravelMode) => {
+    setMode(newMode);
+    if (origin && destination && route) {
+       // Optional: Auto recalculate or just set mode
+       // calculateRoute(newMode); 
+    }
   };
 
   useEffect(() => {
     let timer: number;
     if (simulation.isActive && route && simulation.currentIndex < route.path.length) {
-      if (panorama.current && !panorama.current.getVisible()) {
-        const currentPos = route.path[simulation.currentIndex];
-        panorama.current.setPosition(currentPos);
-        panorama.current.setVisible(true);
-      }
-
-      timer = window.setTimeout(() => {
-        const currentPos = route.path[simulation.currentIndex];
-        if (!simulationMarker.current) {
-          simulationMarker.current = new google.maps.Marker({
-            position: currentPos,
-            map: googleMap.current,
-            icon: { 
-              path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, 
-              scale: 5, 
-              fillColor: '#3b82f6', 
-              fillOpacity: 1, 
-              strokeWeight: 2, 
-              strokeColor: '#ffffff',
-              rotation: 0 
-            }
-          });
+      timer = window.setTimeout(async () => {
+        const currentIdx = simulation.currentIndex;
+        const currentPos = route.path[currentIdx];
+        
+        // Dynamic Coaching Trigger: Every 20 indices or if there's a big elevation gap
+        if (currentIdx > 0 && currentIdx % 15 === 0 && currentIdx !== lastCoachedIndex.current) {
+          const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
+          const upcoming = route.elevation.slice(
+            Math.floor((currentIdx/route.path.length)*route.elevation.length), 
+            Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length)
+          );
+          
+          setIsCoachThinking(true);
+          const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH);
+          setCoachData(newCoaching);
+          speak(newCoaching.tip);
+          setIsCoachThinking(false);
+          lastCoachedIndex.current = currentIdx;
         }
-        const nextPos = route.path[simulation.currentIndex + 1] || currentPos;
+
+        if (!simulationMarker.current) {
+          simulationMarker.current = new google.maps.Marker({ position: currentPos, map: googleMap.current, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 5, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' } });
+        }
+        const nextPos = route.path[currentIdx + 1] || currentPos;
         const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPos);
         simulationMarker.current.setPosition(currentPos);
         simulationMarker.current.setOptions({ rotation: heading });
         
         if (panorama.current?.getVisible()) {
           panorama.current.setPosition(currentPos);
-          const currentPov = panorama.current.getPov();
-          panorama.current.setPov({ heading, pitch: currentPov.pitch });
+          panorama.current.setPov({ heading, pitch: panorama.current.getPov().pitch });
         }
         setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
       }, simulation.speed);
-    } else if (simulation.currentIndex >= (route?.path.length || 0)) {
-      setSimulation(prev => ({ ...prev, isActive: false }));
     }
     return () => clearTimeout(timer);
-  }, [simulation, route]);
+  }, [simulation, route, speedKmH]);
 
-  useEffect(() => {
-    setSimulation(prev => ({ ...prev, speed: calculateDelay(speedKmH) }));
-  }, [speedKmH]);
+  const getIntensityColor = (intensity?: string) => {
+    switch(intensity) {
+      case 'MAX': return 'bg-red-600';
+      case 'HIGH': return 'bg-orange-500';
+      case 'MODERATE': return 'bg-yellow-500';
+      default: return 'bg-emerald-500';
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-900 overflow-hidden font-sans relative">
+      {/* STREET VIEW SCREEN */}
       <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? 'h-[50%] opacity-100 z-20 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
+      
+      {/* 2D MAP SCREEN */}
       <div ref={mapRef} className={`flex-1 relative z-10`} />
 
-      {/* 1. LOCATION SEARCH PANEL */}
+      {/* ADVANCED COACH HUD (The Upgrade) */}
+      {simulation.isActive && coachData && (
+        <div className="absolute top-[52%] left-4 right-4 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${isCoachThinking ? 'animate-pulse bg-blue-500' : 'bg-blue-600 shadow-lg shadow-blue-500/20'}`}>
+                  <Activity size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white/50 text-[10px] font-black uppercase tracking-widest leading-none">AI Pro Coach</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black text-white ${getIntensityColor(coachData.intensity)}`}>
+                      {coachData.intensity} EFFORT
+                    </span>
+                    <span className="bg-white/10 px-2 py-0.5 rounded-md text-[9px] font-black text-white/80">
+                      GEAR: {coachData.gear}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                 <div className="text-right">
+                    <p className="text-white font-black text-xl leading-none">{speedKmH}<span className="text-[10px] ml-1 opacity-50">km/h</span></p>
+                 </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-4 items-start bg-white/5 p-3 rounded-2xl border border-white/5">
+              <div className="shrink-0 pt-1">
+                {coachData.action === 'STAND' ? <Zap size={18} className="text-yellow-400" /> : <Volume2 size={18} className={isSpeaking ? "text-blue-400" : "text-white/40"} />}
+              </div>
+              <p className="text-white font-bold text-sm leading-tight flex-1">
+                {coachData.tip}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING TOOLS */}
+      <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
+        <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+          <User size={24} fill={isSvActive ? "currentColor" : "none"} />
+        </button>
+        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+          <RouteIcon size={24} />
+        </button>
+      </div>
+
+      {/* SEARCH PANEL */}
       <div className={`absolute top-4 left-4 z-[60] flex flex-col items-start transition-all duration-300 ease-out overflow-hidden ${searchExpanded ? 'w-[calc(100%-100px)] max-w-[240px]' : 'w-12 h-12'}`}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl flex items-center w-full h-12 border border-slate-200 pr-2">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
           </button>
-          <input 
-            type="text" 
-            placeholder="Search place..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()}
-            className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2"
-          />
+          <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2" />
         </div>
-        
-        {/* Recent Search History Box */}
-        {searchExpanded && recentSearches.length > 0 && (
-          <div className="mt-2 w-full bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in slide-in-from-top-1 duration-200">
-            <div className="px-3 py-1.5 border-b border-slate-100 flex items-center gap-2">
-              <History size={10} className="text-slate-400" />
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recent Searches</span>
-            </div>
-            <div className="flex flex-col">
-              {recentSearches.map((term, i) => (
-                <button 
-                  key={i} 
-                  onClick={() => {
-                    setSearchTerm(term);
-                    handlePlaceSearch(term);
-                  }}
-                  className="px-3 py-1 text-left text-[12px] font-bold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b last:border-0 border-slate-50 flex items-center gap-2"
-                >
-                  <Search size={10} className="text-slate-300 flex-shrink-0" />
-                  <span className="truncate">{term}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* STREET VIEW TOGGLE (Pegman) */}
-      <button 
-        onClick={() => panorama.current?.setVisible(!isSvActive)} 
-        className={`absolute right-4 top-4 z-50 w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}
-      >
-        <User size={24} fill={isSvActive ? "currentColor" : "none"} />
-      </button>
-
-      {/* AI COACH MESSAGE */}
-      {aiCoachMsg && showAiCoach && (
-        <div className="absolute top-20 left-4 z-50 max-w-[70%] animate-in fade-in slide-in-from-left-4 duration-500">
-          <div className={`p-3 rounded-2xl shadow-xl flex gap-3 items-center border border-white/20 transition-all ${isSpeaking ? 'bg-blue-600' : 'bg-slate-900/90 backdrop-blur-md'}`}>
-            <Volume2 size={14} className="text-white shrink-0" />
-            <p className="text-[10px] font-bold text-white leading-snug">{aiCoachMsg}</p>
-            <button onClick={() => { setShowAiCoach(false); window.speechSynthesis.cancel(); }} className="p-1 text-white/40"><X size={8}/></button>
-          </div>
-        </div>
-      )}
-
-      {/* 2. ROUTE PLANNING PANEL */}
+      {/* BOTTOM CONTROL SHEETS (RESTORED UI) */}
       <div className={`absolute bottom-4 left-4 z-[50] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[340px]' : 'w-12 h-12'}`}>
         <div className="bg-white/95 backdrop-blur-md rounded-[2.5rem] shadow-2xl flex items-stretch w-full border border-slate-200 p-1">
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className="flex-shrink-0 w-10 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {routeInputExpanded ? <ChevronLeft size={20} /> : <Navigation size={20} />}
           </button>
-          
           {routeInputExpanded && (
-            <>
-              <div className="flex-1 px-2 py-2 space-y-2">
-                <div className="flex flex-col gap-[2px]">
-                  <input type="text" placeholder="Start..." value={origin} onChange={(e) => setOrigin(e.target.value)} className="w-full bg-slate-50 rounded-xl py-2 px-3 text-slate-900 font-bold text-[12px] outline-none border border-transparent focus:border-blue-400" />
-                  <input type="text" placeholder="Goal..." value={destination} onChange={(e) => setDestination(e.target.value)} className="w-full bg-slate-50 rounded-xl py-2 px-3 text-slate-900 font-bold text-[12px] outline-none border border-transparent focus:border-blue-400" />
+            <div className="flex-1 px-3 py-2 flex flex-col gap-2">
+              {/* Inputs */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Start Point"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
+                    className="flex-1 bg-transparent text-slate-900 font-bold text-xs outline-none placeholder:text-slate-400"
+                  />
                 </div>
-                <div className="flex gap-1.5">
-                  {Object.values(TravelMode).map((m) => (
-                    <button 
-                      key={m} 
-                      onClick={() => handleModeChange(m)} 
-                      className={`flex-1 py-2 rounded-xl text-[12px] font-black transition-all ${mode === m ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}
-                    >
-                      {m === TravelMode.BICYCLING ? 'BIKE' : m === TravelMode.WALKING ? 'WALK' : 'DRIVE'}
-                    </button>
-                  ))}
-                  <button onClick={() => calculateRoute(mode, true)} disabled={loading || !origin || !destination} className="flex-1 bg-blue-600 text-white font-black text-[12px] rounded-xl shadow-md disabled:bg-slate-200 active:scale-95 transition-transform">
-                    {loading ? '...' : 'GO'}
-                  </button>
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
+                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Destination"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    className="flex-1 bg-transparent text-slate-900 font-bold text-xs outline-none placeholder:text-slate-400"
+                  />
                 </div>
               </div>
 
-              {/* VERTICAL SPEED DIAL (10km - 120km) */}
-              <div className="w-12 flex flex-col items-center border-l border-slate-100 py-1 overflow-hidden">
-                <span className="text-[6px] font-black text-slate-400 uppercase mb-0.5">km/h</span>
-                <div className="flex-1 overflow-y-auto space-y-[1px] px-1 scrollbar-hide flex flex-col items-center max-h-[100px]">
-                  {Array.from({length: 12}, (_, i) => (i + 1) * 10).map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => setSpeedKmH(speed)}
-                      className={`flex-shrink-0 w-full py-0.5 rounded-lg text-[12px] font-black transition-all text-center ${speedKmH === speed ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                      {speed}
-                    </button>
-                  ))}
-                </div>
+              {/* Mode Selection & GO */}
+              <div className="flex gap-2 h-9">
+                <button 
+                  onClick={() => handleModeChange(TravelMode.BICYCLING)} 
+                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.BICYCLING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                >
+                  <Bike size={16} />
+                </button>
+                <button 
+                  onClick={() => handleModeChange(TravelMode.WALKING)} 
+                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.WALKING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                >
+                  <Footprints size={16} />
+                </button>
+                <button 
+                  onClick={() => handleModeChange(TravelMode.DRIVING)} 
+                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.DRIVING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                >
+                  <Car size={16} />
+                </button>
+                <button
+                  onClick={() => calculateRoute(mode, true)}
+                  disabled={loading}
+                  className="px-5 bg-blue-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-transform flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Activity className="animate-spin" size={16} /> : 'GO'}
+                </button>
               </div>
-            </>
+
+              {/* Speed Dial - Compact */}
+              <div className="h-8 bg-slate-50 rounded-xl px-3 flex items-center gap-3">
+                <span className="text-[10px] font-bold text-slate-400">SPD</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="10"
+                  value={speedKmH}
+                  onChange={(e) => setSpeedKmH(Number(e.target.value))}
+                  className="flex-1 h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <span className="text-[10px] font-black text-slate-900 w-6 text-right">{speedKmH}</span>
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* 3. ELEVATION PANEL */}
+      {/* ELEVATION PANEL */}
       {route && (
         <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out overflow-hidden ${elevationExpanded ? 'w-[80%] max-w-md' : 'w-12 h-12'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1">
@@ -484,29 +503,22 @@ const App: React.FC = () => {
             {elevationExpanded && (
               <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center px-1">
-                  <div className="min-w-0">
-                    <h2 className="text-slate-900 font-black text-sm tracking-tighter leading-none">{route.distance}</h2>
-                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{route.duration}</p>
+                  <div>
+                    <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
+                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
                   </div>
                   <div className="flex gap-1 items-center">
-                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>
-                      {simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
+                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>
+                      {simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                     </button>
-                    <button onClick={() => setSimulation({ ...simulation, isActive: true, currentIndex: 0 })} className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center"><RotateCcw size={14} /></button>
                     <button onClick={clearMapOverlays} className="w-8 h-8 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={route.elevation} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorElev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="elevation" stroke="#3b82f6" strokeWidth={1.5} fill="url(#colorElev)" isAnimationActive={false} />
-                      <ReferenceLine x={Math.floor((simulation.currentIndex / route.path.length) * (route.elevation.length - 1))} stroke="#ffffff" strokeWidth={1} strokeDasharray="2 2" />
+                      <Area type="monotone" dataKey="elevation" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} isAnimationActive={false} />
+                      <ReferenceLine x={Math.floor((simulation.currentIndex / route.path.length) * (route.elevation.length - 1))} stroke="#ffffff" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -516,36 +528,15 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* CLICKED LOCATION POPUP */}
+      {/* LOCATION POPUP */}
       {clickedLocation && (
-        <div className="absolute top-[25%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[280px] animate-in slide-in-from-bottom-2 duration-300">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200">
-            <button onClick={clearTempMarker} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5 shadow-lg"><X size={10}/></button>
-            <div className="flex items-center gap-2 mb-[2px]">
-              <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600 flex-shrink-0"><MapPin size={14} /></div>
-              <p className="text-slate-800 text-[12px] font-bold leading-snug">{clickedLocation.address}</p>
-            </div>
-            
-            {/* Simple XYZ Coordinates Display */}
-            <div className="mb-[2px] p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-slate-700 truncate">{clickedLocation.lat.toFixed(6)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-slate-700 truncate">{clickedLocation.lng.toFixed(6)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-blue-600 truncate">
-                    {clickedLocation.elevation !== null ? `${clickedLocation.elevation.toFixed(1)}m` : '---'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mt-[2px]">
-              <button onClick={handleSetStart} className="py-2.5 bg-blue-50 text-blue-700 rounded-xl text-[12px] font-black uppercase tracking-tight active:scale-95 transition-transform">START (A)</button>
-              <button onClick={handleSetEnd} className="py-2.5 bg-blue-600 text-white rounded-xl text-[12px] font-black uppercase tracking-tight active:scale-95 transition-transform shadow-md">END (B)</button>
+        <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[280px]">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
+            <button onClick={() => setClickedLocation(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
+            <p className="text-slate-800 text-[11px] font-bold mb-2 truncate">{clickedLocation.address}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={handleSetStart} className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black">START (A)</button>
+              <button onClick={handleSetEnd} className="py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black">END (B)</button>
             </div>
           </div>
         </div>

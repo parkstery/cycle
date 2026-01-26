@@ -4,14 +4,12 @@ export interface RouteInfo {
   destination: string;
   distance: string;
   duration: string;
-  // Use any to avoid missing google namespace error
   path: any[];
   elevation: ElevationPoint[];
 }
 
 export interface ElevationPoint {
   elevation: number;
-  // Use any to avoid missing google namespace error
   location: any;
   resolution: number;
 }
@@ -26,4 +24,11 @@ export interface SimulationState {
   isActive: boolean;
   currentIndex: number;
   speed: number;
+}
+
+export interface CoachingData {
+  tip: string;
+  gear: string; // e.g., "LOW", "MID", "HIGH"
+  intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
+  action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
 }
