@@ -7,6 +7,15 @@ import { getAdvancedCoaching } from './services/aiCoach';
 // Declare google global
 declare var google: any;
 
+const PLAYLIST = [
+  "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
+  "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=hsarn2s1&raw=1",
+  "https://www.dropbox.com/scl/fi/8fbdd1t6v18z2m17ecidt/1.mp3?rlkey=sm15ow3aun8az4z6y2vseefy0&st=kbmlsn1m&raw=1",
+  "https://www.dropbox.com/scl/fi/bvtw5s1pimhv42k3bgdxh/.mp3?rlkey=6ujd668vw7kzioe277gkqvsq7&st=cq1x65f8&raw=1",
+  "https://www.dropbox.com/scl/fi/j1hzv2yx22uc0xl9redbj/1.mp3?rlkey=vjay2iyw06u84gygzxcoatz9w&st=9so3eh5n&raw=1",
+  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1"
+];
+
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -25,10 +34,15 @@ const App: React.FC = () => {
   const coverageLayer = useRef<any>(null);
   const svErrorCount = useRef(0);
 
+  // Audio References
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeIntervalRef = useRef<number | null>(null);
+  const simulationActiveRef = useRef(false); // To track state inside event listeners
+
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 500 });
-  const [speedKmH, setSpeedKmH] = useState(60); 
+  const [speedKmH, setSpeedKmH] = useState(20); 
   const [mode, setMode] = useState<TravelMode>(TravelMode.BICYCLING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -68,6 +82,11 @@ const App: React.FC = () => {
 
   const calculateDelay = (kmh: number) => Math.max(100, 2000 - (kmh * 15.8));
 
+  // Update refs when state changes
+  useEffect(() => {
+    simulationActiveRef.current = simulation.isActive;
+  }, [simulation.isActive]);
+
   // Update simulation speed when dial changes
   useEffect(() => {
     if (simulation.isActive) {
@@ -83,14 +102,97 @@ const App: React.FC = () => {
     }, 550); // Matches the CSS transition duration
   }, [isSvFullScreen]);
 
+  // --- AUDIO LOGIC ---
+  const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    
+    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+
+    const stepTime = 50;
+    const steps = duration / stepTime;
+    const volumeStep = (targetVolume - audio.volume) / steps;
+
+    fadeIntervalRef.current = window.setInterval(() => {
+      let newVolume = audio.volume + volumeStep;
+      
+      // Clamp
+      if (volumeStep > 0 && newVolume >= targetVolume) newVolume = targetVolume;
+      if (volumeStep < 0 && newVolume <= targetVolume) newVolume = targetVolume;
+
+      // Ensure valid range
+      newVolume = Math.max(0, Math.min(1, newVolume));
+      
+      audio.volume = newVolume;
+
+      if (newVolume === targetVolume) {
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+        if (onComplete) onComplete();
+      }
+    }, stepTime);
+  };
+
+  const playRandomMusic = () => {
+    if (!audioRef.current) return;
+    
+    // Pick a random track different from the current src if possible, but simple random is fine for now
+    const track = PLAYLIST[Math.floor(Math.random() * PLAYLIST.length)];
+    
+    audioRef.current.src = track;
+    audioRef.current.volume = 0; // Start at 0 for fade in
+    audioRef.current.play().catch(e => console.log("Audio autoplay blocked or failed", e));
+    fadeAudio(0.3); // Fade in to 30% volume
+  };
+
+  useEffect(() => {
+    // Initialize Audio Object
+    if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.addEventListener('ended', () => {
+            // Check ref because closure state might be stale
+            if (simulationActiveRef.current) {
+                playRandomMusic();
+            }
+        });
+    }
+
+    return () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    };
+  }, []);
+
+  // Watch simulation active state to trigger music
+  useEffect(() => {
+    if (simulation.isActive) {
+        // If music is paused, start playing random track
+        if (audioRef.current && audioRef.current.paused) {
+            playRandomMusic();
+        }
+    } else {
+        // If simulation stops, fade out and pause
+        if (audioRef.current && !audioRef.current.paused) {
+            fadeAudio(0, 2000, () => {
+                audioRef.current?.pause();
+            });
+        }
+    }
+  }, [simulation.isActive]);
+  // -------------------
+
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Always use English
     utterance.lang = 'en-US'; 
     
-    // Attempt to select a female English voice
     const voices = window.speechSynthesis.getVoices();
+    // Prioritize English female/natural voices
     const preferredVoice = voices.find(voice => 
       voice.lang.startsWith('en') && 
       (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
@@ -140,6 +242,7 @@ const App: React.FC = () => {
     if (route && route.path.length > 0) {
       setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
       lastCoachedIndex.current = -1;
+      speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
     }
   };
 
@@ -410,7 +513,10 @@ const App: React.FC = () => {
           setIsCoachThinking(true);
           const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
           setCoachData(firstCoach);
-          speak(firstCoach.tip);
+          
+          // Start Announcement
+          speak(`Starting the ride. Total distance ${distText}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
+          
           setIsCoachThinking(false);
           lastCoachedIndex.current = 0;
         }
@@ -467,7 +573,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let timer: number;
-    if (simulation.isActive && route && simulation.currentIndex < route.path.length) {
+    // Main simulation loop
+    if (simulation.isActive && route) {
+      // Check for finish condition
+      if (simulation.currentIndex >= route.path.length - 1) {
+          setSimulation(prev => ({ ...prev, isActive: false }));
+          const youthPercent = 5; // Fixed 5% as per request
+          speak(`Ride finished. Distance covered ${route.distance}, duration ${route.duration}. You have filled ${youthPercent}% of your daily youth.`);
+          return;
+      }
+
       timer = window.setTimeout(async () => {
         const currentIdx = simulation.currentIndex;
         const currentPos = route.path[currentIdx];
@@ -511,7 +626,7 @@ const App: React.FC = () => {
       }, simulation.speed);
     }
     return () => clearTimeout(timer);
-  }, [simulation, route, speedKmH, isSvFullScreen]); // Added isSvFullScreen dependency
+  }, [simulation, route, speedKmH, isSvFullScreen]); 
 
   const getIntensityColor = (intensity?: string) => {
     switch(intensity) {
@@ -548,7 +663,7 @@ const App: React.FC = () => {
       {/* 2D MAP SCREEN (Mini-Map Transformation) */}
       <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${
           isSvFullScreen 
-             ? "absolute bottom-36 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" 
+             ? "absolute top-[66px] left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" 
              : (isSvActive 
                  ? "absolute bottom-0 left-0 right-0 h-[50%] z-10"
                  : "absolute inset-0 z-10")
@@ -556,7 +671,7 @@ const App: React.FC = () => {
 
       {/* ADVANCED COACH HUD (Topmost, Overlaps with Search) */}
       {simulation.isActive && coachData && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-[60%] pointer-events-none flex justify-center">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
              <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">
                 {coachData.tip}
@@ -581,7 +696,7 @@ const App: React.FC = () => {
       </div>
 
       {/* SEARCH PANEL */}
-      <div className={`absolute top-4 left-4 z-[60] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl border border-slate-200 overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl' : 'w-12 h-12 rounded-full'}`}>
+      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl border border-slate-200 overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl' : 'w-12 h-12 rounded-full'}`}>
         <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
