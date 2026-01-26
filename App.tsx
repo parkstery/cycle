@@ -356,15 +356,22 @@ const App: React.FC = () => {
         simulationMarker.current.setPosition(currentPos);
         simulationMarker.current.setOptions({ rotation: heading });
         
+        // Sync SV
         if (panorama.current?.getVisible()) {
           panorama.current.setPosition(currentPos);
           panorama.current.setPov({ heading, pitch: panorama.current.getPov().pitch });
         }
+
+        // Auto-center MiniMap if in FullScreen mode
+        if (isSvFullScreen && googleMap.current) {
+          googleMap.current.panTo(currentPos);
+        }
+
         setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
       }, simulation.speed);
     }
     return () => clearTimeout(timer);
-  }, [simulation, route, speedKmH]);
+  }, [simulation, route, speedKmH, isSvFullScreen]); // Added isSvFullScreen dependency
 
   const getIntensityColor = (intensity?: string) => {
     switch(intensity) {
@@ -390,8 +397,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* 2D MAP SCREEN */}
-      <div ref={mapRef} className={`flex-1 relative z-10`} />
+      {/* 2D MAP SCREEN (Mini-Map Transformation) */}
+      <div ref={mapRef} className={isSvFullScreen ? "absolute bottom-48 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl transition-all duration-500 ease-in-out overflow-hidden" : "flex-1 relative z-10 transition-all duration-500 ease-in-out"} />
 
       {/* ADVANCED COACH HUD (Simplified & Moved to Top) */}
       {simulation.isActive && coachData && (
