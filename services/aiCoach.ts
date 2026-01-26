@@ -39,16 +39,17 @@ export const getAdvancedCoaching = async (
   }
 
   // 2. Determine Gear based on Slope (PM's Strict Table)
-  let recommendedGear = 6; // Default to Flat (Gear 6)
+  let recommendedGear = 4; // Default to Flat (Gear 4)
   
-  if (slope >= 10) recommendedGear = 1;      // 10% or more
-  else if (slope >= 7) recommendedGear = 2;  // 7% ~ 10%
-  else if (slope >= 5) recommendedGear = 3;  // 5% ~ 7%
-  else if (slope >= 3) recommendedGear = 4;  // 3% ~ 5%
+  // Reversed logic: Higher slope -> Higher gear number (centered on Flat=4)
+  if (slope >= 10) recommendedGear = 8;      // 10% or more
+  else if (slope >= 7) recommendedGear = 8;  // 7% ~ 10%
+  else if (slope >= 5) recommendedGear = 7;  // 5% ~ 7%
+  else if (slope >= 3) recommendedGear = 6;  // 3% ~ 5%
   else if (slope >= 1) recommendedGear = 5;  // 1% ~ 3%
-  else if (slope >= -1) recommendedGear = 6; // -1% ~ +1% (Flat)
-  else if (slope >= -3) recommendedGear = 7; // -1% ~ -3%
-  else recommendedGear = 8;                  // -3% or less
+  else if (slope >= -1) recommendedGear = 4; // -1% ~ +1% (Flat)
+  else if (slope >= -3) recommendedGear = 3; // -1% ~ -3%
+  else recommendedGear = 2;                  // -3% or less
 
   // Map to ordinal strings
   const ordinals: {[key: number]: string} = {

@@ -53,10 +53,17 @@ const App: React.FC = () => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // History States
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    const saved = localStorage.getItem('recent_searches');
+    const saved = localStorage.getItem('recent_searches'); // Route history
     return saved ? JSON.parse(saved) : [];
   });
+  const [recentPlaceSearches, setRecentPlaceSearches] = useState<string[]>(() => {
+    const saved = localStorage.getItem('recent_places'); // Place search history
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, name?: string, address: string, elevation: number | null} | null>(null);
 
   const calculateDelay = (kmh: number) => Math.max(100, 2000 - (kmh * 15.8));
@@ -68,12 +75,12 @@ const App: React.FC = () => {
     }
   }, [speedKmH]);
 
-  // Trigger resize when SV fullscreen state changes
+  // Trigger resize when SV fullscreen state changes (Animation Handling)
   useEffect(() => {
     setTimeout(() => {
       if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize');
       if (panorama.current) google.maps.event.trigger(panorama.current, 'resize');
-    }, 550);
+    }, 550); // Matches the CSS transition duration
   }, [isSvFullScreen]);
 
   const speak = (text: string) => {
@@ -257,43 +264,57 @@ const App: React.FC = () => {
     const finalTerm = termToSearch || searchTerm;
     if (!finalTerm) return;
 
-    // Use PlacesService to find a place by query (prioritizing names)
-    if (placesService.current) {
-        const request = {
-            query: finalTerm,
-            fields: ['name', 'geometry', 'formatted_address']
-        };
-        
-        placesService.current.findPlaceFromQuery(request, (results: any, status: string) => {
-             if (status === 'OK' && results && results.length > 0) {
-                 const place = results[0];
-                 const loc = place.geometry.location;
-                 
-                 googleMap.current.setCenter(loc);
-                 googleMap.current.setZoom(17);
-                 
-                 if (tempMarker.current) tempMarker.current.setMap(null);
-                 tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
+    const performSearch = (term: string) => {
+         // Save to place history
+         setRecentPlaceSearches(prev => {
+            const filtered = prev.filter(item => item !== term);
+            const updated = [term, ...filtered].slice(0, 3);
+            localStorage.setItem('recent_places', JSON.stringify(updated));
+            return updated;
+         });
 
-                 elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
-                    const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-                    setClickedLocation({ 
-                        lat: loc.lat(), 
-                        lng: loc.lng(), 
-                        name: place.name, // Use the specific place name
-                        address: place.formatted_address, 
-                        elevation: elevation 
+         // Use PlacesService to find a place by query (prioritizing names)
+         if (placesService.current) {
+            const request = {
+                query: term,
+                fields: ['name', 'geometry', 'formatted_address']
+            };
+            
+            placesService.current.findPlaceFromQuery(request, (results: any, status: string) => {
+                if (status === 'OK' && results && results.length > 0) {
+                    const place = results[0];
+                    const loc = place.geometry.location;
+                    
+                    googleMap.current.setCenter(loc);
+                    googleMap.current.setZoom(17);
+                    
+                    if (tempMarker.current) tempMarker.current.setMap(null);
+                    tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
+
+                    elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
+                        const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
+                        setClickedLocation({ 
+                            lat: loc.lat(), 
+                            lng: loc.lng(), 
+                            name: place.name, // Use the specific place name
+                            address: place.formatted_address, 
+                            elevation: elevation 
+                        });
                     });
-                 });
-                 setSearchExpanded(false);
-             } else {
-                 // Fallback to standard geocoding if Place search fails
-                 fallbackGeocode(finalTerm);
-             }
-        });
-    } else {
-        fallbackGeocode(finalTerm);
+                    // Only collapse if we triggered from the input enter key, not the list click?
+                    // Actually let's keep it open or close it based on preference. 
+                    // Let's close it for cleaner UI.
+                    setSearchExpanded(false); 
+                } else {
+                    fallbackGeocode(term);
+                }
+            });
+        } else {
+            fallbackGeocode(term);
+        }
     }
+
+    performSearch(finalTerm);
   };
 
   const fallbackGeocode = (term: string) => {
@@ -431,6 +452,11 @@ const App: React.FC = () => {
       }
   };
 
+  const handlePlaceHistoryClick = (term: string) => {
+      setSearchTerm(term);
+      handlePlaceSearch(term);
+  };
+
   const handleModeChange = (newMode: TravelMode) => {
     setMode(newMode);
     if (origin && destination && route) {
@@ -497,14 +523,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-slate-900 overflow-hidden font-sans relative">
+    <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
       {/* STREET VIEW SCREEN */}
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out ${
+      <div 
+        ref={svRef} 
+        className={`bg-black transition-all duration-500 ease-in-out ${
         isSvActive 
           ? (isSvFullScreen 
-              ? 'fixed inset-0 w-screen h-[100dvh] z-40 opacity-100' // Changed to fixed inset-0 to guarantee viewport fill
-              : 'relative h-[50%] w-full z-20 opacity-100 border-b-2 border-slate-700') 
-          : 'h-0 opacity-0 pointer-events-none z-0'
+              ? 'absolute inset-0 z-40 opacity-100' 
+              : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') 
+          : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'
       }`} />
       
       {/* NO STREET VIEW WARNING OVERLAY */}
@@ -518,7 +546,13 @@ const App: React.FC = () => {
       )}
 
       {/* 2D MAP SCREEN (Mini-Map Transformation) */}
-      <div ref={mapRef} className={isSvFullScreen ? "absolute bottom-36 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl transition-all duration-500 ease-in-out overflow-hidden" : "flex-1 relative z-10 transition-all duration-500 ease-in-out"} />
+      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${
+          isSvFullScreen 
+             ? "absolute bottom-36 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" 
+             : (isSvActive 
+                 ? "absolute bottom-0 left-0 right-0 h-[50%] z-10"
+                 : "absolute inset-0 z-10")
+      }`} />
 
       {/* ADVANCED COACH HUD (Topmost, Overlaps with Search) */}
       {simulation.isActive && coachData && (
@@ -547,13 +581,25 @@ const App: React.FC = () => {
       </div>
 
       {/* SEARCH PANEL */}
-      <div className={`absolute top-4 left-4 z-[60] flex flex-col items-start transition-all duration-300 ease-out overflow-hidden ${searchExpanded ? 'w-[calc(100%-100px)] max-w-[240px]' : 'w-12 h-12'}`}>
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl flex items-center w-full h-12 border border-slate-200 pr-2">
+      <div className={`absolute top-4 left-4 z-[60] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl border border-slate-200 overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl' : 'w-12 h-12 rounded-full'}`}>
+        <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
           </button>
           <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2" />
         </div>
+        {/* Recent Place History */}
+        {searchExpanded && recentPlaceSearches.length > 0 && (
+          <div className="w-full flex flex-col px-2 pb-2 gap-1 border-t border-slate-100">
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider px-1 mt-1">Recent</span>
+            {recentPlaceSearches.map((term, idx) => (
+              <button key={idx} onClick={() => handlePlaceHistoryClick(term)} className="text-left w-full truncate text-[11px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-1 transition-colors flex items-center gap-2">
+                 <History size={10} className="text-slate-400"/>
+                 {term}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* BOTTOM CONTROL SHEETS (Redesigned Split View) */}
@@ -565,8 +611,8 @@ const App: React.FC = () => {
           
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
-                {/* LEFT COLUMN: Inputs & Controls */}
-                <div className="flex-[1.2] flex flex-col justify-center gap-1.5">
+                {/* LEFT COLUMN: Inputs & Controls - COMPACT FIXED WIDTH */}
+                <div className="w-40 flex-none flex flex-col justify-center gap-1.5">
                     {/* Start Input */}
                     <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
                         <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
@@ -589,17 +635,17 @@ const App: React.FC = () => {
                     </div>
                     
                     {/* Controls */}
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-2 mt-1">
                         <button
                             onClick={() => calculateRoute(mode, true)}
                             disabled={loading}
-                            className="bg-blue-700 text-white rounded-lg px-4 h-8 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 min-w-[60px]"
+                            className="bg-blue-700 text-white rounded-lg px-3 h-8 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 shrink-0"
                         >
                             {loading ? <Activity size={16} className="animate-spin" /> : 'Go'}
                         </button>
                         
-                        <div className="flex items-center gap-2 flex-1">
-                             <span className="text-[10px] font-bold text-slate-500">SPD</span>
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                             <span className="text-[9px] font-bold text-slate-500 shrink-0">SPD</span>
                              <input
                                 type="range"
                                 min="10"
@@ -607,9 +653,9 @@ const App: React.FC = () => {
                                 step="10"
                                 value={speedKmH}
                                 onChange={(e) => setSpeedKmH(Number(e.target.value))}
-                                className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 min-w-0"
                             />
-                            <span className="text-[10px] font-bold text-slate-700 w-4 text-right">{speedKmH}</span>
+                            <span className="text-[9px] font-bold text-slate-700 w-3 text-right shrink-0">{speedKmH}</span>
                         </div>
                     </div>
                 </div>
