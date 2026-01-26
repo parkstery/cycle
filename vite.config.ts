@@ -5,9 +5,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react()],
+    build: {
+      outDir: 'dist',
+    },
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      // Polyfill process.env for libs that might expect it
       'process.env': {}
     }
   };
