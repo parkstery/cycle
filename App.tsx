@@ -128,6 +128,13 @@ const App: React.FC = () => {
     setShowSvWarning(false);
   };
 
+  const restartSimulation = () => {
+    if (route && route.path.length > 0) {
+      setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
+      lastCoachedIndex.current = -1;
+    }
+  };
+
   useEffect(() => {
     if (mapRef.current && !googleMap.current) {
       googleMap.current = new google.maps.Map(mapRef.current, {
@@ -385,7 +392,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-slate-900 overflow-hidden font-sans relative">
       {/* STREET VIEW SCREEN */}
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40' : 'h-[50%] z-20') + ' opacity-100 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
+      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40 opacity-100' : 'h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'h-0 opacity-0 pointer-events-none z-0'}`} />
       
       {/* NO STREET VIEW WARNING OVERLAY */}
       {isSvActive && showSvWarning && (
@@ -509,6 +516,9 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
                   </div>
                   <div className="flex gap-1 items-center">
+                    <button onClick={restartSimulation} className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                      <RotateCcw size={14} />
+                    </button>
                     <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>
                       {simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                     </button>
