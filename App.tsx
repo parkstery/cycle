@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [isSvFullScreen, setIsSvFullScreen] = useState(false);
   const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [svStatus, setSvStatus] = useState<string>('OK');
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   
   // Advanced Coach State
@@ -150,6 +151,12 @@ const App: React.FC = () => {
         enableCloseButton: true,
         zoomControl: false,
         fullscreenControl: false,
+      });
+
+      panorama.current.addListener('status_changed', () => {
+        if (panorama.current) {
+          setSvStatus(panorama.current.getStatus());
+        }
       });
 
       panorama.current.addListener('visible_changed', () => {
@@ -359,6 +366,16 @@ const App: React.FC = () => {
       {/* STREET VIEW SCREEN */}
       <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40' : 'h-[50%] z-20') + ' opacity-100 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
       
+      {/* NO STREET VIEW WARNING OVERLAY */}
+      {isSvActive && svStatus === 'ZERO_RESULTS' && (
+        <div className={`absolute left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center pointer-events-none ${isSvFullScreen ? 'top-1/2 -translate-y-1/2' : 'top-[25%] -translate-y-1/2'}`}>
+          <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in zoom-in duration-300">
+             <ShieldAlert size={20} className="text-amber-500 animate-pulse" />
+             <span className="text-white font-bold text-sm">거리뷰 이미지가 없는 구간입니다.</span>
+          </div>
+        </div>
+      )}
+
       {/* 2D MAP SCREEN */}
       <div ref={mapRef} className={`flex-1 relative z-10`} />
 
