@@ -400,14 +400,11 @@ const App: React.FC = () => {
       {/* 2D MAP SCREEN (Mini-Map Transformation) */}
       <div ref={mapRef} className={isSvFullScreen ? "absolute bottom-48 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl transition-all duration-500 ease-in-out overflow-hidden" : "flex-1 relative z-10 transition-all duration-500 ease-in-out"} />
 
-      {/* ADVANCED COACH HUD (Simplified & Moved to Top) */}
+      {/* ADVANCED COACH HUD (Removed Icon, Constrained Width, Multi-line) */}
       {simulation.isActive && coachData && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 w-auto max-w-[90%] pointer-events-none">
-          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-full px-6 py-2 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
-             <div className="shrink-0">
-                {coachData.action === 'STAND' ? <Zap size={16} className="text-yellow-400" /> : <Volume2 size={16} className={isSpeaking ? "text-blue-400 animate-pulse" : "text-white/60"} />}
-             </div>
-             <p className="text-white font-medium text-sm leading-none whitespace-nowrap">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 w-full max-w-[60%] pointer-events-none flex justify-center">
+          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
+             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">
                 {coachData.tip}
              </p>
           </div>
@@ -439,70 +436,41 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM CONTROL SHEETS (RESTORED UI) */}
-      <div className={`absolute bottom-4 left-4 z-[50] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[340px]' : 'w-12 h-12'}`}>
-        <div className="bg-white/95 backdrop-blur-md rounded-[2.5rem] shadow-2xl flex items-stretch w-full border border-slate-200 p-1">
-          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className="flex-shrink-0 w-10 flex items-center justify-center text-slate-500 hover:text-blue-600">
+      {/* BOTTOM CONTROL SHEETS (Simple Compact Redesign) */}
+      <div className={`absolute bottom-4 left-4 z-[50] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[320px]' : 'w-12 h-12'}`}>
+        <div className="bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row items-center w-full border border-slate-200 p-2 relative">
+          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600">
             {routeInputExpanded ? <ChevronLeft size={20} /> : <Navigation size={20} />}
           </button>
+          
           {routeInputExpanded && (
-            <div className="flex-1 px-3 py-2 flex flex-col gap-2">
-              {/* Inputs */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                  <input
-                    type="text"
+            <div className="flex-1 flex flex-col gap-2 pl-1 pr-2 py-1">
+              <div className="flex flex-col gap-2">
+                {/* Start Point Input */}
+                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                  <div className="w-3 h-3 rounded-full bg-blue-600 shrink-0" />
+                  <input 
+                    className="flex-1 text-sm outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent"
                     placeholder="Start Point"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
-                    className="flex-1 bg-transparent text-slate-900 font-bold text-xs outline-none placeholder:text-slate-400"
                   />
                 </div>
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100">
-                  <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                  <input
-                    type="text"
+                {/* Destination Input */}
+                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                  <div className="w-3 h-3 rounded-full bg-red-600 shrink-0" />
+                  <input 
+                    className="flex-1 text-sm outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent"
                     placeholder="Destination"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
-                    className="flex-1 bg-transparent text-slate-900 font-bold text-xs outline-none placeholder:text-slate-400"
                   />
                 </div>
               </div>
 
-              {/* Mode Selection & GO */}
-              <div className="flex gap-2 h-9">
-                <button 
-                  onClick={() => handleModeChange(TravelMode.BICYCLING)} 
-                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.BICYCLING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                >
-                  <Bike size={16} />
-                </button>
-                <button 
-                  onClick={() => handleModeChange(TravelMode.WALKING)} 
-                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.WALKING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                >
-                  <Footprints size={16} />
-                </button>
-                <button 
-                  onClick={() => handleModeChange(TravelMode.DRIVING)} 
-                  className={`flex-1 rounded-xl flex items-center justify-center transition-all ${mode === TravelMode.DRIVING ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                >
-                  <Car size={16} />
-                </button>
-                <button
-                  onClick={() => calculateRoute(mode, true)}
-                  disabled={loading}
-                  className="px-5 bg-blue-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-transform flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? <Activity className="animate-spin" size={16} /> : 'GO'}
-                </button>
-              </div>
-
-              {/* Speed Dial - Compact */}
-              <div className="h-8 bg-slate-50 rounded-xl px-3 flex items-center gap-3">
-                <span className="text-[10px] font-bold text-slate-400">SPD</span>
+              {/* Controls Row (SPD | Slider | Value | Go) */}
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-xs font-bold text-slate-500">SPD</span>
                 <input
                   type="range"
                   min="10"
@@ -510,9 +478,16 @@ const App: React.FC = () => {
                   step="10"
                   value={speedKmH}
                   onChange={(e) => setSpeedKmH(Number(e.target.value))}
-                  className="flex-1 h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
-                <span className="text-[10px] font-black text-slate-900 w-6 text-right">{speedKmH}</span>
+                <span className="text-xs font-bold text-slate-700 w-5 text-right">{speedKmH}</span>
+                <button
+                  onClick={() => calculateRoute(mode, true)}
+                  disabled={loading}
+                  className="bg-blue-700 text-white rounded-lg px-4 py-1.5 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
+                >
+                  {loading ? <Activity size={16} className="animate-spin" /> : 'Go'}
+                </button>
               </div>
             </div>
           )}
