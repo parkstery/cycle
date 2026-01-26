@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2 } from 'lucide-react';
@@ -23,6 +22,7 @@ const App: React.FC = () => {
   const elevationService = useRef<any>(null);
   const polylineOverlay = useRef<any>(null);
   const coverageLayer = useRef<any>(null);
+  const svErrorCount = useRef(0);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [svStatus, setSvStatus] = useState<string>('OK');
+  const [showSvWarning, setShowSvWarning] = useState(false);
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   
   // Advanced Coach State
@@ -123,6 +124,8 @@ const App: React.FC = () => {
     setSimulation({ isActive: false, currentIndex: 0, speed: calculateDelay(speedKmH) });
     setCoachData(null);
     setRouteSource(null);
+    svErrorCount.current = 0;
+    setShowSvWarning(false);
   };
 
   useEffect(() => {
@@ -155,7 +158,18 @@ const App: React.FC = () => {
 
       panorama.current.addListener('status_changed', () => {
         if (panorama.current) {
-          setSvStatus(panorama.current.getStatus());
+          const status = panorama.current.getStatus();
+          setSvStatus(status);
+          
+          if (status === 'OK') {
+            svErrorCount.current = 0;
+            setShowSvWarning(false);
+          } else {
+            svErrorCount.current += 1;
+            if (svErrorCount.current >= 5) {
+              setShowSvWarning(true);
+            }
+          }
         }
       });
 
@@ -367,7 +381,7 @@ const App: React.FC = () => {
       <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40' : 'h-[50%] z-20') + ' opacity-100 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
       
       {/* NO STREET VIEW WARNING OVERLAY */}
-      {isSvActive && svStatus === 'ZERO_RESULTS' && (
+      {isSvActive && showSvWarning && (
         <div className={`absolute left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center pointer-events-none ${isSvFullScreen ? 'top-1/2 -translate-y-1/2' : 'top-[25%] -translate-y-1/2'}`}>
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in zoom-in duration-300">
              <ShieldAlert size={20} className="text-amber-500 animate-pulse" />
@@ -379,42 +393,16 @@ const App: React.FC = () => {
       {/* 2D MAP SCREEN */}
       <div ref={mapRef} className={`flex-1 relative z-10`} />
 
-      {/* ADVANCED COACH HUD (The Upgrade) */}
+      {/* ADVANCED COACH HUD (Simplified & Moved to Top) */}
       {simulation.isActive && coachData && (
-        <div className="absolute top-[52%] left-4 right-4 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${isCoachThinking ? 'animate-pulse bg-blue-500' : 'bg-blue-600 shadow-lg shadow-blue-500/20'}`}>
-                  <Activity size={20} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-white/50 text-[10px] font-black uppercase tracking-widest leading-none">AI Pro Coach</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black text-white ${getIntensityColor(coachData.intensity)}`}>
-                      {coachData.intensity} EFFORT
-                    </span>
-                    <span className="bg-white/10 px-2 py-0.5 rounded-md text-[9px] font-black text-white/80">
-                      GEAR: {coachData.gear}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                 <div className="text-right">
-                    <p className="text-white font-black text-xl leading-none">{speedKmH}<span className="text-[10px] ml-1 opacity-50">km/h</span></p>
-                 </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-4 items-start bg-white/5 p-3 rounded-2xl border border-white/5">
-              <div className="shrink-0 pt-1">
-                {coachData.action === 'STAND' ? <Zap size={18} className="text-yellow-400" /> : <Volume2 size={18} className={isSpeaking ? "text-blue-400" : "text-white/40"} />}
-              </div>
-              <p className="text-white font-bold text-sm leading-tight flex-1">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 w-auto max-w-[90%] pointer-events-none">
+          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-full px-6 py-2 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+             <div className="shrink-0">
+                {coachData.action === 'STAND' ? <Zap size={16} className="text-yellow-400" /> : <Volume2 size={16} className={isSpeaking ? "text-blue-400 animate-pulse" : "text-white/60"} />}
+             </div>
+             <p className="text-white font-medium text-sm leading-none whitespace-nowrap">
                 {coachData.tip}
-              </p>
-            </div>
+             </p>
           </div>
         </div>
       )}

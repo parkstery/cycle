@@ -1,8 +1,19 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { CoachingData, ElevationPoint } from "../types";
 
 declare var google: any;
+
+const FALLBACK_TIPS = [
+  "Keep your cadence smooth.",
+  "Relax your shoulders.",
+  "Focus on your breathing rhythm.",
+  "Maintain steady power.",
+  "Look ahead, stay sharp.",
+  "Consistency is key here.",
+  "Pedal in circles, not squares.",
+  "Save energy for the climbs.",
+  "Stay loose on the bars."
+];
 
 export const getAdvancedCoaching = async (
   currentElevation: number,
@@ -51,15 +62,13 @@ export const getAdvancedCoaching = async (
   
   const prompt = `
     Context: 
-    - Current Elevation: ${currentElevation}m
-    - Upcoming Elevation: [${elevationSamples.join(', ')}]
     - Slope: ${slope.toFixed(1)}%
-    - Current Speed: ${currentSpeed}km/h
-    - Mandatory Gear: ${gearText}
+    - Speed: ${currentSpeed}km/h
+    - Gear: ${gearText}
     
-    Task: Act as a pro cycling coach. Analyze the terrain and provide structured coaching.
-    The 'tip' must be in English, motivating, and professional (max 15 words).
-    Do NOT suggest a different gear in the tip.
+    Task: Provide a SHORT, PUNCHY, and VARIED cycling coaching tip (max 10 words).
+    Avoid repetitive phrases like "Maintain a steady pace". Mix up the advice (focus on breathing, form, vision, or encouragement).
+    Do NOT suggest a different gear in the tip text itself.
   `;
 
   try {
@@ -71,7 +80,7 @@ export const getAdvancedCoaching = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            tip: { type: Type.STRING, description: "Professional cycling tip in English." },
+            tip: { type: Type.STRING, description: "Short, varied professional cycling tip." },
             intensity: { type: Type.STRING, enum: ['LOW', 'MODERATE', 'HIGH', 'MAX'] },
             action: { type: Type.STRING, enum: ['SIT', 'STAND', 'TUCK', 'PEDAL'] }
           },
@@ -82,9 +91,9 @@ export const getAdvancedCoaching = async (
 
     const data = JSON.parse(response.text || "{}");
     
-    const originalTip = data.tip || "Maintain a steady cadence.";
+    const originalTip = data.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
     // Enforce the calculated gear in the parenthesis
-    const tipWithGear = `${originalTip} (Shift to ${gearText} gear.)`;
+    const tipWithGear = `${originalTip} (Shift to ${gearText} gear)`;
 
     return {
       tip: tipWithGear,
@@ -93,9 +102,10 @@ export const getAdvancedCoaching = async (
       action: (data.action as any) || "PEDAL"
     };
   } catch (error) {
-    console.error("Coaching Error:", error);
+    // Pick a random fallback message to ensure variety even when API fails
+    const randomTip = FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
     return {
-      tip: `Maintain a steady pace. (Shift to ${gearText} gear.)`,
+      tip: `${randomTip} (Shift to ${gearText} gear)`,
       gear: gearText,
       intensity: "MODERATE",
       action: "PEDAL"
