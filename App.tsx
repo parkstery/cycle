@@ -392,7 +392,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-slate-900 overflow-hidden font-sans relative">
       {/* STREET VIEW SCREEN */}
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40 opacity-100' : 'h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'h-0 opacity-0 pointer-events-none z-0'}`} />
+      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-[100dvh] w-full z-40 opacity-100' : 'h-[50%] w-full z-20 opacity-100 border-b-2 border-slate-700') : 'h-0 opacity-0 pointer-events-none z-0'}`} />
       
       {/* NO STREET VIEW WARNING OVERLAY */}
       {isSvActive && showSvWarning && (
