@@ -398,11 +398,11 @@ const App: React.FC = () => {
       )}
 
       {/* 2D MAP SCREEN (Mini-Map Transformation) */}
-      <div ref={mapRef} className={isSvFullScreen ? "absolute bottom-48 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl transition-all duration-500 ease-in-out overflow-hidden" : "flex-1 relative z-10 transition-all duration-500 ease-in-out"} />
+      <div ref={mapRef} className={isSvFullScreen ? "absolute bottom-36 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl transition-all duration-500 ease-in-out overflow-hidden" : "flex-1 relative z-10 transition-all duration-500 ease-in-out"} />
 
-      {/* ADVANCED COACH HUD (Removed Icon, Constrained Width, Multi-line) */}
+      {/* ADVANCED COACH HUD (Topmost, Overlaps with Search) */}
       {simulation.isActive && coachData && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 w-full max-w-[60%] pointer-events-none flex justify-center">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
              <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">
                 {coachData.tip}
@@ -437,7 +437,7 @@ const App: React.FC = () => {
       </div>
 
       {/* BOTTOM CONTROL SHEETS (Simple Compact Redesign) */}
-      <div className={`absolute bottom-4 left-4 z-[50] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[320px]' : 'w-12 h-12'}`}>
+      <div className={`absolute bottom-4 left-2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[320px]' : 'w-12 h-12'}`}>
         <div className="bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row items-center w-full border border-slate-200 p-2 relative">
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600">
             {routeInputExpanded ? <ChevronLeft size={20} /> : <Navigation size={20} />}
