@@ -373,6 +373,16 @@ const App: React.FC = () => {
         endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path, elevation: elevationRes.results });
         
+        // Save to history (Origin|Destination format)
+        const historyItem = `${finalOrigin}|${finalDestination}`;
+        setRecentSearches(prev => {
+           // Remove duplicates and keep last 5
+           const filtered = prev.filter(item => item !== historyItem);
+           const updated = [historyItem, ...filtered].slice(0, 5);
+           localStorage.setItem('recent_searches', JSON.stringify(updated));
+           return updated;
+        });
+
         if (autoStart) {
           setSimulation({ isActive: true, currentIndex: 0, speed: calculateDelay(speedKmH) });
           // Initial Coaching
@@ -410,6 +420,15 @@ const App: React.FC = () => {
         calculateRoute(mode, false, origin, newDest);
       }
     }
+  };
+
+  const handleHistoryClick = (historyItem: string) => {
+      const parts = historyItem.split('|');
+      if (parts.length === 2) {
+          setOrigin(parts[0]);
+          setDestination(parts[1]);
+          calculateRoute(mode, false, parts[0], parts[1]);
+      }
   };
 
   const handleModeChange = (newMode: TravelMode) => {
@@ -480,7 +499,13 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-900 overflow-hidden font-sans relative">
       {/* STREET VIEW SCREEN */}
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out ${isSvActive ? (isSvFullScreen ? 'absolute top-0 left-0 w-full h-full z-40 opacity-100' : 'relative h-[50%] w-full z-20 opacity-100 border-b-2 border-slate-700') : 'h-0 opacity-0 pointer-events-none z-0'}`} />
+      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out ${
+        isSvActive 
+          ? (isSvFullScreen 
+              ? 'fixed inset-0 w-screen h-[100dvh] z-40 opacity-100' // Changed to fixed inset-0 to guarantee viewport fill
+              : 'relative h-[50%] w-full z-20 opacity-100 border-b-2 border-slate-700') 
+          : 'h-0 opacity-0 pointer-events-none z-0'
+      }`} />
       
       {/* NO STREET VIEW WARNING OVERLAY */}
       {isSvActive && showSvWarning && (
@@ -531,59 +556,85 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM CONTROL SHEETS (Simple Compact Redesign) */}
-      <div className={`absolute bottom-4 left-2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[85%] max-w-[320px]' : 'w-12 h-12'}`}>
-        <div className="bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row items-center w-full border border-slate-200 p-2 relative">
-          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600">
+      {/* BOTTOM CONTROL SHEETS (Redesigned Split View) */}
+      <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 left-4 translate-x-0'}`}>
+        <div className="bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative min-h-[140px]">
+          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>
             {routeInputExpanded ? <ChevronLeft size={20} /> : <Navigation size={20} />}
           </button>
           
           {routeInputExpanded && (
-            <div className="flex-1 flex flex-col gap-2 pl-1 pr-2 py-1">
-              <div className="flex flex-col gap-2">
-                {/* Start Point Input */}
-                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
-                  <div className="w-3 h-3 rounded-full bg-blue-600 shrink-0" />
-                  <input 
-                    className="flex-1 text-sm outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent"
-                    placeholder="Start Point"
-                    value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
-                  />
+            <div className="flex flex-row w-full pl-6 gap-3">
+                {/* LEFT COLUMN: Inputs & Controls */}
+                <div className="flex-[1.2] flex flex-col justify-center gap-1.5">
+                    {/* Start Input */}
+                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                        <input 
+                            className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                            placeholder="Start Point"
+                            value={origin}
+                            onChange={(e) => setOrigin(e.target.value)}
+                        />
+                    </div>
+                    {/* Destination Input */}
+                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                        <input 
+                            className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                            placeholder="Destination"
+                            value={destination}
+                            onChange={(e) => setDestination(e.target.value)}
+                        />
+                    </div>
+                    
+                    {/* Controls */}
+                    <div className="flex items-center gap-3 mt-1">
+                        <button
+                            onClick={() => calculateRoute(mode, true)}
+                            disabled={loading}
+                            className="bg-blue-700 text-white rounded-lg px-4 h-8 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 min-w-[60px]"
+                        >
+                            {loading ? <Activity size={16} className="animate-spin" /> : 'Go'}
+                        </button>
+                        
+                        <div className="flex items-center gap-2 flex-1">
+                             <span className="text-[10px] font-bold text-slate-500">SPD</span>
+                             <input
+                                type="range"
+                                min="10"
+                                max="100"
+                                step="10"
+                                value={speedKmH}
+                                onChange={(e) => setSpeedKmH(Number(e.target.value))}
+                                className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            />
+                            <span className="text-[10px] font-bold text-slate-700 w-4 text-right">{speedKmH}</span>
+                        </div>
+                    </div>
                 </div>
-                {/* Destination Input */}
-                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
-                  <div className="w-3 h-3 rounded-full bg-red-600 shrink-0" />
-                  <input 
-                    className="flex-1 text-sm outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent"
-                    placeholder="Destination"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                  />
-                </div>
-              </div>
 
-              {/* Controls Row (SPD | Slider | Value | Go) */}
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-xs font-bold text-slate-500">SPD</span>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  step="10"
-                  value={speedKmH}
-                  onChange={(e) => setSpeedKmH(Number(e.target.value))}
-                  className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-                <span className="text-xs font-bold text-slate-700 w-5 text-right">{speedKmH}</span>
-                <button
-                  onClick={() => calculateRoute(mode, true)}
-                  disabled={loading}
-                  className="bg-blue-700 text-white rounded-lg px-4 py-1.5 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-                >
-                  {loading ? <Activity size={16} className="animate-spin" /> : 'Go'}
-                </button>
-              </div>
+                {/* RIGHT COLUMN: Recent History */}
+                <div className="flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden">
+                    {recentSearches.length > 0 ? (
+                        recentSearches.map((item, index) => {
+                            const parts = item.split('|');
+                            const label = parts.length === 2 ? `${parts[0]} ~ ${parts[1]}` : item;
+                            return (
+                                <button 
+                                    key={index}
+                                    onClick={() => handleHistoryClick(item)}
+                                    className="text-left w-full truncate text-[10px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-0.5 transition-colors leading-tight"
+                                >
+                                    <span className="font-bold mr-1">{index + 1}.</span>
+                                    {label}
+                                </button>
+                            );
+                        })
+                    ) : (
+                        <div className="text-[10px] text-slate-400 text-center italic">No recent routes</div>
+                    )}
+                </div>
             </div>
           )}
         </div>
