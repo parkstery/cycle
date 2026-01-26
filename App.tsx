@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const tempMarker = useRef<any>(null);
   const panorama = useRef<any>(null);
   const geocoder = useRef<any>(null);
+  const placesService = useRef<any>(null);
   const elevationService = useRef<any>(null);
   const polylineOverlay = useRef<any>(null);
   const coverageLayer = useRef<any>(null);
@@ -56,7 +57,7 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('recent_searches');
     return saved ? JSON.parse(saved) : [];
   });
-  const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, address: string, elevation: number | null} | null>(null);
+  const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, name?: string, address: string, elevation: number | null} | null>(null);
 
   const calculateDelay = (kmh: number) => Math.max(100, 2000 - (kmh * 15.8));
 
@@ -147,6 +148,7 @@ const App: React.FC = () => {
       geocoder.current = new google.maps.Geocoder();
       elevationService.current = new google.maps.ElevationService();
       coverageLayer.current = new google.maps.StreetViewCoverageLayer();
+      placesService.current = new google.maps.places.PlacesService(googleMap.current);
       
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
@@ -186,6 +188,37 @@ const App: React.FC = () => {
       });
 
       googleMap.current.addListener('click', (e: any) => {
+        // Check if the click was on a POI (Point of Interest)
+        if (e.placeId) {
+          e.stop(); // Prevent standard info window
+          placesService.current.getDetails({ placeId: e.placeId }, (place: any, status: string) => {
+            if (status === 'OK' && place.geometry && place.geometry.location) {
+               const loc = place.geometry.location;
+               if (tempMarker.current) tempMarker.current.setMap(null);
+               tempMarker.current = new google.maps.Marker({
+                  position: loc,
+                  map: googleMap.current,
+                  animation: google.maps.Animation.DROP,
+                  icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
+               });
+
+               elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
+                  const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
+                  setClickedLocation({ 
+                    lat: loc.lat(), 
+                    lng: loc.lng(), 
+                    name: place.name, 
+                    address: place.formatted_address, 
+                    elevation: elevation 
+                  });
+               });
+               setRouteInputExpanded(true);
+            }
+          });
+          return;
+        }
+
+        // Standard Click (Reverse Geocode)
         const latLng = e.latLng;
         geocoder.current.geocode({ location: latLng }, (results: any, status: string) => {
           if (status === 'OK' && results[0]) {
@@ -199,7 +232,13 @@ const App: React.FC = () => {
 
             elevationService.current.getElevationForLocations({ locations: [latLng] }, (elevResults: any, elevStatus: string) => {
               const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-              setClickedLocation({ lat: latLng.lat(), lng: latLng.lng(), address: results[0].formatted_address, elevation: elevation });
+              setClickedLocation({ 
+                lat: latLng.lat(), 
+                lng: latLng.lng(), 
+                name: results[0].formatted_address, // Use formatted address as name if no specific place name
+                address: results[0].formatted_address, 
+                elevation: elevation 
+              });
             });
             setRouteInputExpanded(true);
           }
@@ -217,7 +256,48 @@ const App: React.FC = () => {
   const handlePlaceSearch = (termToSearch?: string) => {
     const finalTerm = termToSearch || searchTerm;
     if (!finalTerm) return;
-    geocoder.current.geocode({ address: finalTerm }, (results: any, status: string) => {
+
+    // Use PlacesService to find a place by query (prioritizing names)
+    if (placesService.current) {
+        const request = {
+            query: finalTerm,
+            fields: ['name', 'geometry', 'formatted_address']
+        };
+        
+        placesService.current.findPlaceFromQuery(request, (results: any, status: string) => {
+             if (status === 'OK' && results && results.length > 0) {
+                 const place = results[0];
+                 const loc = place.geometry.location;
+                 
+                 googleMap.current.setCenter(loc);
+                 googleMap.current.setZoom(17);
+                 
+                 if (tempMarker.current) tempMarker.current.setMap(null);
+                 tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
+
+                 elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
+                    const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
+                    setClickedLocation({ 
+                        lat: loc.lat(), 
+                        lng: loc.lng(), 
+                        name: place.name, // Use the specific place name
+                        address: place.formatted_address, 
+                        elevation: elevation 
+                    });
+                 });
+                 setSearchExpanded(false);
+             } else {
+                 // Fallback to standard geocoding if Place search fails
+                 fallbackGeocode(finalTerm);
+             }
+        });
+    } else {
+        fallbackGeocode(finalTerm);
+    }
+  };
+
+  const fallbackGeocode = (term: string) => {
+    geocoder.current.geocode({ address: term }, (results: any, status: string) => {
       if (status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
         googleMap.current.setCenter(loc);
@@ -226,7 +306,13 @@ const App: React.FC = () => {
         tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
         elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
           const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-          setClickedLocation({ lat: loc.lat(), lng: loc.lng(), address: results[0].formatted_address, elevation: elevation });
+          setClickedLocation({ 
+            lat: loc.lat(), 
+            lng: loc.lng(), 
+            name: results[0].formatted_address, 
+            address: results[0].formatted_address, 
+            elevation: elevation 
+          });
         });
         setSearchExpanded(false);
       }
@@ -304,7 +390,8 @@ const App: React.FC = () => {
 
   const handleSetStart = () => {
     if (clickedLocation) {
-      const newOrigin = clickedLocation.address;
+      // Use name if available (POI name), otherwise fall back to address
+      const newOrigin = clickedLocation.name || clickedLocation.address;
       setOrigin(newOrigin);
       setClickedLocation(null);
       if (destination) {
@@ -315,7 +402,8 @@ const App: React.FC = () => {
 
   const handleSetEnd = () => {
     if (clickedLocation) {
-      const newDest = clickedLocation.address;
+       // Use name if available (POI name), otherwise fall back to address
+      const newDest = clickedLocation.name || clickedLocation.address;
       setDestination(newDest);
       setClickedLocation(null);
       if (origin) {
@@ -544,8 +632,11 @@ const App: React.FC = () => {
         <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[280px]">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
             <button onClick={() => setClickedLocation(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
-            <p className="text-slate-800 text-[11px] font-bold mb-2 truncate">{clickedLocation.address}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
+            {clickedLocation.name !== clickedLocation.address && (
+              <p className="text-slate-500 text-[10px] mb-2 truncate">{clickedLocation.address}</p>
+            )}
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <button onClick={handleSetStart} className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black">START (A)</button>
               <button onClick={handleSetEnd} className="py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black">END (B)</button>
             </div>
