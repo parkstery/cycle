@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2 } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<TravelMode>(TravelMode.BICYCLING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
+  const [isSvFullScreen, setIsSvFullScreen] = useState(false);
   const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
@@ -63,6 +64,14 @@ const App: React.FC = () => {
       setSimulation(prev => ({ ...prev, speed: calculateDelay(speedKmH) }));
     }
   }, [speedKmH]);
+
+  // Trigger resize when SV fullscreen state changes
+  useEffect(() => {
+    setTimeout(() => {
+      if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize');
+      if (panorama.current) google.maps.event.trigger(panorama.current, 'resize');
+    }, 550);
+  }, [isSvFullScreen]);
 
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
@@ -131,7 +140,7 @@ const App: React.FC = () => {
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
         suppressMarkers: true,
-        polylineOptions: { strokeColor: '#3b82f6', strokeWeight: 5, strokeOpacity: 0.8 }
+        polylineOptions: { strokeColor: '#ff3020', strokeWeight: 5, strokeOpacity: 0.8 }
       });
 
       panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
@@ -237,7 +246,7 @@ const App: React.FC = () => {
           distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
           durText = `${Math.round(data.routes[0].duration / 60)} min`;
           setRouteSource('OSRM');
-          polylineOverlay.current = new google.maps.Polyline({ path, strokeColor: '#3b82f6', strokeWeight: 5, map: googleMap.current });
+          polylineOverlay.current = new google.maps.Polyline({ path, strokeColor: '#ff3020', strokeWeight: 5, map: googleMap.current });
           const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); googleMap.current.fitBounds(b);
         }
       }
@@ -348,7 +357,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-slate-900 overflow-hidden font-sans relative">
       {/* STREET VIEW SCREEN */}
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? 'h-[50%] opacity-100 z-20 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
+      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out relative ${isSvActive ? (isSvFullScreen ? 'h-full z-40' : 'h-[50%] z-20') + ' opacity-100 border-b-2 border-slate-700' : 'h-0 opacity-0 pointer-events-none z-0'}`} />
       
       {/* 2D MAP SCREEN */}
       <div ref={mapRef} className={`flex-1 relative z-10`} />
@@ -398,6 +407,11 @@ const App: React.FC = () => {
         <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
           <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
+        {isSvActive && (
+          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+            {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
+          </button>
+        )}
         <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
           <RouteIcon size={24} />
         </button>
