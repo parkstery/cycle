@@ -831,6 +831,11 @@ const App: React.FC = () => {
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
           </button>
           <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2" />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600">
+                <X size={14} />
+            </button>
+          )}
         </div>
         {/* Recent Place History */}
         {searchExpanded && recentPlaceSearches.length > 0 && (
