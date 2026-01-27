@@ -765,10 +765,10 @@ const App: React.FC = () => {
       
       {/* NO STREET VIEW WARNING OVERLAY */}
       {isSvActive && showSvWarning && (
-        <div className={`absolute left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center pointer-events-none ${isSvFullScreen ? 'top-1/2 -translate-y-1/2' : 'top-[25%] -translate-y-1/2'}`}>
-          <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in zoom-in duration-300">
-             <ShieldAlert size={20} className="text-amber-500 animate-pulse" />
-             <span className="text-white font-bold text-sm">거리뷰 이미지가 없는 구간입니다.</span>
+        <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
+          <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
+             <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
+             <span className="text-white font-bold text-xs">거리뷰 이미지가 없는 구간입니다.</span>
           </div>
         </div>
       )}
