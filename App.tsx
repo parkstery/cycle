@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -268,6 +268,12 @@ const App: React.FC = () => {
       setCoveredDistance(0);
       speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
     }
+  };
+
+  const handleSwapEndpoints = () => {
+    const temp = origin;
+    setOrigin(destination);
+    setDestination(temp);
   };
 
   useEffect(() => {
@@ -867,25 +873,37 @@ const App: React.FC = () => {
             <div className="flex flex-row w-full pl-6 gap-3">
                 {/* LEFT COLUMN: Inputs & Controls - COMPACT FIXED WIDTH */}
                 <div className="w-40 flex-none flex flex-col justify-center gap-1.5">
-                    {/* Start Input */}
-                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                        <input 
-                            className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
-                            placeholder="Start Point"
-                            value={origin}
-                            onChange={(e) => setOrigin(e.target.value)}
-                        />
-                    </div>
-                    {/* Destination Input */}
-                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                        <input 
-                            className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
-                            placeholder="Destination"
-                            value={destination}
-                            onChange={(e) => setDestination(e.target.value)}
-                        />
+                    {/* Inputs Wrapper for Swap Button positioning */}
+                    <div className="relative flex flex-col gap-1.5">
+                        {/* Swap Button */}
+                        <button
+                            onClick={handleSwapEndpoints}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"
+                            title="Swap Origin and Destination"
+                        >
+                            <ArrowUpDown size={12} className="text-slate-600" />
+                        </button>
+
+                        {/* Start Input */}
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-6">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                            <input 
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                                placeholder="Start Point"
+                                value={origin}
+                                onChange={(e) => setOrigin(e.target.value)}
+                            />
+                        </div>
+                        {/* Destination Input */}
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-6">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                            <input 
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                                placeholder="Destination"
+                                value={destination}
+                                onChange={(e) => setDestination(e.target.value)}
+                            />
+                        </div>
                     </div>
                     
                     {/* Speed Controls */}
