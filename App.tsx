@@ -838,7 +838,7 @@ const App: React.FC = () => {
           </button>
           <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] px-2" />
           {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600">
+            <button onClick={() => setSearchTerm('')} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 mr-[3px]">
                 <X size={14} />
             </button>
           )}
