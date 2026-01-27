@@ -693,8 +693,8 @@ const App: React.FC = () => {
         googleMap.current.panTo(currentPos);
       }
 
-      // Dynamic Coaching Trigger: Every 17 indices (approx 10% less frequent than 15)
-      if (currentIdx > 0 && currentIdx % 17 === 0 && currentIdx !== lastCoachedIndex.current) {
+      // Dynamic Coaching Trigger: Every 21 indices (reduced frequency to 80% of current)
+      if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
           (async () => {
               const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
               const upcoming = route.elevation.slice(
@@ -703,7 +703,7 @@ const App: React.FC = () => {
               );
               
               setIsCoachThinking(true);
-              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH);
+              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.gear);
               setCoachData(newCoaching);
               speak(newCoaching.tip);
               setIsCoachThinking(false);
@@ -779,7 +779,7 @@ const App: React.FC = () => {
       {/* ADVANCED COACH HUD (Topmost, Overlaps with Search) */}
       {simulation.isActive && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
-          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
              <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">
                 {coachData.tip}
              </p>

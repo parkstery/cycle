@@ -18,7 +18,8 @@ const FALLBACK_TIPS = [
 export const getAdvancedCoaching = async (
   currentElevation: number,
   upcomingPoints: ElevationPoint[],
-  currentSpeed: number
+  currentSpeed: number,
+  previousGear?: string
 ): Promise<CoachingData> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
@@ -93,8 +94,12 @@ export const getAdvancedCoaching = async (
     const data = JSON.parse(response.text || "{}");
     
     const originalTip = data.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    // Enforce the calculated gear in the parenthesis
-    const tipWithGear = `${originalTip} (Shift to ${gearText} gear)`;
+    
+    // Conditionally append gear shift message
+    let tipWithGear = originalTip;
+    if (gearText !== previousGear) {
+        tipWithGear = `${originalTip} (Shift to ${gearText} gear)`;
+    }
 
     return {
       tip: tipWithGear,
@@ -105,8 +110,13 @@ export const getAdvancedCoaching = async (
   } catch (error) {
     // Pick a random fallback message to ensure variety even when API fails
     const randomTip = FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
+    let tipWithGear = randomTip;
+    if (gearText !== previousGear) {
+        tipWithGear = `${randomTip} (Shift to ${gearText} gear)`;
+    }
+
     return {
-      tip: `${randomTip} (Shift to ${gearText} gear)`,
+      tip: tipWithGear,
       gear: gearText,
       intensity: "MODERATE",
       action: "PEDAL"
