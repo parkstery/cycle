@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2 } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -693,8 +693,8 @@ const App: React.FC = () => {
         googleMap.current.panTo(currentPos);
       }
 
-      // Dynamic Coaching Trigger: Every 15 indices
-      if (currentIdx > 0 && currentIdx % 15 === 0 && currentIdx !== lastCoachedIndex.current) {
+      // Dynamic Coaching Trigger: Every 17 indices (approx 10% less frequent than 15)
+      if (currentIdx > 0 && currentIdx % 17 === 0 && currentIdx !== lastCoachedIndex.current) {
           (async () => {
               const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
               const upcoming = route.elevation.slice(
@@ -847,10 +847,15 @@ const App: React.FC = () => {
       </div>
 
       {/* BOTTOM CONTROL SHEETS (Redesigned Split View) */}
-      <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 left-4 translate-x-0'}`}>
-        <div className="bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative min-h-[140px]">
+      <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 left-4 translate-x-0 border-2 border-blue-600 rounded-full group'}`}>
+        {!routeInputExpanded && (
+             <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                Find Route
+             </span>
+        )}
+        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>
-            {routeInputExpanded ? <ChevronLeft size={20} /> : <Navigation size={20} />}
+            {routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}
           </button>
           
           {routeInputExpanded && (
@@ -878,34 +883,41 @@ const App: React.FC = () => {
                         />
                     </div>
                     
-                    {/* Controls */}
-                    <div className="flex items-center gap-2 mt-1">
+                    {/* Speed Controls */}
+                    <div className="flex items-center gap-1 w-full px-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
+                         <input
+                            type="number"
+                            min="10"
+                            max="100"
+                            value={speedKmH}
+                            onChange={(e) => setSpeedKmH(Number(e.target.value))}
+                            className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0"
+                         />
+                         <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            step="1"
+                            value={speedKmH}
+                            onChange={(e) => setSpeedKmH(Number(e.target.value))}
+                            className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                    </div>
+
+                     {/* Go Button & Distance Display (Bottom Row) */}
+                    <div className="flex items-center gap-1 w-full">
                         <button
                             onClick={() => calculateRoute(mode, true)}
                             disabled={loading}
-                            className="bg-blue-700 text-white rounded-lg px-3 h-8 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 shrink-0"
+                            className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1"
                         >
                             {loading ? <Activity size={16} className="animate-spin" /> : 'Go'}
                         </button>
-                        
-                        <div className="flex items-center gap-1 flex-1 min-w-0">
-                             <input
-                                type="number"
-                                min="10"
-                                max="100"
-                                value={speedKmH}
-                                onChange={(e) => setSpeedKmH(Number(e.target.value))}
-                                className="w-10 h-6 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0"
-                             />
-                             <input
-                                type="range"
-                                min="10"
-                                max="100"
-                                step="1"
-                                value={speedKmH}
-                                onChange={(e) => setSpeedKmH(Number(e.target.value))}
-                                className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 min-w-0"
-                            />
+                        <div className="flex-1 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg h-7">
+                            <span className="text-xs font-black text-slate-700 truncate">
+                                {route ? route.distance : '0.0 km'}
+                            </span>
                         </div>
                     </div>
                 </div>
