@@ -41,7 +41,7 @@ const App: React.FC = () => {
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
-  const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 500 });
+  const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
   const [speedKmH, setSpeedKmH] = useState(20); 
   const [mode, setMode] = useState<TravelMode>(TravelMode.BICYCLING);
   const [loading, setLoading] = useState(false);
@@ -53,6 +53,10 @@ const App: React.FC = () => {
   const [showSvWarning, setShowSvWarning] = useState(false);
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   
+  // Independent Timer States for Elevation Chart
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [coveredDistance, setCoveredDistance] = useState(0);
+
   // Advanced Coach State
   const [coachData, setCoachData] = useState<CoachingData | null>(null);
   const [isCoachThinking, setIsCoachThinking] = useState(false);
@@ -80,19 +84,18 @@ const App: React.FC = () => {
 
   const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, name?: string, address: string, elevation: number | null} | null>(null);
 
-  const calculateDelay = (kmh: number) => Math.max(100, 2000 - (kmh * 15.8));
+  const formatTime = (seconds: number) => {
+    if (!isFinite(seconds) || isNaN(seconds)) return "00:00:00";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  };
 
   // Update refs when state changes
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
-
-  // Update simulation speed when dial changes
-  useEffect(() => {
-    if (simulation.isActive) {
-      setSimulation(prev => ({ ...prev, speed: calculateDelay(speedKmH) }));
-    }
-  }, [speedKmH]);
 
   // Trigger resize when SV fullscreen state changes (Animation Handling)
   useEffect(() => {
@@ -101,6 +104,23 @@ const App: React.FC = () => {
       if (panorama.current) google.maps.event.trigger(panorama.current, 'resize');
     }, 550); // Matches the CSS transition duration
   }, [isSvFullScreen]);
+
+  // --- INDEPENDENT CHART TIMER ---
+  useEffect(() => {
+    let interval: number;
+    if (simulation.isActive && route) {
+      interval = window.setInterval(() => {
+        // Increment Time
+        setElapsedTime(prev => prev + 1);
+        
+        // Increment Distance based on Speed (km/h -> m/s)
+        const metersPerSecond = (speedKmH * 1000) / 3600;
+        setCoveredDistance(prev => prev + metersPerSecond);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [simulation.isActive, route, speedKmH]);
+  // ------------------------------
 
   // --- AUDIO LOGIC ---
   const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
@@ -231,17 +251,21 @@ const App: React.FC = () => {
     if (startMarker.current) { startMarker.current.setMap(null); startMarker.current = null; }
     if (endMarker.current) { endMarker.current.setMap(null); endMarker.current = null; }
     setRoute(null);
-    setSimulation({ isActive: false, currentIndex: 0, speed: calculateDelay(speedKmH) });
+    setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
     setCoachData(null);
     setRouteSource(null);
     svErrorCount.current = 0;
     setShowSvWarning(false);
+    setElapsedTime(0);
+    setCoveredDistance(0);
   };
 
   const restartSimulation = () => {
     if (route && route.path.length > 0) {
       setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
       lastCoachedIndex.current = -1;
+      setElapsedTime(0);
+      setCoveredDistance(0);
       speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
     }
   };
@@ -404,9 +428,6 @@ const App: React.FC = () => {
                             elevation: elevation 
                         });
                     });
-                    // Only collapse if we triggered from the input enter key, not the list click?
-                    // Actually let's keep it open or close it based on preference. 
-                    // Let's close it for cleaner UI.
                     setSearchExpanded(false); 
                 } else {
                     fallbackGeocode(term);
@@ -453,6 +474,8 @@ const App: React.FC = () => {
     setLoading(true);
     setCoachData(null);
     setRouteSource(null);
+    setElapsedTime(0);
+    setCoveredDistance(0);
     lastCoachedIndex.current = -1;
     if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
     
@@ -484,18 +507,61 @@ const App: React.FC = () => {
           distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
           durText = `${Math.round(data.routes[0].duration / 60)} min`;
           setRouteSource('OSRM');
-          polylineOverlay.current = new google.maps.Polyline({ path, strokeColor: '#ff3020', strokeWeight: 5, map: googleMap.current });
           const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); googleMap.current.fitBounds(b);
         }
       }
 
       if (path.length > 0) {
+        // 1. Get Elevation using original path (avoiding 512 point limit issue of ElevationService)
+        // Note: For OSRM paths > 512 points, this might still trim or fail, 
+        // but typically Directions API path is safe.
+        // We accept the original path for elevation sampling.
         const elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
+
+        // 2. Densify path for smooth simulation (2-meter segments)
+        // This ensures the "continuous display" asked by user
+        const densifiedPath = [];
+        const segmentLength = 2; // meters
+
+        for (let i = 0; i < path.length - 1; i++) {
+             const p1 = path[i];
+             const p2 = path[i + 1];
+             densifiedPath.push(p1);
+             const dist = google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+             if (dist > segmentLength) {
+                 const stepCount = Math.floor(dist / segmentLength);
+                 const heading = google.maps.geometry.spherical.computeHeading(p1, p2);
+                 for (let j = 1; j <= stepCount; j++) {
+                     const nextPt = google.maps.geometry.spherical.computeOffset(p1, j * segmentLength, heading);
+                     densifiedPath.push(nextPt);
+                 }
+             }
+        }
+        densifiedPath.push(path[path.length - 1]);
+        
+        // Update Markers & Polyline with Densified Path
         if (startMarker.current) startMarker.current.setMap(null);
         if (endMarker.current) endMarker.current.setMap(null);
-        startMarker.current = createCustomMarker(path[0], 'A', '#3b82f6');
-        endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
-        setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path, elevation: elevationRes.results });
+        startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
+        endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
+        
+        // Use densified path for the red line (smoother visualization)
+        polylineOverlay.current = new google.maps.Polyline({ 
+            path: densifiedPath, 
+            strokeColor: '#ff3020', 
+            strokeWeight: 5, 
+            map: googleMap.current 
+        });
+
+        // Use densified path for route state (simulation logic uses this)
+        setRoute({ 
+            origin: finalOrigin, 
+            destination: finalDestination, 
+            distance: distText, 
+            duration: durText, 
+            path: densifiedPath, 
+            elevation: elevationRes.results 
+        });
         
         // Save to history (Origin|Destination format)
         const historyItem = `${finalOrigin}|${finalDestination}`;
@@ -508,7 +574,7 @@ const App: React.FC = () => {
         });
 
         if (autoStart) {
-          setSimulation({ isActive: true, currentIndex: 0, speed: calculateDelay(speedKmH) });
+          setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
           // Initial Coaching
           setIsCoachThinking(true);
           const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
@@ -575,58 +641,99 @@ const App: React.FC = () => {
     let timer: number;
     // Main simulation loop
     if (simulation.isActive && route) {
+      // Hide Temporary Marker if active
+      if (tempMarker.current) {
+        tempMarker.current.setMap(null);
+      }
+
+      // 1. Update Visuals Immediately (Marker, Map, SV, Coach)
+      const currentIdx = simulation.currentIndex;
+      
       // Check for finish condition
-      if (simulation.currentIndex >= route.path.length - 1) {
+      if (currentIdx >= route.path.length - 1) {
           setSimulation(prev => ({ ...prev, isActive: false }));
-          const youthPercent = 5; // Fixed 5% as per request
+          const youthPercent = 5; 
           speak(`Ride finished. Distance covered ${route.distance}, duration ${route.duration}. You have filled ${youthPercent}% of your daily youth.`);
           return;
       }
 
-      timer = window.setTimeout(async () => {
-        const currentIdx = simulation.currentIndex;
-        const currentPos = route.path[currentIdx];
-        
-        // Dynamic Coaching Trigger: Every 20 indices or if there's a big elevation gap
-        if (currentIdx > 0 && currentIdx % 15 === 0 && currentIdx !== lastCoachedIndex.current) {
-          const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
-          const upcoming = route.elevation.slice(
-            Math.floor((currentIdx/route.path.length)*route.elevation.length), 
-            Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length)
-          );
-          
-          setIsCoachThinking(true);
-          const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH);
-          setCoachData(newCoaching);
-          speak(newCoaching.tip);
-          setIsCoachThinking(false);
+      const currentPos = route.path[currentIdx];
+
+      if (!simulationMarker.current) {
+          simulationMarker.current = new google.maps.Marker({ 
+              position: currentPos, 
+              map: googleMap.current, 
+              // Bicycle Icon (Standard Material Design Path)
+              icon: { 
+                  path: "M15.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S14.4,5.5,15.5,5.5z M5,12c-2.8,0-5,2.2-5,5s2.2,5,5,5 s5-2.2,5-5S7.8,12,5,12z M5,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S6.7,20,5,20z M19,12c-2.8,0-5,2.2-5,5s2.2,5,5,5s5-2.2,5-5 S21.8,12,19,12z M19,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S20.7,20,19,20z M13,7h-2.8l-3.7,6.6C6.3,13.8,6.1,14,5.9,14.1 c-0.1,0-0.3,0-0.4,0l-1-0.2c-0.6-0.2-1.1,0.2-1.3,0.7c-0.2,0.6,0.2,1.1,0.7,1.3l1,0.2c0.7,0.1,1.4-0.1,1.9-0.6l3.3-6l2.1,0l2.3,4.4 c0.3,0.5,0.8,0.8,1.4,0.8h3.3c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2.9L13,7z", 
+                  scale: 1.5, 
+                  fillColor: '#3b82f6', 
+                  fillOpacity: 1, 
+                  strokeWeight: 1, 
+                  strokeColor: '#ffffff',
+                  anchor: new google.maps.Point(12, 12)
+              } 
+          });
+      }
+      
+      const nextPosForHeading = route.path[currentIdx + 1] || currentPos;
+      const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPosForHeading);
+      
+      simulationMarker.current.setPosition(currentPos);
+      simulationMarker.current.setOptions({ rotation: heading });
+      
+      // Sync SV
+      if (panorama.current?.getVisible()) {
+        panorama.current.setPosition(currentPos);
+        panorama.current.setPov({ heading, pitch: panorama.current.getPov().pitch });
+      }
+
+      // Auto-center MiniMap if in FullScreen mode
+      if (isSvFullScreen && googleMap.current) {
+        googleMap.current.panTo(currentPos);
+      }
+
+      // Dynamic Coaching Trigger: Every 15 indices
+      if (currentIdx > 0 && currentIdx % 15 === 0 && currentIdx !== lastCoachedIndex.current) {
+          (async () => {
+              const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
+              const upcoming = route.elevation.slice(
+                Math.floor((currentIdx/route.path.length)*route.elevation.length), 
+                Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length)
+              );
+              
+              setIsCoachThinking(true);
+              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH);
+              setCoachData(newCoaching);
+              speak(newCoaching.tip);
+              setIsCoachThinking(false);
+          })();
           lastCoachedIndex.current = currentIdx;
-        }
+      }
 
-        if (!simulationMarker.current) {
-          simulationMarker.current = new google.maps.Marker({ position: currentPos, map: googleMap.current, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 5, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' } });
-        }
-        const nextPos = route.path[currentIdx + 1] || currentPos;
-        const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPos);
-        simulationMarker.current.setPosition(currentPos);
-        simulationMarker.current.setOptions({ rotation: heading });
-        
-        // Sync SV
-        if (panorama.current?.getVisible()) {
-          panorama.current.setPosition(currentPos);
-          panorama.current.setPov({ heading, pitch: panorama.current.getPov().pitch });
-        }
+      // 2. Schedule Next Step
+      // Calculate delay based on REAL distance and user speed
+      let delay = 100; // Default minimum delay
+      const nextPos = route.path[currentIdx + 1];
+      
+      if (nextPos) {
+          const distMeters = google.maps.geometry.spherical.computeDistanceBetween(currentPos, nextPos);
+          // Convert km/h to m/s -> m/ms
+          const speedMetersPerSec = (speedKmH * 1000) / 3600;
+          if (speedMetersPerSec > 0) {
+              delay = (distMeters / speedMetersPerSec) * 1000;
+          }
+      }
+      
+      // Safety clamp: Prevent browser freeze if delay is too small
+      if (delay < 50) delay = 50;
 
-        // Auto-center MiniMap if in FullScreen mode
-        if (isSvFullScreen && googleMap.current) {
-          googleMap.current.panTo(currentPos);
-        }
-
+      timer = window.setTimeout(() => {
         setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
-      }, simulation.speed);
+      }, delay);
     }
     return () => clearTimeout(timer);
-  }, [simulation, route, speedKmH, isSvFullScreen]); 
+  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen]); 
 
   const getIntensityColor = (intensity?: string) => {
     switch(intensity) {
@@ -682,21 +789,43 @@ const App: React.FC = () => {
 
       {/* FLOATING TOOLS */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-          <User size={24} fill={isSvActive ? "currentColor" : "none"} />
-        </button>
+        <div className="group relative flex items-center justify-end">
+            <span className="absolute right-full mr-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                Toggle Street View
+            </span>
+            <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+                <User size={24} fill={isSvActive ? "currentColor" : "none"} />
+            </button>
+        </div>
+        
         {isSvActive && (
-          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
-            {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
-          </button>
+            <div className="group relative flex items-center justify-end">
+                <span className="absolute right-full mr-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                    {isSvFullScreen ? "Minimize Street View" : "Maximize Street View"}
+                </span>
+                <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+                    {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
+                </button>
+            </div>
         )}
-        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-          <RouteIcon size={24} />
-        </button>
+
+        <div className="group relative flex items-center justify-end">
+            <span className="absolute right-full mr-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                Toggle Route Coverage
+            </span>
+            <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+                <RouteIcon size={24} />
+            </button>
+        </div>
       </div>
 
       {/* SEARCH PANEL */}
-      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl border border-slate-200 overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl' : 'w-12 h-12 rounded-full'}`}>
+      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
+        {!searchExpanded && (
+            <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                Search Places
+            </span>
+        )}
         <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">
             {searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}
@@ -760,17 +889,23 @@ const App: React.FC = () => {
                         </button>
                         
                         <div className="flex items-center gap-1 flex-1 min-w-0">
-                             <span className="text-[9px] font-bold text-slate-500 shrink-0">SPD</span>
+                             <input
+                                type="number"
+                                min="10"
+                                max="100"
+                                value={speedKmH}
+                                onChange={(e) => setSpeedKmH(Number(e.target.value))}
+                                className="w-10 h-6 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0"
+                             />
                              <input
                                 type="range"
                                 min="10"
                                 max="100"
-                                step="10"
+                                step="1"
                                 value={speedKmH}
                                 onChange={(e) => setSpeedKmH(Number(e.target.value))}
                                 className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 min-w-0"
                             />
-                            <span className="text-[9px] font-bold text-slate-700 w-3 text-right shrink-0">{speedKmH}</span>
                         </div>
                     </div>
                 </div>
@@ -803,16 +938,28 @@ const App: React.FC = () => {
 
       {/* ELEVATION PANEL */}
       {route && (
-        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out overflow-hidden ${elevationExpanded ? 'w-[80%] max-w-md' : 'w-12 h-12'}`}>
-          <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1">
+        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-md' : 'w-12 h-12 group'}`}>
+          {!elevationExpanded && (
+             <span className="absolute right-full mr-2 bottom-3 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
+                Show Elevation Profile
+             </span>
+          )}
+          <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
             <button onClick={() => setElevationExpanded(!elevationExpanded)} className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">
               {elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}
             </button>
             {elevationExpanded && (
               <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center px-1">
-                  <div>
-                    <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
+                  <div className="flex flex-col">
+                    <div className="flex items-baseline gap-2">
+                         <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
+                         {simulation.isActive && (
+                             <span className="text-[10px] text-blue-600 font-bold animate-pulse">
+                                run: {(coveredDistance / 1000).toFixed(1)}km / {formatTime(elapsedTime)}
+                             </span>
+                         )}
+                    </div>
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
                   </div>
                   <div className="flex gap-1 items-center">

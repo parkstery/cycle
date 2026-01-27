@@ -1,4 +1,3 @@
-
 export interface RouteInfo {
   origin: string;
   destination: string;
@@ -6,6 +5,8 @@ export interface RouteInfo {
   duration: string;
   path: any[];
   elevation: ElevationPoint[];
+  totalDistanceMeters?: number;
+  cumulativeDistances?: number[];
 }
 
 export interface ElevationPoint {
@@ -17,7 +18,7 @@ export interface ElevationPoint {
 export enum TravelMode {
   BICYCLING = 'BICYCLING',
   WALKING = 'WALKING',
-  DRIVING = 'DRIVING'
+  DRIVING = 'DRIVING',
 }
 
 export interface SimulationState {
@@ -28,7 +29,7 @@ export interface SimulationState {
 
 export interface CoachingData {
   tip: string;
-  gear: string; // e.g., "LOW", "MID", "HIGH"
+  gear: string;
   intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
   action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
 }
