@@ -300,7 +300,7 @@ const App: React.FC = () => {
         visible: false,
         addressControl: false,
         linksControl: false,
-        enableCloseButton: true,
+        enableCloseButton: false,
         zoomControl: false,
         fullscreenControl: false,
       });
