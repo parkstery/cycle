@@ -938,45 +938,46 @@ const App: React.FC = () => {
             <div className="flex flex-row w-full pl-6 gap-3">
                 {/* LEFT COLUMN: Inputs & Controls - COMPACT FIXED WIDTH */}
                 <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
-                    {/* Inputs Wrapper for Swap Button positioning */}
+                    {/* Inputs Wrapper with Overlay Buttons */}
                     <div className="relative flex flex-col gap-1.5">
-                        {/* Swap Button (Moved Left) */}
-                        <button
-                            onClick={handleSwapEndpoints}
-                            className="absolute right-9 top-1/2 -translate-y-1/2 z-10 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"
-                            title="Swap Origin and Destination"
-                        >
-                            <ArrowUpDown size={12} className="text-slate-600" />
-                        </button>
-
-                        {/* Delete Button (Added at original position) */}
-                        <button
-                            onClick={() => { setOrigin(''); setDestination(''); }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"
-                            title="Clear Route"
-                        >
-                            <Trash2 size={12} className="text-slate-600" />
-                        </button>
-
                         {/* Start Input */}
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0 pr-16"
+                                className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                                 placeholder="Start Point"
                                 value={origin}
                                 onChange={(e) => setOrigin(e.target.value)}
                             />
                         </div>
                         {/* Destination Input */}
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0 pr-16"
+                                className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                                 placeholder="Destination"
                                 value={destination}
                                 onChange={(e) => setDestination(e.target.value)}
                             />
+                        </div>
+
+                        {/* Buttons Overlay Group - Pointer Events Magic */}
+                        <div className="absolute right-1 top-0 h-full flex items-center gap-1 pointer-events-none z-10">
+                            <button
+                                onClick={handleSwapEndpoints}
+                                className="pointer-events-auto w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"
+                                title="Swap Origin and Destination"
+                            >
+                                <ArrowUpDown size={12} className="text-slate-600" />
+                            </button>
+
+                            <button
+                                onClick={() => { setOrigin(''); setDestination(''); }}
+                                className="pointer-events-auto w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"
+                                title="Clear Route"
+                            >
+                                <Trash2 size={12} className="text-slate-600" />
+                            </button>
                         </div>
                     </div>
                     
