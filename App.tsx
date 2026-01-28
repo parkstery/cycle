@@ -937,7 +937,8 @@ const App: React.FC = () => {
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
                 {/* LEFT COLUMN: Inputs & Controls - COMPACT FIXED WIDTH */}
-                <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
+                // <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
+                <div className="w-72 flex-none flex flex-col justify-center gap-1.5">
                     {/* Inputs Wrapper for Swap Button positioning */}
                     <div className="relative flex flex-col gap-1.5">
                         {/* Swap Button (Moved Left) */}
