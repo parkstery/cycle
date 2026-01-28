@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const elevationService = useRef<any>(null);
   const polylineOverlay = useRef<any>(null);
   const coverageLayer = useRef<any>(null);
+  const svServiceRef = useRef<any>(null); // New: StreetViewService Ref for specific queries
   const svErrorCount = useRef(0);
 
   // Audio References
@@ -316,7 +317,8 @@ const App: React.FC = () => {
       elevationService.current = new google.maps.ElevationService();
       coverageLayer.current = new google.maps.StreetViewCoverageLayer();
       placesService.current = new google.maps.places.PlacesService(googleMap.current);
-      
+      svServiceRef.current = new google.maps.StreetViewService(); // Initialize SV Service
+
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
         suppressMarkers: true,
@@ -330,6 +332,8 @@ const App: React.FC = () => {
         enableCloseButton: false,
         zoomControl: false,
         fullscreenControl: false,
+        // Remove clickToGo to prevent user accidental navigation into buildings
+        clickToGo: false 
       });
 
       panorama.current.addListener('status_changed', () => {
@@ -709,21 +713,55 @@ const App: React.FC = () => {
           });
       }
       
-      const nextPosForHeading = route.path[currentIdx + 1] || currentPos;
-      const heading = google.maps.geometry.spherical.computeHeading(currentPos, nextPosForHeading);
+      // Look-ahead Heading Logic (Fix for "Reverse/Jittery" Camera)
+      // Look roughly 20 meters ahead (approx 10 points given 2m density)
+      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
+      const targetPosForHeading = route.path[lookAheadIdx];
+      const heading = google.maps.geometry.spherical.computeHeading(currentPos, targetPosForHeading);
       
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
       
-      // Sync SV
+      // Sync SV with STRICT OUTDOOR FILTER & THROTTLING
       if (panorama.current?.getVisible()) {
-        panorama.current.setPosition(currentPos);
-        panorama.current.setPov({ heading, pitch: panorama.current.getPov().pitch });
-      }
+        // 1. Force Heading (Look Ahead)
+        panorama.current.setPov({ heading, pitch: 0 }); // Flatten pitch to 0
+        
+        // 2. Smart Panorama Fetching
+        // We do NOT use setPosition() directly because it snaps to indoor photos.
+        // We use StreetViewService with source: OUTDOOR.
+        // To save API quotas and reduce flickering, only fetch if we moved > 15m from the current pano.
+        const currentPanoLoc = panorama.current.getLocation()?.latLng;
+        const distFromLastPano = currentPanoLoc 
+          ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) 
+          : Infinity;
 
-      // Auto-center MiniMap if in FullScreen mode
-      if (isSvFullScreen && googleMap.current) {
-        googleMap.current.panTo(currentPos);
+        if (distFromLastPano > 15 || !currentPanoLoc) {
+            if (svServiceRef.current) {
+                const request = {
+                    location: currentPos,
+                    radius: 20, // Reduced radius (default 50) to avoid jumping to wrong streets
+                    source: google.maps.StreetViewSource.OUTDOOR, // STRICTLY OUTDOOR
+                    preference: google.maps.StreetViewPreference.NEAREST
+                };
+                
+                svServiceRef.current.getPanorama(request, (data: any, status: string) => {
+                    if (status === 'OK') {
+                        // Use setPano to jump to the specific Outdoor ID
+                        panorama.current.setPano(data.location.pano);
+                    } else {
+                         // No outdoor image found close by.
+                         // Optional: Fallback to setPosition(currentPos) if you want to allow indoor as fallback,
+                         // but per instruction, we strictly avoid it. We simply don't update if no outdoor image exists.
+                    }
+                });
+            }
+        }
+        
+        // Auto-center MiniMap if in FullScreen mode
+        if (isSvFullScreen && googleMap.current) {
+            googleMap.current.panTo(currentPos);
+        }
       }
 
       // Dynamic Coaching Trigger: Every 21 indices (reduced frequency to 80% of current)
