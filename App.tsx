@@ -1061,12 +1061,17 @@ const App: React.FC = () => {
               <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center px-1">
                   <div className="flex flex-col">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex items-center gap-2">
                          <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
                          {simulation.isActive && (
-                             <span className="text-[10px] text-blue-600 font-bold animate-pulse">
-                                {(coveredDistance / 1000).toFixed(1)}km
-                             </span>
+                             <div className="flex flex-col justify-center items-start leading-none ml-1">
+                                <span className="text-[10px] text-blue-600 font-bold animate-pulse">
+                                   {(coveredDistance / 1000).toFixed(1)}km
+                                </span>
+                                <span className="text-[10px] text-blue-600 font-bold animate-pulse">
+                                   {formatTime(elapsedTime)}
+                                </span>
+                             </div>
                          )}
                     </div>
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
