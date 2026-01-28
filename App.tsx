@@ -962,7 +962,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-20">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                                 placeholder="Start Point"
                                 value={origin}
                                 onChange={(e) => setOrigin(e.target.value)}
@@ -972,7 +972,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-20">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate"
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                                 placeholder="Destination"
                                 value={destination}
                                 onChange={(e) => setDestination(e.target.value)}
@@ -1047,7 +1047,7 @@ const App: React.FC = () => {
 
       {/* ELEVATION PANEL */}
       {route && (
-        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-[360px]' : 'w-12 h-12 group'}`}>
+        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-[288px]' : 'w-12 h-12 group'}`}>
           {!elevationExpanded && (
              <span className="absolute right-full mr-2 bottom-3 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
                 Show Elevation Profile
