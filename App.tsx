@@ -937,8 +937,7 @@ const App: React.FC = () => {
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
                 {/* LEFT COLUMN: Inputs & Controls - COMPACT FIXED WIDTH */}
-                // <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
-                <div className="w-72 flex-none flex flex-col justify-center gap-1.5">
+                <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
                     {/* Inputs Wrapper for Swap Button positioning */}
                     <div className="relative flex flex-col gap-1.5">
                         {/* Swap Button (Moved Left) */}
@@ -960,20 +959,20 @@ const App: React.FC = () => {
                         </button>
 
                         {/* Start Input */}
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-16">
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0 pr-16"
                                 placeholder="Start Point"
                                 value={origin}
                                 onChange={(e) => setOrigin(e.target.value)}
                             />
                         </div>
                         {/* Destination Input */}
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm pr-16">
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
                             <input 
-                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
+                                className="flex-1 text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0 pr-16"
                                 placeholder="Destination"
                                 value={destination}
                                 onChange={(e) => setDestination(e.target.value)}
