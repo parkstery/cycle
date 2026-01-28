@@ -322,7 +322,7 @@ const App: React.FC = () => {
       directionsRenderer.current = new google.maps.DirectionsRenderer({
         map: googleMap.current,
         suppressMarkers: true,
-        polylineOptions: { strokeColor: '#ff3020', strokeWeight: 5, strokeOpacity: 0.8 }
+        polylineOptions: { strokeColor: '#ff3020', strokeWeight: 5, strokeOpacity: 0.8, clickable: false }
       });
 
       panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
@@ -587,6 +587,7 @@ const App: React.FC = () => {
             path: densifiedPath, 
             strokeColor: '#ff3020', 
             strokeWeight: 5, 
+            clickable: false,
             map: googleMap.current 
         });
 
