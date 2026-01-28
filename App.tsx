@@ -1065,7 +1065,7 @@ const App: React.FC = () => {
                          <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
                          {simulation.isActive && (
                              <span className="text-[10px] text-blue-600 font-bold animate-pulse">
-                                run: {(coveredDistance / 1000).toFixed(1)}km / {formatTime(elapsedTime)}
+                                {(coveredDistance / 1000).toFixed(1)}km
                              </span>
                          )}
                     </div>
