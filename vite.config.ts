@@ -4,9 +4,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
-  // PM Instruction: Apply API key directly in code due to domain restrictions.
-  // Using the Google Cloud key found in index.html as the robust fallback.
-  const API_KEY = env.API_KEY || "AIzaSyBYXu5yKdW71VuKmI-N2M2xbvMaYTK2HCg";
+  // Load explicit keys for better security separation
+  const GOOGLE_MAPS_API_KEY = env.GOOGLE_MAPS_API_KEY;
+  const GOOGLE_GEMINI_API_KEY = env.GOOGLE_GEMINI_API_KEY;
 
   return {
     plugins: [react()],
@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
     },
     define: {
-      'process.env.API_KEY': JSON.stringify(API_KEY),
+      // Expose keys securely to the client-side code
+      'process.env.GOOGLE_MAPS_API_KEY': JSON.stringify(GOOGLE_MAPS_API_KEY),
+      'process.env.GOOGLE_GEMINI_API_KEY': JSON.stringify(GOOGLE_GEMINI_API_KEY),
       'process.env': {}
     }
   };

@@ -72,6 +72,9 @@ const App: React.FC = () => {
   const [destination, setDestination] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Script Loading State
+  const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+
   // History States
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     const saved = localStorage.getItem('recent_searches'); // Route history
@@ -91,6 +94,28 @@ const App: React.FC = () => {
     const s = Math.floor(seconds % 60);
     return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
   };
+
+  // Dynamic Script Loading
+  useEffect(() => {
+    // Prevent double loading
+    if ((window as any).google && (window as any).google.maps) {
+      setIsMapsApiLoaded(true);
+      return;
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error("GOOGLE_MAPS_API_KEY is missing via process.env");
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsMapsApiLoaded(true);
+    document.head.appendChild(script);
+  }, []);
 
   // Update refs when state changes
   useEffect(() => {
@@ -277,6 +302,8 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isMapsApiLoaded) return;
+
     if (mapRef.current && !googleMap.current) {
       googleMap.current = new google.maps.Map(mapRef.current, {
         center: { lat: 37.3422, lng: 127.9202 },
@@ -385,7 +412,7 @@ const App: React.FC = () => {
         });
       });
     }
-  }, []);
+  }, [isMapsApiLoaded]);
 
   useEffect(() => {
     if (googleMap.current && coverageLayer.current) {
