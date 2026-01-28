@@ -1047,7 +1047,7 @@ const App: React.FC = () => {
 
       {/* ELEVATION PANEL */}
       {route && (
-        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-md' : 'w-12 h-12 group'}`}>
+        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-[360px]' : 'w-12 h-12 group'}`}>
           {!elevationExpanded && (
              <span className="absolute right-full mr-2 bottom-3 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg z-[90]">
                 Show Elevation Profile
