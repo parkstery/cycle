@@ -724,6 +724,9 @@ const App: React.FC = () => {
       
       // Sync SV with STRICT OUTDOOR FILTER & THROTTLING
       if (panorama.current?.getVisible()) {
+        // Force POV update to match route heading (RESTORED)
+        panorama.current.setPov({ heading, pitch: 0 });
+
         // 2. Smart Panorama Fetching
         // We do NOT use setPosition() directly because it snaps to indoor photos.
         // We use StreetViewService with source: OUTDOOR.
