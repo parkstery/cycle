@@ -131,7 +131,7 @@ const App: React.FC = () => {
             streetViewControl: false,
             fullscreenControl: false,
             zoomControl: false,
-            rotateControl: true,
+            rotateControl: false, // Disabled rotation/compass control
             scaleControl: false,
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
@@ -736,7 +736,7 @@ const App: React.FC = () => {
       </div>
 
       <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
-        <div className="flex items-center w-full h-12 pr-2 shrink-0">
+        <div className="flex items-center w-full h-12 pr-4 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
