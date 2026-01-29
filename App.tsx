@@ -673,7 +673,7 @@ const App: React.FC = () => {
       <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
         <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
-          <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
+          <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
         </div>
         {searchExpanded && recentPlaceSearches.length > 0 && (
           <div className="w-full flex flex-col px-2 pb-2 gap-1 border-t border-slate-100">
@@ -693,8 +693,16 @@ const App: React.FC = () => {
                     <div className="relative flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start Point" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => setOrigin(e.target.value)} />
                         </div>
+                        
+                        {/* Swap Button moved here - Front of waypoint list */}
+                        <div className="flex justify-end px-1 -my-1 z-10 relative pointer-events-none">
+                            <button onClick={handleSwapEndpoints} className="pointer-events-auto w-5 h-5 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow hover:bg-slate-50 active:scale-95 transition-transform" title="Swap locations">
+                                <ArrowUpDown size={10} className="text-slate-600" />
+                            </button>
+                        </div>
+
                         {/* Waypoints Render */}
                         {waypoints.length > 0 && (
                             <div className="flex flex-col gap-1 px-1">
@@ -711,17 +719,17 @@ const App: React.FC = () => {
                         )}
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Destination" value={destination} onChange={(e) => setDestination(e.target.value)} />
-                        </div>
-                        <div className="absolute right-1 top-0 h-full flex items-center gap-1 pointer-events-none z-10">
-                            <button onClick={handleSwapEndpoints} className="pointer-events-auto w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
-                            <button onClick={clearMapOverlays} className="pointer-events-auto w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
+                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => setDestination(e.target.value)} />
                         </div>
                     </div>
                     <div className="flex items-center gap-1 w-full px-0.5">
                          <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
                          <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
                          <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                         {/* Trash Button moved here */}
+                         <button onClick={clearMapOverlays} className="w-6 h-6 ml-auto bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform shrink-0" title="Clear Route">
+                             <Trash2 size={12} className="text-slate-600" />
+                         </button>
                     </div>
                     <div className="flex items-center gap-1 w-full">
                         <button onClick={() => calculateRoute(mode, true)} disabled={loading} className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1">{loading ? <Activity size={16} className="animate-spin" /> : 'Go'}</button>
