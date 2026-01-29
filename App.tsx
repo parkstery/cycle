@@ -133,7 +133,7 @@ const App: React.FC = () => {
             zoomControl: false,
             rotateControl: true, // Disabled rotation/compass control
             scaleControl: false,
-            cameraControl: true, // Disabled the new Camera Control (Tilt/Rotate UI)
+            cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
                 { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
@@ -833,7 +833,7 @@ const App: React.FC = () => {
                             <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                             <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0 min'}</span>
                         </div>
-                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="w-10 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
