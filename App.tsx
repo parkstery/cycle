@@ -721,6 +721,9 @@ const App: React.FC = () => {
         <button onClick={handleToggleMapType} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
             <Layers size={24} />
         </button>
+        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+            <RouteIcon size={24} />
+        </button>
         <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
@@ -729,15 +732,17 @@ const App: React.FC = () => {
                 {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
             </button>
         )}
-        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-            <RouteIcon size={24} />
-        </button>
       </div>
 
       <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
         <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
+               <X size={14} />
+            </button>
+          )}
         </div>
         {searchExpanded && recentPlaceSearches.length > 0 && (
           <div className="w-full flex flex-col px-2 pb-2 gap-1 border-t border-slate-100">
