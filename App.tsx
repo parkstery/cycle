@@ -444,6 +444,39 @@ const App: React.FC = () => {
       }
       if (path.length > 0) {
         const elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
+
+        // Calculate physiological duration based on slope and user speed
+        let calculatedSeconds = 0;
+        const points = elevationRes.results;
+        for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const dist = google.maps.geometry.spherical.computeDistanceBetween(p1.location, p2.location);
+            
+            if (dist > 0) {
+                const elevationChange = p2.elevation - p1.elevation;
+                const grade = (elevationChange / dist) * 100;
+                
+                // Grade adjustments recommended by Fitness Expert
+                let factor = 1.0;
+                if (grade <= -6) factor = 1.35; // Steep descent
+                else if (grade <= -3) factor = 1.25; // Descent
+                else if (grade <= -1) factor = 1.10; // Mild descent
+                else if (grade < 1) factor = 1.00; // Flat
+                else if (grade < 3) factor = 0.85; // Mild ascent
+                else if (grade < 6) factor = 0.70; // Ascent
+                else factor = 0.50; // Steep ascent (> 6%)
+                
+                // V = V0 * factor
+                const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
+                calculatedSeconds += (dist / adjustedSpeedMs);
+            }
+        }
+        
+        const h = Math.floor(calculatedSeconds / 3600);
+        const m = Math.round((calculatedSeconds % 3600) / 60);
+        durText = h > 0 ? `${h} h ${m} min` : `${m} min`;
+
         const densifiedPath = [];
         const segmentLength = 2;
         for (let i = 0; i < path.length - 1; i++) {
