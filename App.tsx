@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, GitBranch, CheckCircle2 } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2 } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -731,4 +731,59 @@ const App: React.FC = () => {
                 <div className="flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden">
                     {recentSearches.length > 0 ? recentSearches.map((item, index) => {
                             const parts = item.split('|');
-                            const label = parts.length === 2 ? `${parts[0]} ~
+                            const label = parts.length === 2 ? `${parts[0]} ~ ${parts[1]}` : item;
+                            return (<button key={index} onClick={() => handleHistoryClick(item)} className="text-left w-full truncate text-[10px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-0.5 transition-colors leading-tight"><span className="font-bold mr-1">{index + 1}.</span>{label}</button>);
+                        }) : (<div className="text-[10px] text-slate-400 text-center italic">No recent routes</div>)}
+                </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {route && (
+        <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-[288px]' : 'w-12 h-12 group'}`}>
+          <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
+            <button onClick={() => setElevationExpanded(!elevationExpanded)} className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
+            {elevationExpanded && (
+              <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center px-1">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                         <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
+                         {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
+                    </div>
+                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    <button onClick={restartSimulation} className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
+                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                  </div>
+                </div>
+                <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
+                  <ResponsiveContainer width="100%" height="100%"><AreaChart data={route.elevation} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}><Area type="monotone" dataKey="elevation" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} isAnimationActive={false} /><ReferenceLine x={Math.floor((simulation.currentIndex / route.path.length) * (route.elevation.length - 1))} stroke="#ffffff" /></AreaChart></ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {clickedLocation && (
+        <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[300px]">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
+            <button onClick={() => setClickedLocation(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
+            <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
+            <p className="text-slate-500 text-[10px] mb-2 truncate">{clickedLocation.address}</p>
+            <div className="grid grid-cols-3 gap-1.5 mt-2">
+              <button onClick={handleSetStart} className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
+              <button onClick={handleAddWaypoint} disabled={waypoints.length >= 3} className={`py-2 rounded-xl text-[9px] font-black tracking-tighter uppercase flex items-center justify-center gap-0.5 ${waypoints.length >= 3 ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-700'}`}>
+                  <Plus size={10}/> WAYPOINT ({waypoints.length}/3)
+              </button>
+              <button onClick={handleSetEnd} className="py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black tracking-tighter uppercase">END (B)</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
