@@ -131,8 +131,9 @@ const App: React.FC = () => {
             streetViewControl: false,
             fullscreenControl: false,
             zoomControl: false,
-            rotateControl: false, // Disabled rotation/compass control
+            rotateControl: true, // Disabled rotation/compass control
             scaleControl: false,
+            cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
                 { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
