@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2 } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const [svStatus, setSvStatus] = useState<string>('OK');
   const [showSvWarning, setShowSvWarning] = useState(false);
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
+  const [mapType, setMapType] = useState<string>('roadmap');
   
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -125,10 +126,7 @@ const App: React.FC = () => {
         googleMap.current = new google.maps.Map(mapRef.current, {
             center: { lat: 37.7749, lng: -122.4194 },
             zoom: 14,
-            mapTypeControl: true,
-            mapTypeControlOptions: {
-              position: google.maps.ControlPosition.TOP_CENTER,
-            },
+            mapTypeControl: false, // Disabled default map type control
             streetViewControl: false,
             fullscreenControl: false,
             zoomControl: false,
@@ -626,6 +624,15 @@ const App: React.FC = () => {
       setSearchTerm(term);
       handlePlaceSearch(term);
   };
+  
+  const handleToggleMapType = () => {
+    if (googleMap.current) {
+        const currentType = googleMap.current.getMapTypeId();
+        const newType = currentType === 'roadmap' ? 'hybrid' : 'roadmap';
+        googleMap.current.setMapTypeId(newType);
+        setMapType(newType);
+    }
+  };
 
   useEffect(() => {
     let timer: number;
@@ -711,6 +718,9 @@ const App: React.FC = () => {
         </div>
       )}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
+        <button onClick={handleToggleMapType} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
+            <Layers size={24} />
+        </button>
         <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
