@@ -4,15 +4,37 @@ import { CoachingData, ElevationPoint } from "../types";
 declare var google: any;
 
 const FALLBACK_TIPS = [
-  "Keep your cadence smooth.",
-  "Relax your shoulders.",
-  "Focus on your breathing rhythm.",
-  "Maintain steady power.",
-  "Look ahead, stay sharp.",
-  "Consistency is key here.",
-  "Pedal in circles, not squares.",
-  "Save energy for the climbs.",
-  "Stay loose on the bars."
+  // Form
+  "Elbows soft. Upper body quiet.",
+  "Hips stable. Let legs work.",
+  "Relax your grip. No white knuckles.",
+  "Core tight. Stop bouncing.",
+  "Smooth circles, not stomps.",
+
+  // Breathing
+  "Deep breath. Long exhale.",
+  "Breathe low. Stay calm.",
+  "Control breath before speed.",
+  "Steady lungs, steady legs.",
+
+  // Power & Cadence
+  "Light feet. Faster spin.",
+  "Ease power. Find rhythm.",
+  "Hold cadence. Ignore speed.",
+  "Even pressure through the stroke.",
+  "Save watts. Ride efficient.",
+
+  // Terrain-aware feel
+  "Stay tall. Let the hill come.",
+  "Float the pedals here.",
+  "Settle in. This section lasts.",
+  "Let gravity work for you.",
+
+  // Mental / Focus
+  "Eyes up. Line stays clean.",
+  "Calm mind. Strong legs.",
+  "No rush. Ride smart.",
+  "Focus now. Free speed ahead."
 ];
 
 export const getAdvancedCoaching = async (
@@ -60,17 +82,31 @@ export const getAdvancedCoaching = async (
   const gearText = ordinals[recommendedGear];
 
   // 3. AI Generation for Tip & Intensity
-  const elevationSamples = upcomingPoints.map(p => p.elevation.toFixed(1));
-  
+  // Determine Context/Focus Area based on Slope
+  let focusArea = "Form (Aero) & Rhythm";
+  let direction = "Maintain aero posture, circular pedaling, efficiency.";
+
+  if (slope >= 3) {
+    focusArea = "Power & Breathing";
+    direction = "Control heart rate, maintain cadence, relax upper body.";
+  } else if (slope <= -3) {
+    focusArea = "Form & Vision";
+    direction = "Shift weight back, look far ahead, engage core.";
+  }
+
   const prompt = `
+    Role: You are a National Team Cycling Coach. Your tone is authoritative, sensory, and immediate.
+    
     Context: 
-    - Slope: ${slope.toFixed(1)}%
+    - Slope: ${slope.toFixed(1)}% (${slope >= 3 ? 'Climbing' : slope <= -3 ? 'Descending' : 'Flat'})
     - Speed: ${currentSpeed}km/h
     - Gear: ${gearText}
+    - Priority Focus: ${focusArea}
     
-    Task: Provide a SHORT, PUNCHY, and VARIED cycling coaching tip (max 10 words).
-    Avoid repetitive phrases like "Maintain a steady pace". Mix up the advice (focus on breathing, form, vision, or encouragement).
-    Do NOT suggest a different gear in the tip text itself.
+    Task: Provide a SHORT, PUNCHY coaching command (max 10 words).
+    - Style: Imperative ("Do this", "Don't do that"), Sensory ("Feel the...", "Quiet upper body").
+    - Direction: ${direction}
+    - Prohibition: No abstract praise like "Good job". No gear suggestions in the tip (handled separately).
   `;
 
   try {
@@ -82,7 +118,7 @@ export const getAdvancedCoaching = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            tip: { type: Type.STRING, description: "Short, varied professional cycling tip." },
+            tip: { type: Type.STRING, description: "Short, sensory, imperative coaching command." },
             intensity: { type: Type.STRING, enum: ['LOW', 'MODERATE', 'HIGH', 'MAX'] },
             action: { type: Type.STRING, enum: ['SIT', 'STAND', 'TUCK', 'PEDAL'] }
           },
