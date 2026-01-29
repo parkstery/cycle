@@ -145,13 +145,36 @@ const App: React.FC = () => {
         placesService.current = new google.maps.places.PlacesService(googleMap.current);
         elevationService.current = new google.maps.ElevationService();
         
+        // Restore Coverage Layer
+        coverageLayer.current = new google.maps.StreetViewCoverageLayer();
+
         panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
              visible: false,
              enableCloseButton: false,
-             disableDefaultUI: true
+             disableDefaultUI: true,
+             clickToGo: false
         });
         googleMap.current.setStreetView(panorama.current);
         svServiceRef.current = new google.maps.StreetViewService();
+
+        // Restore Street View Listeners
+        panorama.current.addListener('status_changed', () => {
+          if (panorama.current) {
+            const status = panorama.current.getStatus();
+            setSvStatus(status);
+            if (status === 'OK') { svErrorCount.current = 0; setShowSvWarning(false); }
+            else { svErrorCount.current += 1; if (svErrorCount.current >= 5) setShowSvWarning(true); }
+          }
+        });
+        panorama.current.addListener('visible_changed', () => {
+          if (panorama.current) {
+             const visible = panorama.current.getVisible();
+             setIsSvActive(visible);
+             setTimeout(() => { 
+                if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize'); 
+             }, 300);
+          }
+        });
 
         googleMap.current.addListener("click", (e: any) => {
              e.stop();
@@ -171,10 +194,11 @@ const App: React.FC = () => {
              } else {
                  geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
                      if (status === 'OK' && results[0]) {
+                         // Fix: Use the formatted address as name instead of "Selected Location" to prevent routing errors
                          setClickedLocation({
                              lat: e.latLng.lat(),
                              lng: e.latLng.lng(),
-                             name: "Selected Location",
+                             name: results[0].formatted_address, 
                              address: results[0].formatted_address,
                              elevation: null,
                              location: e.latLng
@@ -185,6 +209,13 @@ const App: React.FC = () => {
         });
     }
   }, [isMapsApiLoaded]);
+
+  // Restore Coverage Layer Effect
+  useEffect(() => {
+    if (googleMap.current && coverageLayer.current) {
+      coverageLayer.current.setMap(showCoverage ? googleMap.current : null);
+    }
+  }, [showCoverage]);
 
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
@@ -457,8 +488,7 @@ const App: React.FC = () => {
 
   const handleSetStart = () => {
     if (clickedLocation) {
-      // Use address if name is generic "Selected Location" to avoid routing errors
-      const newOrigin = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
+      const newOrigin = clickedLocation.name || clickedLocation.address;
       setOrigin(newOrigin);
       setClickedLocation(null);
       if (destination) { calculateRoute(mode, false, newOrigin, destination); }
@@ -467,8 +497,7 @@ const App: React.FC = () => {
 
   const handleSetEnd = () => {
     if (clickedLocation) {
-      // Use address if name is generic "Selected Location" to avoid routing errors
-      const newDest = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
+      const newDest = clickedLocation.name || clickedLocation.address;
       setDestination(newDest);
       setClickedLocation(null);
       if (origin) { calculateRoute(mode, false, origin, newDest); }
@@ -493,8 +522,7 @@ const App: React.FC = () => {
 
   const handleAddWaypoint = () => {
     if (clickedLocation && waypoints.length < 3) {
-      // Use address if name is generic "Selected Location"
-      const wpName = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
+      const wpName = clickedLocation.name || clickedLocation.address;
       const newWaypoints = [...waypoints, { name: wpName, location: clickedLocation.location }];
       setWaypoints(newWaypoints);
       setClickedLocation(null);
