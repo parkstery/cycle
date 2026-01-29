@@ -125,10 +125,14 @@ const App: React.FC = () => {
         googleMap.current = new google.maps.Map(mapRef.current, {
             center: { lat: 37.7749, lng: -122.4194 },
             zoom: 14,
-            mapTypeControl: false,
+            mapTypeControl: true,
+            mapTypeControlOptions: {
+              position: google.maps.ControlPosition.TOP_CENTER,
+            },
             streetViewControl: false,
             fullscreenControl: false,
             zoomControl: false,
+            rotateControl: true,
             styles: [
                 { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
             ]
