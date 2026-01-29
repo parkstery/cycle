@@ -719,28 +719,28 @@ const App: React.FC = () => {
         </div>
       )}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={handleToggleMapType} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={handleToggleMapType} title="Change Map Style" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
             <Layers size={24} />
         </button>
-        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setShowCoverage(!showCoverage)} title="Toggle Route Coverage" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
-        <button onClick={() => panorama.current?.setVisible(!isSvActive)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => panorama.current?.setVisible(!isSvActive)} title="Toggle Street View" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
         {isSvActive && (
-            <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+            <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title="Toggle Fullscreen" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
                 {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
             </button>
         )}
       </div>
 
-      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
-        <div className="flex items-center w-full h-12 pr-4 shrink-0">
-          <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
+      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
+        <div className="flex items-center w-full h-12 pr-5 shrink-0">
+          <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
+            <button onClick={() => setSearchTerm('')} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
                <X size={14} />
             </button>
           )}
@@ -756,7 +756,7 @@ const App: React.FC = () => {
       </div>
       <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[95%] max-w-[500px]' : 'w-[95%] max-w-[290px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
-          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
                 <div className="w-56 flex-none flex flex-col justify-center gap-1.5">
@@ -772,7 +772,7 @@ const App: React.FC = () => {
                                     <div key={idx} className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 h-6 bg-slate-50 shadow-inner w-full">
                                         <div className="w-3 h-3 rounded-full bg-amber-500 shrink-0 flex items-center justify-center text-[7px] text-white font-black">{idx + 1}</div>
                                         <span className="flex-1 text-[9px] text-slate-500 font-bold truncate tracking-tighter">{wp.name}</span>
-                                        <button onClick={() => handleRemoveWaypoint(idx)} className="text-slate-400 hover:text-red-500 shrink-0">
+                                        <button onClick={() => handleRemoveWaypoint(idx)} title="Remove Waypoint" className="text-slate-400 hover:text-red-500 shrink-0">
                                             <X size={10} />
                                         </button>
                                     </div>
@@ -789,18 +789,19 @@ const App: React.FC = () => {
                          <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
                          <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                          <div className="flex items-center gap-1 ml-auto shrink-0">
-                             <button onClick={handleSwapEndpoints} className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform" title="Swap locations"><ArrowUpDown size={12} className="text-slate-600" /></button>
-                             <button onClick={clearMapOverlays} className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform" title="Clear Route"><Trash2 size={12} className="text-slate-600" /></button>
+                             <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
+                             <button onClick={clearMapOverlays} title="Clear Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
                          </div>
                     </div>
                     <div className="flex items-center gap-1 w-full">
-                        <button onClick={() => calculateRoute(mode, true)} disabled={loading} className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1">{loading ? <Activity size={16} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1">{loading ? <Activity size={16} className="animate-spin" /> : 'Go'}</button>
                         <div className="flex-1 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg h-7"><span className="text-xs font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span></div>
                     </div>
                 </div>
                 
                 <button 
                   onClick={() => setHistoryExpanded(!historyExpanded)}
+                  title={historyExpanded ? "Collapse History" : "Expand History"}
                   className="w-4 flex items-center justify-center text-slate-300 hover:text-slate-500 transition-colors"
                 >
                   {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -810,7 +811,7 @@ const App: React.FC = () => {
                     {recentSearches.length > 0 ? recentSearches.map((item, index) => {
                             const parts = item.split('|');
                             const label = parts.length === 2 ? `${parts[0]} ~ ${parts[1]}` : item;
-                            return (<button key={index} onClick={() => handleHistoryClick(item)} className="text-left w-full truncate text-[10px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-0.5 transition-colors leading-tight"><span className="font-bold mr-1">{index + 1}.</span>{label}</button>);
+                            return (<button key={index} onClick={() => handleHistoryClick(item)} title={label} className="text-left w-full truncate text-[10px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-0.5 transition-colors leading-tight"><span className="font-bold mr-1">{index + 1}.</span>{label}</button>);
                         }) : (<div className="text-[10px] text-slate-400 text-center italic">No recent routes</div>)}
                 </div>
             </div>
@@ -820,7 +821,7 @@ const App: React.FC = () => {
       {route && (
         <div className={`absolute bottom-4 right-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'w-[80%] max-w-[288px]' : 'w-12 h-12 group'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
-            <button onClick={() => setElevationExpanded(!elevationExpanded)} className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
+            <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
             {elevationExpanded && (
               <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center px-1">
@@ -832,8 +833,8 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
                   </div>
                   <div className="flex gap-1 items-center">
-                    <button onClick={restartSimulation} className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
-                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                    <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
+                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
                   </div>
                 </div>
                 <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
@@ -847,15 +848,15 @@ const App: React.FC = () => {
       {clickedLocation && (
         <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[300px]">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
-            <button onClick={() => setClickedLocation(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
+            <button onClick={() => setClickedLocation(null)} title="Close" className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
             <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
             <p className="text-slate-500 text-[10px] mb-2 truncate">{clickedLocation.address}</p>
             <div className="grid grid-cols-3 gap-1.5 mt-2">
-              <button onClick={handleSetStart} className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
-              <button onClick={handleAddWaypoint} disabled={waypoints.length >= 3} className={`py-2 rounded-xl text-[9px] font-black tracking-tighter uppercase flex items-center justify-center gap-0.5 ${waypoints.length >= 3 ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-700'}`}>
+              <button onClick={handleSetStart} title="Set as Start" className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
+              <button onClick={handleAddWaypoint} disabled={waypoints.length >= 3} title="Add Waypoint" className={`py-2 rounded-xl text-[9px] font-black tracking-tighter uppercase flex items-center justify-center gap-0.5 ${waypoints.length >= 3 ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-700'}`}>
                   <Plus size={10}/> WAYPOINT ({waypoints.length}/3)
               </button>
-              <button onClick={handleSetEnd} className="py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black tracking-tighter uppercase">END (B)</button>
+              <button onClick={handleSetEnd} title="Set as Destination" className="py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black tracking-tighter uppercase">END (B)</button>
             </div>
           </div>
         </div>
