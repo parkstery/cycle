@@ -69,6 +69,7 @@ const App: React.FC = () => {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [elevationExpanded, setElevationExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   // Input States
   const [origin, setOrigin] = useState('');
@@ -753,7 +754,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[95%] max-w-[500px]' : 'w-[95%] max-w-[290px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
@@ -797,7 +798,15 @@ const App: React.FC = () => {
                         <div className="flex-1 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg h-7"><span className="text-xs font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span></div>
                     </div>
                 </div>
-                <div className="flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden">
+                
+                <button 
+                  onClick={() => setHistoryExpanded(!historyExpanded)}
+                  className="w-4 flex items-center justify-center text-slate-300 hover:text-slate-500 transition-colors"
+                >
+                  {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+
+                <div className={`flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
                     {recentSearches.length > 0 ? recentSearches.map((item, index) => {
                             const parts = item.split('|');
                             const label = parts.length === 2 ? `${parts[0]} ~ ${parts[1]}` : item;
