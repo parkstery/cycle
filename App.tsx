@@ -746,7 +746,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-[66px] left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")}`} />
+      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")}`} />
       {simulation.isActive && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
