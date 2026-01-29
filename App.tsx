@@ -340,6 +340,11 @@ const App: React.FC = () => {
     setCoachData(null);
     setRouteSource(null);
     setWaypoints([]);
+    
+    // Explicitly clear start and end inputs
+    setOrigin('');
+    setDestination('');
+
     svErrorCount.current = 0;
     setShowSvWarning(false);
     setElapsedTime(0);
@@ -720,7 +725,7 @@ const App: React.FC = () => {
               <span>SYNCED TO REPO</span>
           </div>
           <div className="text-white/40 text-[7px] font-mono mt-0.5 mr-1 select-none">
-              commit: feat: instant markers
+              commit: fix: clear inputs on delete
           </div>
       </div>
 
