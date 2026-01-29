@@ -370,11 +370,26 @@ const App: React.FC = () => {
           setRouteSource('GOOGLE');
         }
       } catch (e) {
-        const originLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalOrigin}, (r:any)=>res(r[0].geometry.location)));
-        const destLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalDestination}, (r:any)=>res(r[0].geometry.location)));
-        const wpLatLngs = await Promise.all(activeWaypoints.map(wp => new Promise<any>((res) => geocoder.current.geocode({address: wp.name}, (r:any)=>res(r[0].geometry.location)))));
+        // Safe geocoding with Promises and Error Handling
+        const geocodePromise = (addr: string) => new Promise<any>((resolve, reject) => {
+            geocoder.current.geocode({address: addr}, (results: any, status: any) => {
+                if (status === 'OK' && results && results[0]) {
+                    resolve(results[0].geometry.location);
+                } else {
+                    reject(status);
+                }
+            });
+        });
+
+        const originLatLng = await geocodePromise(finalOrigin);
+        const destLatLng = await geocodePromise(finalDestination);
+        const wpLatLngs = await Promise.all(activeWaypoints.map(wp => geocodePromise(wp.name).catch(() => null))); // Ignore failed waypoints for OSRM
+
         const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-        const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
+        // Filter out null waypoints
+        const validWps = wpLatLngs.filter(p => p !== null);
+        
+        const coords = [originLatLng, ...validWps, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
         const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
         const resp = await fetch(url);
         const data = await resp.json();
@@ -442,7 +457,8 @@ const App: React.FC = () => {
 
   const handleSetStart = () => {
     if (clickedLocation) {
-      const newOrigin = clickedLocation.name || clickedLocation.address;
+      // Use address if name is generic "Selected Location" to avoid routing errors
+      const newOrigin = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
       setOrigin(newOrigin);
       setClickedLocation(null);
       if (destination) { calculateRoute(mode, false, newOrigin, destination); }
@@ -451,7 +467,8 @@ const App: React.FC = () => {
 
   const handleSetEnd = () => {
     if (clickedLocation) {
-      const newDest = clickedLocation.name || clickedLocation.address;
+      // Use address if name is generic "Selected Location" to avoid routing errors
+      const newDest = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
       setDestination(newDest);
       setClickedLocation(null);
       if (origin) { calculateRoute(mode, false, origin, newDest); }
@@ -476,7 +493,8 @@ const App: React.FC = () => {
 
   const handleAddWaypoint = () => {
     if (clickedLocation && waypoints.length < 3) {
-      const wpName = clickedLocation.name || clickedLocation.address;
+      // Use address if name is generic "Selected Location"
+      const wpName = (clickedLocation.name === "Selected Location" ? clickedLocation.address : clickedLocation.name) || clickedLocation.address;
       const newWaypoints = [...waypoints, { name: wpName, location: clickedLocation.location }];
       setWaypoints(newWaypoints);
       setClickedLocation(null);
