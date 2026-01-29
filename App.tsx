@@ -724,17 +724,6 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* COMMIT STATUS BAR */}
-      <div className="absolute top-4 right-20 z-[90] pointer-events-none flex flex-col items-end">
-          <div className="bg-emerald-500/90 backdrop-blur-md text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg border border-white/20">
-              <CheckCircle2 size={10} />
-              <span>SYNCED TO REPO</span>
-          </div>
-          <div className="text-white/40 text-[7px] font-mono mt-0.5 mr-1 select-none">
-              commit: fix: visible compass & layers
-          </div>
-      </div>
-
       <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[240px] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
         <div className="flex items-center w-full h-12 pr-2 shrink-0">
           <button onClick={() => setSearchExpanded(!searchExpanded)} className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
@@ -749,7 +738,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 left-4 translate-x-0 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
