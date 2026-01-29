@@ -133,6 +133,8 @@ const App: React.FC = () => {
             fullscreenControl: false,
             zoomControl: false,
             rotateControl: true,
+            scaleControl: false,
+            clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
                 { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
             ]
@@ -729,7 +731,7 @@ const App: React.FC = () => {
               <span>SYNCED TO REPO</span>
           </div>
           <div className="text-white/40 text-[7px] font-mono mt-0.5 mr-1 select-none">
-              commit: fix: clear inputs on delete
+              commit: fix: visible compass & layers
           </div>
       </div>
 
