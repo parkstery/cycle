@@ -360,7 +360,7 @@ const App: React.FC = () => {
     targetMode?: TravelMode, 
     autoStart: boolean = false, 
     customOrigin?: string, 
-    customDestination?: string,
+    customDestination?: string, 
     customWaypoints?: {name: string, location: any}[]
   ) => {
     const activeMode = targetMode || mode;
@@ -490,6 +490,10 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newOrigin = clickedLocation.name || clickedLocation.address;
       setOrigin(newOrigin);
+      
+      if (startMarker.current) startMarker.current.setMap(null);
+      startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
+
       setClickedLocation(null);
       if (destination) { calculateRoute(mode, false, newOrigin, destination); }
     }
@@ -499,6 +503,10 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newDest = clickedLocation.name || clickedLocation.address;
       setDestination(newDest);
+
+      if (endMarker.current) endMarker.current.setMap(null);
+      endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
+
       setClickedLocation(null);
       if (origin) { calculateRoute(mode, false, origin, newDest); }
     }
@@ -525,6 +533,10 @@ const App: React.FC = () => {
       const wpName = clickedLocation.name || clickedLocation.address;
       const newWaypoints = [...waypoints, { name: wpName, location: clickedLocation.location }];
       setWaypoints(newWaypoints);
+
+      const m = createCustomMarker(clickedLocation.location, (waypoints.length + 1).toString(), '#f59e0b');
+      waypointMarkers.current.push(m);
+
       setClickedLocation(null);
       // Recalculate if we have full set
       if (origin && destination) { calculateRoute(mode, false, origin, destination, newWaypoints); }
@@ -534,6 +546,16 @@ const App: React.FC = () => {
   const handleRemoveWaypoint = (idx: number) => {
     const newWaypoints = waypoints.filter((_, i) => i !== idx);
     setWaypoints(newWaypoints);
+    
+    // Immediately remove marker and re-index visual markers
+    if (waypointMarkers.current[idx]) {
+        waypointMarkers.current[idx].setMap(null);
+        waypointMarkers.current.splice(idx, 1);
+        waypointMarkers.current.forEach((m, i) => {
+            m.setLabel({ text: (i + 1).toString(), color: 'white', fontWeight: 'bold', fontSize: '14px' });
+        });
+    }
+
     // Recalculate after removal if routing is active
     if (origin && destination) {
        calculateRoute(mode, false, origin, destination, newWaypoints);
@@ -698,7 +720,7 @@ const App: React.FC = () => {
               <span>SYNCED TO REPO</span>
           </div>
           <div className="text-white/40 text-[7px] font-mono mt-0.5 mr-1 select-none">
-              commit: feat: multi-waypoint (max 3)
+              commit: feat: instant markers
           </div>
       </div>
 
