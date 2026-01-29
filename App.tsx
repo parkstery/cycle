@@ -794,8 +794,12 @@ const App: React.FC = () => {
                          </div>
                     </div>
                     <div className="flex items-center gap-1 w-full">
-                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1">{loading ? <Activity size={16} className="animate-spin" /> : 'Go'}</button>
-                        <div className="flex-1 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg h-7"><span className="text-xs font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span></div>
+                        <div className="flex-1 flex items-center justify-center gap-2 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
+                            <span className="text-[10px] font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span>
+                            <div className="h-3 w-px bg-slate-300 shrink-0"></div>
+                            <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0 min'}</span>
+                        </div>
+                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="w-10 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
