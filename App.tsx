@@ -158,7 +158,9 @@ const App: React.FC = () => {
              visible: false,
              enableCloseButton: false,
              disableDefaultUI: true,
-             clickToGo: false
+             clickToGo: false,
+             motionTracking: true, // Enable motion tracking (gyroscope)
+             motionTrackingControl: true // Explicitly show the motion tracking button
         });
         googleMap.current.setStreetView(panorama.current);
         svServiceRef.current = new google.maps.StreetViewService();
