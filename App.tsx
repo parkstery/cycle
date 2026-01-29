@@ -119,6 +119,73 @@ const App: React.FC = () => {
     document.head.appendChild(script);
   }, []);
 
+  // Map Initialization
+  useEffect(() => {
+    if (isMapsApiLoaded && mapRef.current && !googleMap.current) {
+        googleMap.current = new google.maps.Map(mapRef.current, {
+            center: { lat: 37.7749, lng: -122.4194 },
+            zoom: 14,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            zoomControl: false,
+            styles: [
+                { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+            ]
+        });
+
+        directionsRenderer.current = new google.maps.DirectionsRenderer({
+            map: googleMap.current,
+            suppressMarkers: true,
+            preserveViewport: true,
+            polylineOptions: { strokeColor: '#3b82f6', strokeOpacity: 0.6, strokeWeight: 5 }
+        });
+
+        geocoder.current = new google.maps.Geocoder();
+        placesService.current = new google.maps.places.PlacesService(googleMap.current);
+        elevationService.current = new google.maps.ElevationService();
+        
+        panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
+             visible: false,
+             enableCloseButton: false,
+             disableDefaultUI: true
+        });
+        googleMap.current.setStreetView(panorama.current);
+        svServiceRef.current = new google.maps.StreetViewService();
+
+        googleMap.current.addListener("click", (e: any) => {
+             e.stop();
+             if (e.placeId) {
+                 placesService.current.getDetails({ placeId: e.placeId }, (place: any, status: any) => {
+                     if (status === 'OK') {
+                         setClickedLocation({
+                             lat: place.geometry.location.lat(),
+                             lng: place.geometry.location.lng(),
+                             name: place.name,
+                             address: place.formatted_address,
+                             elevation: null,
+                             location: place.geometry.location
+                         });
+                     }
+                 });
+             } else {
+                 geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
+                     if (status === 'OK' && results[0]) {
+                         setClickedLocation({
+                             lat: e.latLng.lat(),
+                             lng: e.latLng.lng(),
+                             name: "Selected Location",
+                             address: results[0].formatted_address,
+                             elevation: null,
+                             location: e.latLng
+                         });
+                     }
+                 });
+             }
+        });
+    }
+  }, [isMapsApiLoaded]);
+
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
@@ -258,156 +325,18 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSwapEndpoints = () => {
-    const tempOrigin = origin;
-    setOrigin(destination);
-    setDestination(tempOrigin);
-    // Reverse waypoints too
-    setWaypoints(prev => [...prev].reverse());
-  };
-
-  useEffect(() => {
-    if (!isMapsApiLoaded) return;
-    if (mapRef.current && !googleMap.current) {
-      googleMap.current = new google.maps.Map(mapRef.current, {
-        center: { lat: 37.3422, lng: 127.9202 },
-        zoom: 15,
-        mapId: 'ef6d149e63d71cf93952c9bb',
-        disableDefaultUI: true,
-      });
-      geocoder.current = new google.maps.Geocoder();
-      elevationService.current = new google.maps.ElevationService();
-      coverageLayer.current = new google.maps.StreetViewCoverageLayer();
-      placesService.current = new google.maps.places.PlacesService(googleMap.current);
-      svServiceRef.current = new google.maps.StreetViewService();
-      directionsRenderer.current = new google.maps.DirectionsRenderer({
-        map: googleMap.current,
-        suppressMarkers: true,
-        polylineOptions: { strokeColor: '#ff3020', strokeWeight: 5, strokeOpacity: 0.8, clickable: false }
-      });
-      panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
-        visible: false,
-        addressControl: false,
-        linksControl: false,
-        enableCloseButton: false,
-        zoomControl: false,
-        fullscreenControl: false,
-        clickToGo: false 
-      });
-      panorama.current.addListener('status_changed', () => {
-        if (panorama.current) {
-          const status = panorama.current.getStatus();
-          setSvStatus(status);
-          if (status === 'OK') { svErrorCount.current = 0; setShowSvWarning(false); }
-          else { svErrorCount.current += 1; if (svErrorCount.current >= 5) setShowSvWarning(true); }
-        }
-      });
-      panorama.current.addListener('visible_changed', () => {
-        setIsSvActive(panorama.current.getVisible());
-        setTimeout(() => { if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize'); }, 300);
-      });
-      googleMap.current.addListener('click', (e: any) => {
-        if (e.placeId) {
-          e.stop();
-          placesService.current.getDetails({ placeId: e.placeId }, (place: any, status: string) => {
-            if (status === 'OK' && place.geometry && place.geometry.location) {
-               const loc = place.geometry.location;
-               if (tempMarker.current) tempMarker.current.setMap(null);
-               tempMarker.current = new google.maps.Marker({
-                  position: loc,
-                  map: googleMap.current,
-                  animation: google.maps.Animation.DROP,
-                  icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
-               });
-               elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
-                  const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-                  setClickedLocation({ lat: loc.lat(), lng: loc.lng(), name: place.name, address: place.formatted_address, elevation: elevation, location: loc });
-               });
-               setRouteInputExpanded(true);
-            }
-          });
-          return;
-        }
-        const latLng = e.latLng;
-        geocoder.current.geocode({ location: latLng }, (results: any, status: string) => {
-          if (status === 'OK' && results[0]) {
-            if (tempMarker.current) tempMarker.current.setMap(null);
-            tempMarker.current = new google.maps.Marker({
-              position: latLng,
-              map: googleMap.current,
-              animation: google.maps.Animation.DROP,
-              icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' }
-            });
-            elevationService.current.getElevationForLocations({ locations: [latLng] }, (elevResults: any, elevStatus: string) => {
-              const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-              setClickedLocation({ lat: latLng.lat(), lng: latLng.lng(), name: results[0].formatted_address, address: results[0].formatted_address, elevation: elevation, location: latLng });
-            });
-            setRouteInputExpanded(true);
-          }
-        });
-      });
-    }
-  }, [isMapsApiLoaded]);
-
-  useEffect(() => {
-    if (googleMap.current && coverageLayer.current) {
-      coverageLayer.current.setMap(showCoverage ? googleMap.current : null);
-    }
-  }, [showCoverage]);
-
-  const handlePlaceSearch = (termToSearch?: string) => {
-    const finalTerm = termToSearch || searchTerm;
-    if (!finalTerm) return;
-    const performSearch = (term: string) => {
-         setRecentPlaceSearches(prev => {
-            const filtered = prev.filter(item => item !== term);
-            const updated = [term, ...filtered].slice(0, 3);
-            localStorage.setItem('recent_places', JSON.stringify(updated));
-            return updated;
-         });
-         if (placesService.current) {
-            const request = { query: term, fields: ['name', 'geometry', 'formatted_address'] };
-            placesService.current.findPlaceFromQuery(request, (results: any, status: string) => {
-                if (status === 'OK' && results && results.length > 0) {
-                    const place = results[0];
-                    const loc = place.geometry.location;
-                    googleMap.current.setCenter(loc);
-                    googleMap.current.setZoom(17);
-                    if (tempMarker.current) tempMarker.current.setMap(null);
-                    tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
-                    elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
-                        const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-                        setClickedLocation({ lat: loc.lat(), lng: loc.lng(), name: place.name, address: place.formatted_address, elevation: elevation, location: loc });
-                    });
-                    setSearchExpanded(false); 
-                } else { fallbackGeocode(term); }
-            });
-        } else { fallbackGeocode(term); }
-    }
-    performSearch(finalTerm);
-  };
-
-  const fallbackGeocode = (term: string) => {
-    geocoder.current.geocode({ address: term }, (results: any, status: string) => {
-      if (status === 'OK' && results[0]) {
-        const loc = results[0].geometry.location;
-        googleMap.current.setCenter(loc);
-        googleMap.current.setZoom(17);
-        if (tempMarker.current) tempMarker.current.setMap(null);
-        tempMarker.current = new google.maps.Marker({ position: loc, map: googleMap.current, animation: google.maps.Animation.DROP });
-        elevationService.current.getElevationForLocations({ locations: [loc] }, (elevResults: any, elevStatus: string) => {
-          const elevation = (elevStatus === 'OK' && elevResults[0]) ? elevResults[0].elevation : null;
-          setClickedLocation({ lat: loc.lat(), lng: loc.lng(), name: results[0].formatted_address, address: results[0].formatted_address, elevation: elevation, location: loc });
-        });
-        setSearchExpanded(false);
-      }
-    });
-  };
-
-  const calculateRoute = useCallback(async (targetMode?: TravelMode, autoStart: boolean = false, customOrigin?: string, customDestination?: string) => {
+  const calculateRoute = useCallback(async (
+    targetMode?: TravelMode, 
+    autoStart: boolean = false, 
+    customOrigin?: string, 
+    customDestination?: string,
+    customWaypoints?: {name: string, location: any}[]
+  ) => {
     const activeMode = targetMode || mode;
     const finalOrigin = customOrigin || origin;
     const finalDestination = customDestination || destination;
+    const activeWaypoints = customWaypoints || waypoints;
+
     if (!finalOrigin || !finalDestination) return;
     setLoading(true);
     setCoachData(null);
@@ -425,8 +354,8 @@ const App: React.FC = () => {
         const result = await ds.route({ 
           origin: finalOrigin, 
           destination: finalDestination, 
-          waypoints: waypoints.map(wp => ({ location: wp.location, stopover: true })),
-          optimizeWaypoints: false,
+          waypoints: activeWaypoints.map(wp => ({ location: wp.location, stopover: true })),
+          optimizeWaypoints: true,
           travelMode: google.maps.TravelMode[activeMode] 
         });
         if (result.routes[0]) {
@@ -443,7 +372,7 @@ const App: React.FC = () => {
       } catch (e) {
         const originLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalOrigin}, (r:any)=>res(r[0].geometry.location)));
         const destLatLng = await new Promise<any>((res) => geocoder.current.geocode({address: finalDestination}, (r:any)=>res(r[0].geometry.location)));
-        const wpLatLngs = await Promise.all(waypoints.map(wp => new Promise<any>((res) => geocoder.current.geocode({address: wp.name}, (r:any)=>res(r[0].geometry.location)))));
+        const wpLatLngs = await Promise.all(activeWaypoints.map(wp => new Promise<any>((res) => geocoder.current.geocode({address: wp.name}, (r:any)=>res(r[0].geometry.location)))));
         const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
         const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
         const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
@@ -482,7 +411,7 @@ const App: React.FC = () => {
         waypointMarkers.current = [];
         startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
-        waypoints.forEach((wp, idx) => {
+        activeWaypoints.forEach((wp, idx) => {
             const m = createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b');
             waypointMarkers.current.push(m);
         });
@@ -529,22 +458,39 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSwapEndpoints = () => {
+    const tempOrigin = origin;
+    const newOrigin = destination;
+    const newDestination = tempOrigin;
+    const newWaypoints = [...waypoints].reverse();
+
+    setOrigin(newOrigin);
+    setDestination(newDestination);
+    setWaypoints(newWaypoints);
+    
+    // Trigger recalculation immediately with new values
+    if (newOrigin && newDestination) {
+        calculateRoute(mode, false, newOrigin, newDestination, newWaypoints);
+    }
+  };
+
   const handleAddWaypoint = () => {
     if (clickedLocation && waypoints.length < 3) {
       const wpName = clickedLocation.name || clickedLocation.address;
-      setWaypoints(prev => [...prev, { name: wpName, location: clickedLocation.location }]);
+      const newWaypoints = [...waypoints, { name: wpName, location: clickedLocation.location }];
+      setWaypoints(newWaypoints);
       setClickedLocation(null);
       // Recalculate if we have full set
-      if (origin && destination) { calculateRoute(mode, false, origin, destination); }
+      if (origin && destination) { calculateRoute(mode, false, origin, destination, newWaypoints); }
     }
   };
 
   const handleRemoveWaypoint = (idx: number) => {
-    setWaypoints(prev => prev.filter((_, i) => i !== idx));
+    const newWaypoints = waypoints.filter((_, i) => i !== idx);
+    setWaypoints(newWaypoints);
     // Recalculate after removal if routing is active
     if (origin && destination) {
-       // We need to wait for state update, but for simplicity we call it next tick
-       setTimeout(() => calculateRoute(mode, false, origin, destination), 0);
+       calculateRoute(mode, false, origin, destination, newWaypoints);
     }
   };
 
@@ -554,6 +500,46 @@ const App: React.FC = () => {
           setOrigin(parts[0]);
           setDestination(parts[1]);
           calculateRoute(mode, false, parts[0], parts[1]);
+      }
+  };
+  
+  const handlePlaceSearch = (term?: string) => {
+      const query = term || searchTerm;
+      if (!query) return;
+
+      if (!placesService.current && googleMap.current) {
+          placesService.current = new google.maps.places.PlacesService(googleMap.current);
+      }
+
+      if (placesService.current) {
+          placesService.current.findPlaceFromQuery({
+              query: query,
+              fields: ['name', 'geometry', 'formatted_address']
+          }, (results: any, status: any) => {
+              if (status === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
+                  const place = results[0];
+                  if (place.geometry && place.geometry.location) {
+                      googleMap.current.setCenter(place.geometry.location);
+                      googleMap.current.setZoom(16);
+                      setClickedLocation({
+                          lat: place.geometry.location.lat(),
+                          lng: place.geometry.location.lng(),
+                          name: place.name,
+                          address: place.formatted_address || query,
+                          elevation: null,
+                          location: place.geometry.location
+                      });
+
+                      setRecentPlaceSearches(prev => {
+                          const filtered = prev.filter(item => item !== query);
+                          const updated = [query, ...filtered].slice(0, 5);
+                          localStorage.setItem('recent_places', JSON.stringify(updated));
+                          return updated;
+                      });
+                      setSearchTerm(query);
+                  }
+              }
+          });
       }
   };
 
@@ -695,14 +681,6 @@ const App: React.FC = () => {
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                             <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => setOrigin(e.target.value)} />
                         </div>
-                        
-                        {/* Swap Button moved here - Front of waypoint list */}
-                        <div className="flex justify-end px-1 -my-1 z-10 relative pointer-events-none">
-                            <button onClick={handleSwapEndpoints} className="pointer-events-auto w-5 h-5 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow hover:bg-slate-50 active:scale-95 transition-transform" title="Swap locations">
-                                <ArrowUpDown size={10} className="text-slate-600" />
-                            </button>
-                        </div>
-
                         {/* Waypoints Render */}
                         {waypoints.length > 0 && (
                             <div className="flex flex-col gap-1 px-1">
@@ -726,10 +704,10 @@ const App: React.FC = () => {
                          <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
                          <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
                          <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                         {/* Trash Button moved here */}
-                         <button onClick={clearMapOverlays} className="w-6 h-6 ml-auto bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform shrink-0" title="Clear Route">
-                             <Trash2 size={12} className="text-slate-600" />
-                         </button>
+                         <div className="flex items-center gap-1 ml-auto shrink-0">
+                             <button onClick={handleSwapEndpoints} className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform" title="Swap locations"><ArrowUpDown size={12} className="text-slate-600" /></button>
+                             <button onClick={clearMapOverlays} className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform" title="Clear Route"><Trash2 size={12} className="text-slate-600" /></button>
+                         </div>
                     </div>
                     <div className="flex items-center gap-1 w-full">
                         <button onClick={() => calculateRoute(mode, true)} disabled={loading} className="flex-1 bg-blue-700 text-white rounded-lg h-7 text-sm font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1">{loading ? <Activity size={16} className="animate-spin" /> : 'Go'}</button>
