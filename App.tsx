@@ -906,8 +906,8 @@ const App: React.FC = () => {
                 if (!foundLink && svServiceRef.current) {
                     svServiceRef.current.getPanorama({
                         location: currentPos, 
-                        radius: 20, 
-                        source: google.maps.StreetViewSource.OUTDOOR, 
+                        radius: 50, // Increased radius from 20 to 50 to find valid SV nodes
+                        source: google.maps.StreetViewSource.GOOGLE, // Strictly use Google sources
                         preference: google.maps.StreetViewPreference.NEAREST
                     }, (data: any, status: string) => {
                         if (status === 'OK' && data?.location?.pano) { 
