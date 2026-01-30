@@ -110,7 +110,39 @@ const App: React.FC = () => {
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) return JSON.parse(saved);
+    
+    // Default Routes if nothing saved
+    return [
+      {
+        id: "def-jeju",
+        origin: "대한민국 제주특별자치도 서귀포시 성산읍 신산리 1130-12",
+        destination: "대한민국 제주특별자치도 서귀포시 성산읍 온평리 1286-4",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-paris",
+        origin: "Ch. de Gaulle - Étoile Grande Armée, 75116 Paris, 프랑스",
+        destination: "33 Bd de Grenelle, 75015 Paris, 프랑스",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-switz",
+        origin: "HXJQ+M5 스위스 그린델발트",
+        destination: "H2R4+H7 스위스 그린델발트",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-italy",
+        origin: "Via dell’Abbondanza, 6, 80045 Pompei NA, 이탈리아",
+        destination: "Villa delle Tombe, 8, 80045 Pompei NA, 이탈리아",
+        waypoints: [],
+        timestamp: Date.now()
+      }
+    ];
   });
 
   // Recent Place Searches (SearchBar)
