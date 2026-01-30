@@ -465,6 +465,7 @@ const App: React.FC = () => {
 
   const handleStopSimulation = () => {
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
+    setIsSvFullScreen(false); // Reset fullscreen state
     if (panorama.current) {
         panorama.current.setVisible(false);
     }
