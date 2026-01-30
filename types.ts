@@ -1,3 +1,4 @@
+
 export interface RouteInfo {
   origin: string;
   destination: string;
@@ -29,7 +30,7 @@ export interface SimulationState {
 
 export interface CoachingData {
   tip: string;
-  gear: string;
+  resistance: string;
   intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
   action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
 }

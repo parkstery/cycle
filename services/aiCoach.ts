@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { CoachingData, ElevationPoint } from "../types";
 
@@ -41,7 +42,7 @@ export const getAdvancedCoaching = async (
   currentElevation: number,
   upcomingPoints: ElevationPoint[],
   currentSpeed: number,
-  previousGear?: string
+  previousResistance?: string
 ): Promise<CoachingData> => {
   const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
   
@@ -61,52 +62,49 @@ export const getAdvancedCoaching = async (
     }
   }
 
-  // 2. Determine Gear based on Slope (PM's Strict Table)
-  let recommendedGear = 4; // Default to Flat (Gear 4)
-  
-  // Reversed logic: Higher slope -> Higher gear number (centered on Flat=4)
-  if (slope >= 10) recommendedGear = 8;      // 10% or more
-  else if (slope >= 7) recommendedGear = 8;  // 7% ~ 10%
-  else if (slope >= 5) recommendedGear = 7;  // 5% ~ 7%
-  else if (slope >= 3) recommendedGear = 6;  // 3% ~ 5%
-  else if (slope >= 1) recommendedGear = 5;  // 1% ~ 3%
-  else if (slope >= -1) recommendedGear = 4; // -1% ~ +1% (Flat)
-  else if (slope >= -3) recommendedGear = 3; // -1% ~ -3%
-  else recommendedGear = 2;                  // -3% or less
+  // 2. Determine Resistance based on Slope (Correct Physics Logic)
+  // Mapping:
+  // Slope >= 10% (Extreme Uphill) -> Resistance 8 (Max Load) -> Action: Stand/Grind
+  // 7% <= Slope < 10% (Strong Uphill) -> Resistance 7 (Very Heavy) -> Action: Heavy Pedal
+  // 3% <= Slope < 7% (Moderate Uphill) -> Resistance 5-6 (Heavy) -> Action: Steady Rhythm
+  // -1% <= Slope < 3% (Flat) -> Resistance 3-4 (Moderate) -> Action: Cruise
+  // -3% <= Slope < -1% (Slight Downhill) -> Resistance 2 (Light) -> Action: High Cadence/Rest
+  // Slope < -3% (Steep Downhill) -> Resistance 1 (Min Load) -> Action: Coast/Tuck
 
-  // Map to ordinal strings
-  const ordinals: {[key: number]: string} = {
-    1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 
-    5: "5th", 6: "6th", 7: "7th", 8: "8th"
-  };
-  const gearText = ordinals[recommendedGear];
+  let targetRes = 3;
+  let contextDesc = "Flat - Cruising";
+
+  if (slope >= 10) { targetRes = 8; contextDesc = "Extreme Uphill (MAX LOAD). 'Wall climbing' feel. Needs Standing."; }
+  else if (slope >= 7) { targetRes = 7; contextDesc = "Steep Uphill (Very Heavy). Needs strong core & heavy torque."; }
+  else if (slope >= 5) { targetRes = 6; contextDesc = "Moderate Uphill (Heavy). Maintaining steady climbing rhythm."; }
+  else if (slope >= 3) { targetRes = 5; contextDesc = "Uphill Start. Breathing control required."; }
+  else if (slope >= 1) { targetRes = 4; contextDesc = "False Flat. Maintenance pace."; }
+  else if (slope >= -1) { targetRes = 3; contextDesc = "Flat. Cruising. Relax shoulders."; }
+  else if (slope >= -3) { targetRes = 2; contextDesc = "Slight Downhill. Speed picks up. Spin fast or rest."; }
+  else { targetRes = 1; contextDesc = "Steep Downhill (MIN LOAD). Gravity acceleration. Aero Tuck or Coasting."; }
+
+  const resistanceText = `Resistance ${targetRes}`;
 
   // 3. AI Generation for Tip & Intensity
-  // Determine Context/Focus Area based on Slope
-  let focusArea = "Form (Aero) & Rhythm";
-  let direction = "Maintain aero posture, circular pedaling, efficiency.";
-
-  if (slope >= 3) {
-    focusArea = "Power & Breathing";
-    direction = "Control heart rate, maintain cadence, relax upper body.";
-  } else if (slope <= -3) {
-    focusArea = "Form & Vision";
-    direction = "Shift weight back, look far ahead, engage core.";
-  }
-
   const prompt = `
-    Role: You are a National Team Cycling Coach. Your tone is authoritative, sensory, and immediate.
+    Role: You are a Professional Indoor Cycling Coach.
     
-    Context: 
-    - Slope: ${slope.toFixed(1)}% (${slope >= 3 ? 'Climbing' : slope <= -3 ? 'Descending' : 'Flat'})
-    - Speed: ${currentSpeed}km/h
-    - Gear: ${gearText}
-    - Priority Focus: ${focusArea}
+    Current Status: 
+    - Slope: ${slope.toFixed(1)}%
+    - Target Dial: ${targetRes} / 8 (${contextDesc})
+    - Speed: ${currentSpeed} km/h
+    - Previous Dial: ${previousResistance || 'None'}
     
     Task: Provide a SHORT, PUNCHY coaching command (max 10 words).
-    - Style: Imperative ("Do this", "Don't do that"), Sensory ("Feel the...", "Quiet upper body").
-    - Direction: ${direction}
-    - Prohibition: No abstract praise like "Good job". No gear suggestions in the tip (handled separately).
+    
+    Strategy Combinations:
+    - If Uphill (Res 5-8): Command to increase resistance. Mention posture (e.g., "Stand up", "Hips back"). Mental push ("Crush it", "Don't give up").
+    - If Flat (Res 3-4): Command to maintain rhythm. Posture (e.g., "Shoulders down", "Smooth circles").
+    - If Downhill (Res 1-2): Command to drop resistance. Action (e.g., "Aero tuck", "Recover legs", "Enjoy the speed").
+
+    Output constraints:
+    - Tone: Authoritative, motivating, sensory.
+    - JSON format only.
   `;
 
   try {
@@ -131,29 +129,29 @@ export const getAdvancedCoaching = async (
     
     const originalTip = data.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
     
-    // Conditionally append gear shift message
-    let tipWithGear = originalTip;
-    if (gearText !== previousGear) {
-        tipWithGear = `${originalTip} (Shift to ${gearText} gear)`;
+    // Conditionally append resistance change message if it changed
+    let tipWithRes = originalTip;
+    if (resistanceText !== previousResistance) {
+        // Shorten the message for UI
+        tipWithRes = `${originalTip} (Set to ${targetRes})`;
     }
 
     return {
-      tip: tipWithGear,
-      gear: gearText, 
+      tip: tipWithRes,
+      resistance: resistanceText, 
       intensity: (data.intensity as any) || "MODERATE",
       action: (data.action as any) || "PEDAL"
     };
   } catch (error) {
-    // Pick a random fallback message to ensure variety even when API fails
     const randomTip = FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    let tipWithGear = randomTip;
-    if (gearText !== previousGear) {
-        tipWithGear = `${randomTip} (Shift to ${gearText} gear)`;
+    let tipWithRes = randomTip;
+    if (resistanceText !== previousResistance) {
+        tipWithRes = `${randomTip} (Set to ${targetRes})`;
     }
 
     return {
-      tip: tipWithGear,
-      gear: gearText,
+      tip: tipWithRes,
+      resistance: resistanceText,
       intensity: "MODERATE",
       action: "PEDAL"
     };

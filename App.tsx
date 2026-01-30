@@ -830,7 +830,7 @@ const App: React.FC = () => {
               const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
               const upcoming = route.elevation.slice(Math.floor((currentIdx/route.path.length)*route.elevation.length), Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length));
               setIsCoachThinking(true);
-              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.gear);
+              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
               setCoachData(newCoaching); speak(newCoaching.tip); setIsCoachThinking(false);
           })();
           lastCoachedIndex.current = currentIdx;
