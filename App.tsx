@@ -978,14 +978,14 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title="Toggle Route Coverage" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Coverage Layer" : "Show Coverage Layer"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
-        <button onClick={() => panorama.current?.setVisible(!isSvActive)} title="Toggle Street View" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => panorama.current?.setVisible(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
         {isSvActive && (
-            <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title="Toggle Fullscreen" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+            <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
                 {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
             </button>
         )}
@@ -1043,8 +1043,8 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-1 w-full px-0.5">
                          <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
                          <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
-                         <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                         <div className="flex items-center gap-1 ml-auto shrink-0">
+                         <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                         <div className="flex items-center gap-1 ml-auto shrink-0 mr-7">
                              <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
                              
                              <button onClick={handleToggleFavorite} title={isSaved ? "My Routes" : "Add to Favorites"} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
