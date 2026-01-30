@@ -1148,16 +1148,16 @@ const App: React.FC = () => {
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
             {elevationExpanded && (
-              <div className="flex-1 px-3 py-1 flex flex-col gap-1.5">
-                <div className="flex justify-between items-center px-1">
-                  <div className="flex flex-col">
+              <div className="flex-1 pl-3 pr-0 py-1 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                         <h2 className="text-slate-900 font-black text-sm tracking-tighter">{route.distance}</h2>
+                         <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
                          {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
                     </div>
-                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest">{routeSource} ROUTE</p>
+                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest truncate">{routeSource} ROUTE</p>
                   </div>
-                  <div className="flex gap-1 items-center">
+                  <div className="flex gap-1 items-center shrink-0">
                     <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
                     <button onClick={handleToggleSimulation} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
                     <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
