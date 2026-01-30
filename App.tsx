@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
@@ -461,6 +461,16 @@ const App: React.FC = () => {
       setCoveredDistance(0);
       speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
     }
+  };
+
+  const handleStopSimulation = () => {
+    setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
+    if (panorama.current) {
+        panorama.current.setVisible(false);
+    }
+    setIsCoachThinking(false);
+    setCoachData(null);
+    window.speechSynthesis.cancel();
   };
 
   const calculateRoute = useCallback(async (
@@ -1038,6 +1048,9 @@ const App: React.FC = () => {
                   <div className="flex gap-1 items-center">
                     <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
                     <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                    <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
+                      <Square size={14} fill="currentColor" />
+                    </button>
                   </div>
                 </div>
                 <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
