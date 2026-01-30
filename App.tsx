@@ -473,6 +473,16 @@ const App: React.FC = () => {
     window.speechSynthesis.cancel();
   };
 
+  const handleToggleSimulation = () => {
+    setSimulation(prev => {
+        const isActive = !prev.isActive;
+        if (isActive) {
+            setIsSvFullScreen(true);
+        }
+        return { ...prev, isActive };
+    });
+  };
+
   const calculateRoute = useCallback(async (
     targetMode?: TravelMode, 
     autoStart: boolean = false, 
@@ -640,6 +650,7 @@ const App: React.FC = () => {
 
         if (autoStart) {
           setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+          setIsSvFullScreen(true);
           setIsCoachThinking(true);
           const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
           setCoachData(firstCoach);
@@ -1047,7 +1058,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex gap-1 items-center">
                     <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
-                    <button onClick={() => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }))} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                    <button onClick={handleToggleSimulation} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
                     <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
                       <Square size={14} fill="currentColor" />
                     </button>
