@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
@@ -460,6 +459,18 @@ const App: React.FC = () => {
       lastCoachedIndex.current = -1;
       setElapsedTime(0);
       setCoveredDistance(0);
+      
+      // Fix: Ensure Panorama is visible and reset to start, then go fullscreen
+      if (panorama.current) {
+          panorama.current.setVisible(true);
+          panorama.current.setPosition(route.path[0]);
+          if (route.path.length > 1) {
+              const heading = google.maps.geometry.spherical.computeHeading(route.path[0], route.path[1]);
+              panorama.current.setPov({ heading, pitch: 0 });
+          }
+      }
+      setIsSvFullScreen(true);
+
       speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
     }
   };
@@ -945,7 +956,7 @@ const App: React.FC = () => {
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
              <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
-             <span className="text-white font-bold text-xs">거리뷰 이미지가 없는 구간입니다.</span>
+             <span className="text-white font-bold text-xs">No Street View available for this section.</span>
           </div>
         </div>
       )}
