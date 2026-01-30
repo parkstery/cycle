@@ -16,6 +16,28 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1"
 ];
 
+// Helper to wrap getPanorama in a Promise
+const findStreetView = (
+    service: any, 
+    location: any, 
+    radius: number
+): Promise<any> => {
+    return new Promise((resolve) => {
+        service.getPanorama({
+            location,
+            radius,
+            source: google.maps.StreetViewSource.GOOGLE,
+            preference: google.maps.StreetViewPreference.NEAREST
+        }, (data: any, status: string) => {
+            if (status === 'OK' && data) {
+                resolve(data);
+            } else {
+                resolve(null);
+            }
+        });
+    });
+};
+
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -35,6 +57,7 @@ const App: React.FC = () => {
   const coverageLayer = useRef<any>(null);
   const svServiceRef = useRef<any>(null); 
   const svErrorCount = useRef(0);
+  const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -280,8 +303,12 @@ const App: React.FC = () => {
           if (panorama.current) {
             const status = panorama.current.getStatus();
             setSvStatus(status);
-            if (status === 'OK') { svErrorCount.current = 0; setShowSvWarning(false); }
-            else { svErrorCount.current += 1; if (svErrorCount.current >= 5) setShowSvWarning(true); }
+            // We handle thresholds in the loop logic now, but this is a fallback
+            if (status === 'OK') { 
+                // Don't reset to 0 here to avoid flickering if we just recovered
+                // svErrorCount.current = 0; 
+                setShowSvWarning(false); 
+            }
           }
         });
         panorama.current.addListener('visible_changed', () => {
@@ -349,6 +376,125 @@ const App: React.FC = () => {
   useEffect(() => {
     let timer: number;
     if (simulation.isActive && route) {
+      if (tempMarker.current) { tempMarker.current.setMap(null); }
+      const currentIdx = simulation.currentIndex;
+      if (currentIdx >= route.path.length - 1) {
+          setSimulation(prev => ({ ...prev, isActive: false }));
+          speak(`Ride finished. Distance covered ${route.distance}, duration ${route.duration}.`);
+          return;
+      }
+      const currentPos = route.path[currentIdx];
+      
+      // Update Simulation Marker
+      if (!simulationMarker.current) {
+          simulationMarker.current = new google.maps.Marker({ 
+              position: currentPos, 
+              map: googleMap.current, 
+              icon: { 
+                  path: "M15.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S14.4,5.5,15.5,5.5z M5,12c-2.8,0-5,2.2-5,5s2.2,5,5,5 s5-2.2,5-5S7.8,12,5,12z M5,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S6.7,20,5,20z M19,12c-2.8,0-5,2.2-5,5s2.2,5,5,5s5-2.2,5-5 S21.8,12,19,12z M19,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S20.7,20,19,20z M13,7h-2.8l-3.7,6.6C6.3,13.8,6.1,14,5.9,14.1 c-0.1,0-0.3,0-0.4,0l-1-0.2c-0.6-0.2-1.1,0.2-1.3,0.7c-0.2,0.6,0.2,1.1,0.7,1.3l1,0.2c0.7,0.1,1.4-0.1,1.9-0.6l3.3-6l2.1,0l2.3,4.4 c0.3,0.5,0.8,0.8,1.4,0.8h3.3c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2.9L13,7z", 
+                  scale: 1.5, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 1, strokeColor: '#ffffff', anchor: new google.maps.Point(12, 12)
+              } 
+          });
+      }
+      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
+      const targetPosForHeading = route.path[lookAheadIdx];
+      const heading = google.maps.geometry.spherical.computeHeading(currentPos, targetPosForHeading);
+      simulationMarker.current.setPosition(currentPos);
+      simulationMarker.current.setOptions({ rotation: heading });
+
+      // ---- STREET VIEW UPDATE LOGIC WITH RECOVERY STRATEGIES ----
+      if (panorama.current?.getVisible() && svServiceRef.current && !isSvSearching.current) {
+        const currentPanoLoc = panorama.current.getLocation()?.latLng;
+        const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
+        
+        // Threshold: Only search if we are far enough from current pano (>15m) or have no pano
+        if (distFromLastPano > 15 || !currentPanoLoc) {
+            isSvSearching.current = true; // Lock semaphore
+
+            (async () => {
+                let foundData: any = null;
+                let finalHeading = heading; // Default to path heading
+                
+                // Strategy 1: Standard Search (50m) at current position
+                foundData = await findStreetView(svServiceRef.current, currentPos, 50);
+
+                // Strategy 2: Look-ahead Search (Skip & Recovery)
+                // If current pos fails, check 1, 2, 3 steps ahead (approx 10-20m each step usually)
+                if (!foundData) {
+                    const LOOK_AHEAD_STEPS = 5;
+                    for (let i = 1; i <= LOOK_AHEAD_STEPS; i++) {
+                        const targetIdx = Math.min(currentIdx + i, route.path.length - 1);
+                        const targetPos = route.path[targetIdx];
+                        foundData = await findStreetView(svServiceRef.current, targetPos, 50);
+                        if (foundData) {
+                            // If we skip ahead, update heading to face from that point to the *next* point
+                            const nextIdx = Math.min(targetIdx + 1, route.path.length - 1);
+                            finalHeading = google.maps.geometry.spherical.computeHeading(targetPos, route.path[nextIdx]);
+                            // console.log(`Recovered using look-ahead step ${i}`);
+                            break;
+                        }
+                    }
+                }
+
+                // Strategy 3: Wide Search (Fallback 100m) at current position
+                // Use this as a last resort if look-ahead failed
+                if (!foundData) {
+                    foundData = await findStreetView(svServiceRef.current, currentPos, 100);
+                }
+
+                if (foundData && foundData.location && foundData.location.pano) {
+                    // Update only if Pano ID changes to avoid jitter
+                    if (foundData.location.pano !== panorama.current.getPano()) {
+                        panorama.current.setOptions({
+                            pano: foundData.location.pano,
+                            pov: { heading: finalHeading, pitch: 0 },
+                            visible: true // Ensure visibility
+                        });
+                    }
+                    svErrorCount.current = 0;
+                    setShowSvWarning(false);
+                } else {
+                    svErrorCount.current += 1;
+                    // Only show warning if consecutive failures > 5 to allow invisible skipping of gaps
+                    if (svErrorCount.current > 5) {
+                        setShowSvWarning(true);
+                    }
+                }
+
+                isSvSearching.current = false; // Unlock semaphore
+            })();
+        }
+        if (isSvFullScreen && googleMap.current) { googleMap.current.panTo(currentPos); }
+      }
+      // -----------------------------------------------------------
+
+      if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
+          (async () => {
+              const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
+              const upcoming = route.elevation.slice(Math.floor((currentIdx/route.path.length)*route.elevation.length), Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length));
+              setIsCoachThinking(true);
+              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
+              setCoachData(newCoaching); speak(newCoaching.tip); setIsCoachThinking(false);
+          })();
+          lastCoachedIndex.current = currentIdx;
+      }
+      let delay = 100;
+      const nextPos = route.path[currentIdx + 1];
+      if (nextPos) {
+          const distMeters = google.maps.geometry.spherical.computeDistanceBetween(currentPos, nextPos);
+          const speedMetersPerSec = (speedKmH * 1000) / 3600;
+          if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
+      }
+      if (delay < 50) delay = 50;
+      timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
+    }
+    return () => clearTimeout(timer);
+  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen]); 
+
+  // Secondary Effect for Timer (same as before)
+  useEffect(() => {
+    let timer: number;
+    if (simulation.isActive && route) {
       timer = window.setInterval(() => {
         setElapsedTime(prev => prev + 1);
         const metersPerSecond = (speedKmH * 1000) / 3600;
@@ -358,6 +504,7 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [simulation.isActive, route, speedKmH]);
 
+  // ... (Rest of Audio, Music, Speak functions remain unchanged)
   const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
@@ -849,116 +996,6 @@ const App: React.FC = () => {
         setMapType(newType);
     }
   };
-
-  useEffect(() => {
-    let timer: number;
-    if (simulation.isActive && route) {
-      if (tempMarker.current) { tempMarker.current.setMap(null); }
-      const currentIdx = simulation.currentIndex;
-      if (currentIdx >= route.path.length - 1) {
-          setSimulation(prev => ({ ...prev, isActive: false }));
-          speak(`Ride finished. Distance covered ${route.distance}, duration ${route.duration}.`);
-          return;
-      }
-      const currentPos = route.path[currentIdx];
-      if (!simulationMarker.current) {
-          simulationMarker.current = new google.maps.Marker({ 
-              position: currentPos, 
-              map: googleMap.current, 
-              icon: { 
-                  path: "M15.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S14.4,5.5,15.5,5.5z M5,12c-2.8,0-5,2.2-5,5s2.2,5,5,5 s5-2.2,5-5S7.8,12,5,12z M5,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S6.7,20,5,20z M19,12c-2.8,0-5,2.2-5,5s2.2,5,5,5s5-2.2,5-5 S21.8,12,19,12z M19,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S20.7,20,19,20z M13,7h-2.8l-3.7,6.6C6.3,13.8,6.1,14,5.9,14.1 c-0.1,0-0.3,0-0.4,0l-1-0.2c-0.6-0.2-1.1,0.2-1.3,0.7c-0.2,0.6,0.2,1.1,0.7,1.3l1,0.2c0.7,0.1,1.4-0.1,1.9-0.6l3.3-6l2.1,0l2.3,4.4 c0.3,0.5,0.8,0.8,1.4,0.8h3.3c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2.9L13,7z", 
-                  scale: 1.5, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 1, strokeColor: '#ffffff', anchor: new google.maps.Point(12, 12)
-              } 
-          });
-      }
-      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
-      const targetPosForHeading = route.path[lookAheadIdx];
-      const heading = google.maps.geometry.spherical.computeHeading(currentPos, targetPosForHeading);
-      simulationMarker.current.setPosition(currentPos);
-      simulationMarker.current.setOptions({ rotation: heading });
-      if (panorama.current?.getVisible()) {
-        const currentPanoLoc = panorama.current.getLocation()?.latLng;
-        const currentPanoId = panorama.current.getPano();
-        const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
-        
-        if (distFromLastPano > 50) {
-            if (!showSvWarning) setShowSvWarning(true);
-        } else {
-            if (showSvWarning) setShowSvWarning(false);
-            
-            if (distFromLastPano > 10 || !currentPanoLoc) {
-                let foundLink = false;
-                
-                if (currentPanoLoc) {
-                    const links = panorama.current.getLinks();
-                    if (links && links.length > 0) {
-                        let bestLink = null;
-                        let minDiff = 360;
-                        
-                        for (const link of links) {
-                            const diff = Math.abs(link.heading - heading);
-                            const trueDiff = Math.min(diff, 360 - diff);
-                            if (trueDiff < minDiff) {
-                                minDiff = trueDiff;
-                                bestLink = link;
-                            }
-                        }
-                        
-                        if (bestLink && minDiff < 60) {
-                            if (bestLink.pano !== currentPanoId) {
-                                panorama.current.setOptions({
-                                    pano: bestLink.pano,
-                                    pov: { heading: bestLink.heading, pitch: 0 }
-                                });
-                            }
-                            foundLink = true;
-                        }
-                    }
-                }
-
-                if (!foundLink && svServiceRef.current) {
-                    svServiceRef.current.getPanorama({
-                        location: currentPos, 
-                        radius: 50, // Increased radius from 20 to 50 to find valid SV nodes
-                        source: google.maps.StreetViewSource.GOOGLE, // Strictly use Google sources
-                        preference: google.maps.StreetViewPreference.NEAREST
-                    }, (data: any, status: string) => {
-                        if (status === 'OK' && data?.location?.pano) { 
-                            if (data.location.pano !== panorama.current.getPano()) {
-                                panorama.current.setOptions({
-                                    pano: data.location.pano,
-                                    pov: { heading: heading, pitch: 0 }
-                                });
-                            }
-                        }
-                    });
-                }
-            }
-        }
-        if (isSvFullScreen && googleMap.current) { googleMap.current.panTo(currentPos); }
-      }
-      if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
-          (async () => {
-              const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
-              const upcoming = route.elevation.slice(Math.floor((currentIdx/route.path.length)*route.elevation.length), Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length));
-              setIsCoachThinking(true);
-              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
-              setCoachData(newCoaching); speak(newCoaching.tip); setIsCoachThinking(false);
-          })();
-          lastCoachedIndex.current = currentIdx;
-      }
-      let delay = 100;
-      const nextPos = route.path[currentIdx + 1];
-      if (nextPos) {
-          const distMeters = google.maps.geometry.spherical.computeDistanceBetween(currentPos, nextPos);
-          const speedMetersPerSec = (speedKmH * 1000) / 3600;
-          if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
-      }
-      if (delay < 50) delay = 50;
-      timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
-    }
-    return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen]); 
 
   const isSaved = isCurrentRouteSaved();
 
