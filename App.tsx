@@ -486,6 +486,12 @@ const App: React.FC = () => {
         });
         if (result.routes[0]) {
           directionsRenderer.current?.setDirections(result);
+
+          // Fix: Explicitly fit bounds for Google Routes so the camera moves to the route
+          if (result.routes[0].bounds) {
+             googleMap.current.fitBounds(result.routes[0].bounds);
+          }
+
           path = result.routes[0].overview_path;
           let totalMeters = 0;
           result.routes[0].legs.forEach((leg: any) => { totalMeters += leg.distance.value; });
