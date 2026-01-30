@@ -190,6 +190,26 @@ const App: React.FC = () => {
     localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
   };
 
+  // Helper function to update panorama atomically
+  const setPanoramaView = useCallback((location: any, heading: number) => {
+      if (!svServiceRef.current || !panorama.current) return;
+      
+      svServiceRef.current.getPanorama({
+          location: location,
+          radius: 50,
+          source: google.maps.StreetViewSource.GOOGLE,
+          preference: google.maps.StreetViewPreference.NEAREST
+      }, (data: any, status: string) => {
+          if (status === 'OK' && data?.location) {
+              panorama.current.setOptions({
+                  pano: data.location.pano,
+                  pov: { heading: heading, pitch: 0 },
+                  visible: true
+              });
+          }
+      });
+  }, []);
+
   // Dynamic Script Loading
   useEffect(() => {
     if ((window as any).google && (window as any).google.maps) {
@@ -461,13 +481,12 @@ const App: React.FC = () => {
       setCoveredDistance(0);
       
       // Fix: Ensure Panorama is visible and reset to start, then go fullscreen
-      if (panorama.current) {
-          panorama.current.setVisible(true);
-          panorama.current.setPosition(route.path[0]);
-          if (route.path.length > 1) {
-              const heading = google.maps.geometry.spherical.computeHeading(route.path[0], route.path[1]);
-              panorama.current.setPov({ heading, pitch: 0 });
-          }
+      if (panorama.current && svServiceRef.current) {
+          const startPos = route.path[0];
+          const nextPos = route.path.length > 1 ? route.path[1] : startPos;
+          const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
+          
+          setPanoramaView(startPos, heading);
       }
       setIsSvFullScreen(true);
 
@@ -491,16 +510,13 @@ const App: React.FC = () => {
         const isActive = !prev.isActive;
         if (isActive) {
             if (panorama.current && route && route.path[prev.currentIndex]) {
-                 panorama.current.setVisible(true);
-                 panorama.current.setPosition(route.path[prev.currentIndex]);
-                 
                  // Restore heading if possible
                  const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
                  const heading = google.maps.geometry.spherical.computeHeading(
                      route.path[prev.currentIndex], 
                      route.path[nextIdx]
                  );
-                 panorama.current.setPov({ heading, pitch: 0 });
+                 setPanoramaView(route.path[prev.currentIndex], heading);
             }
             setIsSvFullScreen(true);
         }
@@ -678,13 +694,10 @@ const App: React.FC = () => {
           
           // Fix: Explicitly show SV and set position to prevent black screen
           if (panorama.current) {
-              panorama.current.setVisible(true);
-              panorama.current.setPosition(densifiedPath[0]);
-              // Set initial heading
-              if (densifiedPath.length > 1) {
-                  const heading = google.maps.geometry.spherical.computeHeading(densifiedPath[0], densifiedPath[1]);
-                  panorama.current.setPov({ heading, pitch: 0 });
-              }
+              const startPos = densifiedPath[0];
+              const nextPos = densifiedPath.length > 1 ? densifiedPath[1] : startPos;
+              const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
+              setPanoramaView(startPos, heading);
           }
           
           setIsSvFullScreen(true);
@@ -698,7 +711,7 @@ const App: React.FC = () => {
       }
     } catch (err) { alert("경로를 찾을 수 없습니다."); }
     finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH]);
+  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView]);
 
   const handleSetStart = () => {
     if (clickedLocation) {
