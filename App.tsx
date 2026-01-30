@@ -698,7 +698,9 @@ const App: React.FC = () => {
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
       if (panorama.current?.getVisible()) {
-        panorama.current.setPov({ heading, pitch: 0 });
+        // Reduced Visual Fatigue: Removed the continuous setPov call here.
+        // panorama.current.setPov({ heading, pitch: 0 }); // Old code
+
         const currentPanoLoc = panorama.current.getLocation()?.latLng;
         const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
         
@@ -725,6 +727,8 @@ const App: React.FC = () => {
                     // If a link is reasonably aligned (e.g. within 60 degrees), use it directly
                     if (bestLink && minDiff < 60) {
                         panorama.current.setPano(bestLink.pano);
+                        // Apply Heading only when panorama changes (Cut-change)
+                        panorama.current.setPov({ heading: bestLink.heading, pitch: 0 });
                         foundLink = true;
                     }
                 }
@@ -735,7 +739,11 @@ const App: React.FC = () => {
                 svServiceRef.current.getPanorama({
                     location: currentPos, radius: 20, source: google.maps.StreetViewSource.OUTDOOR, preference: google.maps.StreetViewPreference.NEAREST
                 }, (data: any, status: string) => {
-                    if (status === 'OK') { panorama.current.setPano(data.location.pano); }
+                    if (status === 'OK') { 
+                        panorama.current.setPano(data.location.pano); 
+                        // Apply Heading only when panorama changes (Cut-change) using route heading
+                        panorama.current.setPov({ heading: heading, pitch: 0 });
+                    }
                 });
             }
         }
