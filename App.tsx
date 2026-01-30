@@ -701,8 +701,37 @@ const App: React.FC = () => {
         panorama.current.setPov({ heading, pitch: 0 });
         const currentPanoLoc = panorama.current.getLocation()?.latLng;
         const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
-        if (distFromLastPano > 15 || !currentPanoLoc) {
-            if (svServiceRef.current) {
+        
+        // Revised Update Logic: Use Link Traversal or Fallback to reduced threshold
+        if (distFromLastPano > 10 || !currentPanoLoc) {
+            let foundLink = false;
+            
+            // 1. Link Traversal: Check links from current panorama
+            if (currentPanoLoc) {
+                const links = panorama.current.getLinks();
+                if (links && links.length > 0) {
+                    let bestLink = null;
+                    let minDiff = 360;
+                    
+                    for (const link of links) {
+                        const diff = Math.abs(link.heading - heading);
+                        const trueDiff = Math.min(diff, 360 - diff); // Account for 360 wrap
+                        if (trueDiff < minDiff) {
+                            minDiff = trueDiff;
+                            bestLink = link;
+                        }
+                    }
+                    
+                    // If a link is reasonably aligned (e.g. within 60 degrees), use it directly
+                    if (bestLink && minDiff < 60) {
+                        panorama.current.setPano(bestLink.pano);
+                        foundLink = true;
+                    }
+                }
+            }
+
+            // 2. Fallback: Radius Search (Existing method)
+            if (!foundLink && svServiceRef.current) {
                 svServiceRef.current.getPanorama({
                     location: currentPos, radius: 20, source: google.maps.StreetViewSource.OUTDOOR, preference: google.maps.StreetViewPreference.NEAREST
                 }, (data: any, status: string) => {
