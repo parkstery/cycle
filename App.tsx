@@ -309,7 +309,12 @@ const App: React.FC = () => {
             map: googleMap.current,
             suppressMarkers: true,
             preserveViewport: true,
-            polylineOptions: { strokeColor: '#3b82f6', strokeOpacity: 0.6, strokeWeight: 5 }
+            polylineOptions: { 
+                strokeColor: '#3b82f6', 
+                strokeOpacity: 0.6, 
+                strokeWeight: 5,
+                clickable: false // Ensure clicks pass through the route line to the map
+            }
         });
 
         geocoder.current = new google.maps.Geocoder();
