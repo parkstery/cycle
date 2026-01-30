@@ -968,10 +968,16 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
+      
+      {/* Map Style Button - Moved Left */}
+      <div className="absolute right-20 top-4 z-50">
         <button onClick={handleToggleMapType} title="Change Map Style" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
             <Layers size={24} />
         </button>
+      </div>
+
+      {/* Main Control Group - Shifted Up by removing first element */}
+      <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
         <button onClick={() => setShowCoverage(!showCoverage)} title="Toggle Route Coverage" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
