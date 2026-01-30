@@ -44,7 +44,7 @@ export const getAdvancedCoaching = async (
   currentSpeed: number,
   previousResistance?: string
 ): Promise<CoachingData> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // 1. Calculate accurate slope
   let slope = 0;

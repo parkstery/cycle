@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
@@ -327,15 +328,15 @@ const App: React.FC = () => {
   }, [isSvFullScreen]);
 
   useEffect(() => {
-    let interval: number;
+    let timer: number;
     if (simulation.isActive && route) {
-      interval = window.setInterval(() => {
+      timer = window.setInterval(() => {
         setElapsedTime(prev => prev + 1);
         const metersPerSecond = (speedKmH * 1000) / 3600;
         setCoveredDistance(prev => prev + metersPerSecond);
       }, 1000);
     }
-    return () => clearInterval(interval);
+    return () => clearInterval(timer);
   }, [simulation.isActive, route, speedKmH]);
 
   const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
@@ -853,53 +854,61 @@ const App: React.FC = () => {
       simulationMarker.current.setOptions({ rotation: heading });
       if (panorama.current?.getVisible()) {
         const currentPanoLoc = panorama.current.getLocation()?.latLng;
+        const currentPanoId = panorama.current.getPano();
         const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
         
-        // Revised Update Logic: Use Link Traversal or Fallback to reduced threshold
-        if (distFromLastPano > 10 || !currentPanoLoc) {
-            let foundLink = false;
+        if (distFromLastPano > 50) {
+            if (!showSvWarning) setShowSvWarning(true);
+        } else {
+            if (showSvWarning) setShowSvWarning(false);
             
-            // 1. Link Traversal: Check links from current panorama
-            if (currentPanoLoc) {
-                const links = panorama.current.getLinks();
-                if (links && links.length > 0) {
-                    let bestLink = null;
-                    let minDiff = 360;
-                    
-                    for (const link of links) {
-                        const diff = Math.abs(link.heading - heading);
-                        const trueDiff = Math.min(diff, 360 - diff); // Account for 360 wrap
-                        if (trueDiff < minDiff) {
-                            minDiff = trueDiff;
-                            bestLink = link;
+            if (distFromLastPano > 10 || !currentPanoLoc) {
+                let foundLink = false;
+                
+                if (currentPanoLoc) {
+                    const links = panorama.current.getLinks();
+                    if (links && links.length > 0) {
+                        let bestLink = null;
+                        let minDiff = 360;
+                        
+                        for (const link of links) {
+                            const diff = Math.abs(link.heading - heading);
+                            const trueDiff = Math.min(diff, 360 - diff);
+                            if (trueDiff < minDiff) {
+                                minDiff = trueDiff;
+                                bestLink = link;
+                            }
+                        }
+                        
+                        if (bestLink && minDiff < 60) {
+                            if (bestLink.pano !== currentPanoId) {
+                                panorama.current.setOptions({
+                                    pano: bestLink.pano,
+                                    pov: { heading: bestLink.heading, pitch: 0 }
+                                });
+                            }
+                            foundLink = true;
                         }
                     }
-                    
-                    // If a link is reasonably aligned (e.g. within 60 degrees), use it directly
-                    if (bestLink && minDiff < 60) {
-                        // Use setOptions to set Pano and POV atomically to avoid visual jump
-                        panorama.current.setOptions({
-                            pano: bestLink.pano,
-                            pov: { heading: bestLink.heading, pitch: 0 }
-                        });
-                        foundLink = true;
-                    }
                 }
-            }
 
-            // 2. Fallback: Radius Search (Existing method)
-            if (!foundLink && svServiceRef.current) {
-                svServiceRef.current.getPanorama({
-                    location: currentPos, radius: 20, source: google.maps.StreetViewSource.OUTDOOR, preference: google.maps.StreetViewPreference.NEAREST
-                }, (data: any, status: string) => {
-                    if (status === 'OK') { 
-                        // Use setOptions to set Pano and POV atomically to avoid visual jump
-                        panorama.current.setOptions({
-                            pano: data.location.pano,
-                            pov: { heading: heading, pitch: 0 }
-                        });
-                    }
-                });
+                if (!foundLink && svServiceRef.current) {
+                    svServiceRef.current.getPanorama({
+                        location: currentPos, 
+                        radius: 20, 
+                        source: google.maps.StreetViewSource.OUTDOOR, 
+                        preference: google.maps.StreetViewPreference.NEAREST
+                    }, (data: any, status: string) => {
+                        if (status === 'OK' && data?.location?.pano) { 
+                            if (data.location.pano !== panorama.current.getPano()) {
+                                panorama.current.setOptions({
+                                    pano: data.location.pano,
+                                    pov: { heading: heading, pitch: 0 }
+                                });
+                            }
+                        }
+                    });
+                }
             }
         }
         if (isSvFullScreen && googleMap.current) { googleMap.current.panTo(currentPos); }
