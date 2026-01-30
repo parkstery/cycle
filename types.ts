@@ -33,3 +33,15 @@ export interface CoachingData {
   intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
   action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
 }
+
+export interface SavedRoute {
+  id: string;
+  origin: string;
+  destination: string;
+  waypoints: {
+    name: string;
+    lat: number;
+    lng: number;
+  }[];
+  timestamp: number;
+}
