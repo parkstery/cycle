@@ -477,6 +477,18 @@ const App: React.FC = () => {
     setSimulation(prev => {
         const isActive = !prev.isActive;
         if (isActive) {
+            if (panorama.current && route && route.path[prev.currentIndex]) {
+                 panorama.current.setVisible(true);
+                 panorama.current.setPosition(route.path[prev.currentIndex]);
+                 
+                 // Restore heading if possible
+                 const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
+                 const heading = google.maps.geometry.spherical.computeHeading(
+                     route.path[prev.currentIndex], 
+                     route.path[nextIdx]
+                 );
+                 panorama.current.setPov({ heading, pitch: 0 });
+            }
             setIsSvFullScreen(true);
         }
         return { ...prev, isActive };
@@ -650,6 +662,18 @@ const App: React.FC = () => {
 
         if (autoStart) {
           setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+          
+          // Fix: Explicitly show SV and set position to prevent black screen
+          if (panorama.current) {
+              panorama.current.setVisible(true);
+              panorama.current.setPosition(densifiedPath[0]);
+              // Set initial heading
+              if (densifiedPath.length > 1) {
+                  const heading = google.maps.geometry.spherical.computeHeading(densifiedPath[0], densifiedPath[1]);
+                  panorama.current.setPov({ heading, pitch: 0 });
+              }
+          }
+          
           setIsSvFullScreen(true);
           setIsCoachThinking(true);
           const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
