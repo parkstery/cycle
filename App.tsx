@@ -36,6 +36,10 @@ const App: React.FC = () => {
   const svServiceRef = useRef<any>(null); 
   const svErrorCount = useRef(0);
 
+  // Exact Coordinate References (Fix for Road Snapping)
+  const originLocationRef = useRef<any>(null);
+  const destLocationRef = useRef<any>(null);
+
   // Audio References
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<number | null>(null);
@@ -165,6 +169,10 @@ const App: React.FC = () => {
     setOrigin(saved.origin);
     setDestination(saved.destination);
     
+    // Clear precise location refs when loading from favorites (fallback to address string)
+    originLocationRef.current = null;
+    destLocationRef.current = null;
+
     // Deserialize waypoints
     const restoredWaypoints = saved.waypoints.map(wp => ({
         name: wp.name,
@@ -434,6 +442,10 @@ const App: React.FC = () => {
     // Explicitly clear start and end inputs
     setOrigin('');
     setDestination('');
+    
+    // Clear Coordinate Refs
+    originLocationRef.current = null;
+    destLocationRef.current = null;
 
     svErrorCount.current = 0;
     setShowSvWarning(false);
@@ -473,13 +485,20 @@ const App: React.FC = () => {
     if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
     const ds = new google.maps.DirectionsService();
     const es = new google.maps.ElevationService();
+    
+    // PRIORITIZE COORDINATE REFS if they are set (and assume they match the current text intent)
+    // If calculating from handleSetStart, originLocationRef was just set.
+    // If calculating from manual input, refs should be null.
+    const useOrigin = originLocationRef.current || finalOrigin;
+    const useDest = destLocationRef.current || finalDestination;
+
     try {
       let path: any[] = [];
       let distText = '', durText = '';
       try {
         const result = await ds.route({ 
-          origin: finalOrigin, 
-          destination: finalDestination, 
+          origin: useOrigin, 
+          destination: useDest, 
           waypoints: activeWaypoints.map(wp => ({ location: wp.location, stopover: true })),
           optimizeWaypoints: true,
           travelMode: google.maps.TravelMode[activeMode] 
@@ -502,26 +521,33 @@ const App: React.FC = () => {
           setRouteSource('GOOGLE');
         }
       } catch (e) {
-        // Safe geocoding with Promises and Error Handling
-        const geocodePromise = (addr: string) => new Promise<any>((resolve, reject) => {
-            geocoder.current.geocode({address: addr}, (results: any, status: any) => {
-                if (status === 'OK' && results && results[0]) {
-                    resolve(results[0].geometry.location);
-                } else {
-                    reject(status);
-                }
+        // Safe geocoding helper that reuses LatLng object if available, or geocodes address
+        const getCoord = async (val: any, addr: string) => {
+            if (val && typeof val.lat === 'function') return val; // It's a Google LatLng object
+            if (val && val.lat && val.lng) return new google.maps.LatLng(val.lat, val.lng); // It's a plain coord object
+            
+            return new Promise<any>((resolve, reject) => {
+                geocoder.current.geocode({address: addr}, (results: any, status: any) => {
+                    if (status === 'OK' && results && results[0]) {
+                        resolve(results[0].geometry.location);
+                    } else {
+                        reject(status);
+                    }
+                });
             });
-        });
+        }
 
-        const originLatLng = await geocodePromise(finalOrigin);
-        const destLatLng = await geocodePromise(finalDestination);
-        const wpLatLngs = await Promise.all(activeWaypoints.map(wp => geocodePromise(wp.name).catch(() => null))); // Ignore failed waypoints for OSRM
+        const originLatLng = await getCoord(useOrigin, finalOrigin);
+        const destLatLng = await getCoord(useDest, finalDestination);
+        
+        // Resolve Waypoints (they store location objects already)
+        // const wpLatLngs = await Promise.all(activeWaypoints.map(wp => geocodePromise(wp.name).catch(() => null))); 
+        // Logic changed: waypoints are already objects with location. We can just use them.
+        const wpLatLngs = activeWaypoints.map(wp => wp.location); 
 
         const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-        // Filter out null waypoints
-        const validWps = wpLatLngs.filter(p => p !== null);
         
-        const coords = [originLatLng, ...validWps, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
+        const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
         const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
         const resp = await fetch(url);
         const data = await resp.json();
@@ -620,6 +646,7 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newOrigin = clickedLocation.name || clickedLocation.address;
       setOrigin(newOrigin);
+      originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
       
       if (startMarker.current) startMarker.current.setMap(null);
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
@@ -633,6 +660,7 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newDest = clickedLocation.name || clickedLocation.address;
       setDestination(newDest);
+      destLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
 
       if (endMarker.current) endMarker.current.setMap(null);
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
@@ -647,6 +675,11 @@ const App: React.FC = () => {
     const newOrigin = destination;
     const newDestination = tempOrigin;
     const newWaypoints = [...waypoints].reverse();
+
+    // SWAP EXACT COORDINATES
+    const tempLoc = originLocationRef.current;
+    originLocationRef.current = destLocationRef.current;
+    destLocationRef.current = tempLoc;
 
     setOrigin(newOrigin);
     setDestination(newDestination);
@@ -914,7 +947,7 @@ const App: React.FC = () => {
                     <div className="relative flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }} />
                         </div>
                         {/* Waypoints Render */}
                         {waypoints.length > 0 && (
@@ -932,7 +965,7 @@ const App: React.FC = () => {
                         )}
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => setDestination(e.target.value)} />
+                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }} />
                         </div>
                     </div>
                     <div className="flex items-center gap-1 w-full px-0.5">
