@@ -1,4 +1,11 @@
 
+export interface PanoMetadata {
+  pathIndex: number;
+  panoId: string;
+  location: any;
+  heading: number;
+}
+
 export interface RouteInfo {
   origin: string;
   destination: string;
@@ -6,8 +13,8 @@ export interface RouteInfo {
   duration: string;
   path: any[];
   elevation: ElevationPoint[];
+  panoData: PanoMetadata[]; // Pre-fetched Street View points
   totalDistanceMeters?: number;
-  cumulativeDistances?: number[];
 }
 
 export interface ElevationPoint {
@@ -33,6 +40,7 @@ export interface CoachingData {
   resistance: string;
   intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
   action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
+  validUntilIndex: number; // For predictive coaching
 }
 
 export interface SavedRoute {

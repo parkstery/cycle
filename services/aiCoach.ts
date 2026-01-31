@@ -5,106 +5,55 @@ import { CoachingData, ElevationPoint } from "../types";
 declare var google: any;
 
 const FALLBACK_TIPS = [
-  // Form
-  "Elbows soft. Upper body quiet.",
-  "Hips stable. Let legs work.",
-  "Relax your grip. No white knuckles.",
-  "Core tight. Stop bouncing.",
-  "Smooth circles, not stomps.",
-
-  // Breathing
-  "Deep breath. Long exhale.",
-  "Breathe low. Stay calm.",
-  "Control breath before speed.",
-  "Steady lungs, steady legs.",
-
-  // Power & Cadence
-  "Light feet. Faster spin.",
-  "Ease power. Find rhythm.",
-  "Hold cadence. Ignore speed.",
-  "Even pressure through the stroke.",
-  "Save watts. Ride efficient.",
-
-  // Terrain-aware feel
-  "Stay tall. Let the hill come.",
-  "Float the pedals here.",
-  "Settle in. This section lasts.",
-  "Let gravity work for you.",
-
-  // Mental / Focus
-  "Eyes up. Line stays clean.",
-  "Calm mind. Strong legs.",
-  "No rush. Ride smart.",
-  "Focus now. Free speed ahead."
+  "Maintain steady breathing. Keep core engaged.",
+  "Relax shoulders. Focus on smooth pedal strokes.",
+  "Eyes forward. Energy management is key here.",
+  "Stable hips. Let the large muscle groups work.",
+  "Efficiency over speed. Find your rhythm."
 ];
 
 export const getAdvancedCoaching = async (
-  currentElevation: number,
-  upcomingPoints: ElevationPoint[],
+  currentIndex: number,
+  allElevationPoints: ElevationPoint[],
+  pathLength: number,
   currentSpeed: number,
   previousResistance?: string
 ): Promise<CoachingData> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // 1. Calculate accurate slope
-  let slope = 0;
-  if (upcomingPoints.length > 1) {
-    // Check if google maps geometry library is loaded
-    if (typeof google !== 'undefined' && google.maps && google.maps.geometry) {
-      const start = upcomingPoints[0];
-      const end = upcomingPoints[upcomingPoints.length - 1];
-      const distance = google.maps.geometry.spherical.computeDistanceBetween(start.location, end.location);
-      const rise = end.elevation - start.elevation;
-      
-      if (distance > 0) {
-        slope = (rise / distance) * 100;
-      }
-    }
+  // Predict for the next ~500m to 1km (approx 250 densified points if segment is 2m)
+  const LOOK_AHEAD = 250; 
+  const targetEndIndex = Math.min(currentIndex + LOOK_AHEAD, allElevationPoints.length - 1);
+  const segment = allElevationPoints.slice(
+    Math.floor((currentIndex / pathLength) * allElevationPoints.length),
+    Math.floor((targetEndIndex / pathLength) * allElevationPoints.length)
+  );
+
+  let avgSlope = 0;
+  if (segment.length > 1) {
+    const start = segment[0];
+    const end = segment[segment.length - 1];
+    const distance = google.maps.geometry.spherical.computeDistanceBetween(start.location, end.location);
+    const rise = end.elevation - start.elevation;
+    if (distance > 0) avgSlope = (rise / distance) * 100;
   }
 
-  // 2. Determine Resistance based on Slope (Correct Physics Logic)
-  // Mapping:
-  // Slope >= 10% (Extreme Uphill) -> Resistance 8 (Max Load) -> Action: Stand/Grind
-  // 7% <= Slope < 10% (Strong Uphill) -> Resistance 7 (Very Heavy) -> Action: Heavy Pedal
-  // 3% <= Slope < 7% (Moderate Uphill) -> Resistance 5-6 (Heavy) -> Action: Steady Rhythm
-  // -1% <= Slope < 3% (Flat) -> Resistance 3-4 (Moderate) -> Action: Cruise
-  // -3% <= Slope < -1% (Slight Downhill) -> Resistance 2 (Light) -> Action: High Cadence/Rest
-  // Slope < -3% (Steep Downhill) -> Resistance 1 (Min Load) -> Action: Coast/Tuck
-
+  // Physics-based resistance logic
   let targetRes = 3;
-  let contextDesc = "Flat - Cruising";
+  let context = "flat";
+  if (avgSlope >= 7) { targetRes = 7; context = "steep climb"; }
+  else if (avgSlope >= 3) { targetRes = 5; context = "moderate climb"; }
+  else if (avgSlope >= -1) { targetRes = 3; context = "rolling/flat"; }
+  else if (avgSlope >= -5) { targetRes = 2; context = "downhill"; }
+  else { targetRes = 1; context = "steep descent"; }
 
-  if (slope >= 10) { targetRes = 8; contextDesc = "Extreme Uphill (MAX LOAD). 'Wall climbing' feel. Needs Standing."; }
-  else if (slope >= 7) { targetRes = 7; contextDesc = "Steep Uphill (Very Heavy). Needs strong core & heavy torque."; }
-  else if (slope >= 5) { targetRes = 6; contextDesc = "Moderate Uphill (Heavy). Maintaining steady climbing rhythm."; }
-  else if (slope >= 3) { targetRes = 5; contextDesc = "Uphill Start. Breathing control required."; }
-  else if (slope >= 1) { targetRes = 4; contextDesc = "False Flat. Maintenance pace."; }
-  else if (slope >= -1) { targetRes = 3; contextDesc = "Flat. Cruising. Relax shoulders."; }
-  else if (slope >= -3) { targetRes = 2; contextDesc = "Slight Downhill. Speed picks up. Spin fast or rest."; }
-  else { targetRes = 1; contextDesc = "Steep Downhill (MIN LOAD). Gravity acceleration. Aero Tuck or Coasting."; }
-
-  const resistanceText = `Resistance ${targetRes}`;
-
-  // 3. AI Generation for Tip & Intensity
   const prompt = `
-    Role: You are a Professional Indoor Cycling Coach.
+    Role: Professional Cycling Coach.
+    Analysis Segment: Next 500 meters (${context}, average slope ${avgSlope.toFixed(1)}%).
+    Speed: ${currentSpeed} km/h.
     
-    Current Status: 
-    - Slope: ${slope.toFixed(1)}%
-    - Target Dial: ${targetRes} / 8 (${contextDesc})
-    - Speed: ${currentSpeed} km/h
-    - Previous Dial: ${previousResistance || 'None'}
-    
-    Task: Provide a SHORT, PUNCHY coaching command (max 10 words).
-    
-    Strategy Combinations:
-    - If Uphill (Res 5-8): Command to increase resistance. Mention posture (e.g., "Stand up", "Hips back"). Mental push ("Crush it", "Don't give up").
-    - If Flat (Res 3-4): Command to maintain rhythm. Posture (e.g., "Shoulders down", "Smooth circles").
-    - If Downhill (Res 1-2): Command to drop resistance. Action (e.g., "Aero tuck", "Recover legs", "Enjoy the speed").
-
-    Output constraints:
-    - Tone: Authoritative, motivating, sensory.
-    - JSON format only.
+    Task: Provide ONE coaching tip that covers this ENTIRE segment.
+    Output JSON: { "tip": "string", "intensity": "LOW|MODERATE|HIGH|MAX", "action": "SIT|STAND|TUCK|PEDAL" }
   `;
 
   try {
@@ -116,7 +65,7 @@ export const getAdvancedCoaching = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            tip: { type: Type.STRING, description: "Short, sensory, imperative coaching command." },
+            tip: { type: Type.STRING },
             intensity: { type: Type.STRING, enum: ['LOW', 'MODERATE', 'HIGH', 'MAX'] },
             action: { type: Type.STRING, enum: ['SIT', 'STAND', 'TUCK', 'PEDAL'] }
           },
@@ -126,34 +75,20 @@ export const getAdvancedCoaching = async (
     });
 
     const data = JSON.parse(response.text || "{}");
-    
-    const originalTip = data.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    
-    // Conditionally append resistance change message if it changed
-    let tipWithRes = originalTip;
-    if (resistanceText !== previousResistance) {
-        // Shorten the message for UI
-        tipWithRes = `${originalTip} (Set to ${targetRes})`;
-    }
-
     return {
-      tip: tipWithRes,
-      resistance: resistanceText, 
-      intensity: (data.intensity as any) || "MODERATE",
-      action: (data.action as any) || "PEDAL"
+      tip: `${data.tip || FALLBACK_TIPS[0]} (Target Res: ${targetRes})`,
+      resistance: `Resistance ${targetRes}`,
+      intensity: data.intensity || "MODERATE",
+      action: data.action || "PEDAL",
+      validUntilIndex: targetEndIndex
     };
   } catch (error) {
-    const randomTip = FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    let tipWithRes = randomTip;
-    if (resistanceText !== previousResistance) {
-        tipWithRes = `${randomTip} (Set to ${targetRes})`;
-    }
-
     return {
-      tip: tipWithRes,
-      resistance: resistanceText,
+      tip: `${FALLBACK_TIPS[0]} (Target Res: ${targetRes})`,
+      resistance: `Resistance ${targetRes}`,
       intensity: "MODERATE",
-      action: "PEDAL"
+      action: "PEDAL",
+      validUntilIndex: targetEndIndex
     };
   }
 };
