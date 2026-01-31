@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
@@ -364,6 +365,9 @@ const App: React.FC = () => {
             zoomControl: false,
             rotateControl: false, // Disabled rotation/compass control
             scaleControl: true, // Enabled scale control....by eg
+            scaleControlOptions: {
+              position: google.maps.ControlPosition.BOTTOM_LEFT
+            },
             cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
