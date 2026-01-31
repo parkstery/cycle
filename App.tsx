@@ -8,6 +8,17 @@ import { getAdvancedCoaching } from './services/aiCoach';
 // Declare google global
 declare var google: any;
 
+// Pegman-style Street View icon (inline SVG data URI – always loads, no external request)
+const PEGMAN_ICON =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">' +
+    '<circle cx="12" cy="7" r="5" fill="#F4B400" stroke="#E37400" stroke-width="1"/>' +
+    '<ellipse cx="12" cy="16" rx="5" ry="6" fill="#F4B400" stroke="#E37400" stroke-width="1"/>' +
+    '<path d="M10 21.5 L10 24 M14 21.5 L14 24" stroke="#E37400" stroke-width="1.2" fill="none"/>' +
+    '</svg>'
+  );
+
 const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
   "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=hsarn2s1&raw=1",
@@ -1145,7 +1156,7 @@ const App: React.FC = () => {
             <RouteIcon size={24} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-            <img src="https://cdn.jsdelivr.net/gh/Raruto/leaflet-pegman@master/maps.gstatic.com/api-3/cb_scout2.png" alt="Street View" className="w-6 h-6 object-contain" />
+            <img src={PEGMAN_ICON} alt="Street View" className="w-6 h-6 object-contain" />
         </button>
         {isSvActive && (
             <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
