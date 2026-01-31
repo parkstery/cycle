@@ -3,7 +3,7 @@ import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
-
+// It's me EG
 // Declare google global
 declare var google: any;
 
@@ -363,7 +363,7 @@ const App: React.FC = () => {
             fullscreenControl: false,
             zoomControl: false,
             rotateControl: false, // Disabled rotation/compass control
-            scaleControl: false,
+            scaleControl: true, // Enabled scale control....by eg
             cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
             styles: [
@@ -603,7 +603,6 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [simulation.isActive, route, speedKmH]);
 
-  // ... (Rest of Audio, Music, Speak functions remain unchanged)
   const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
