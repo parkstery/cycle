@@ -41,7 +41,16 @@ const findStreetView = (
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
-  const svRef = useRef<HTMLDivElement>(null);
+  
+  // Double Buffering Refs
+  const svContainerRef = useRef<HTMLDivElement>(null);
+  const svRef1 = useRef<HTMLDivElement>(null);
+  const svRef2 = useRef<HTMLDivElement>(null);
+  const panorama1 = useRef<any>(null);
+  const panorama2 = useRef<any>(null);
+  const activePanoRef = useRef<number>(0); // 0 or 1
+  const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0); // Controls Z-Index
+
   const googleMap = useRef<any>(null);
   const directionsRenderer = useRef<any>(null);
   const simulationMarker = useRef<any>(null);
@@ -49,7 +58,9 @@ const App: React.FC = () => {
   const endMarker = useRef<any>(null);
   const waypointMarkers = useRef<any[]>([]);
   const tempMarker = useRef<any>(null);
-  const panorama = useRef<any>(null);
+  
+  // We keep a general reference to the *currently active* panorama for non-swapping logic if needed,
+  // but mostly we use panorama1/panorama2 directly.
   const geocoder = useRef<any>(null);
   const placesService = useRef<any>(null);
   const elevationService = useRef<any>(null);
@@ -245,9 +256,9 @@ const App: React.FC = () => {
     localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
   };
 
-  // Helper function to update panorama atomically
+  // Helper function to update panorama atomically (Hybrid Double Buffer)
   const setPanoramaView = useCallback((location: any, heading: number) => {
-      if (!svServiceRef.current || !panorama.current) return;
+      if (!svServiceRef.current) return;
       
       svServiceRef.current.getPanorama({
           location: location,
@@ -256,11 +267,66 @@ const App: React.FC = () => {
           preference: google.maps.StreetViewPreference.NEAREST
       }, (data: any, status: string) => {
           if (status === 'OK' && data?.location) {
-              panorama.current.setOptions({
-                  pano: data.location.pano,
-                  pov: { heading: heading, pitch: 0 },
-                  visible: true
-              });
+              const currentIdx = activePanoRef.current;
+              const nextIdx = currentIdx === 0 ? 1 : 0;
+              const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+              const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+
+              if (!currentPano || !nextPano) return;
+
+              const newPanoId = data.location.pano;
+              const currentPanoId = currentPano.getPano();
+
+              // Case 1: Same Pano, just rotate (optimization)
+              if (currentPanoId === newPanoId) {
+                  currentPano.setPov({ heading, pitch: 0 });
+                  return;
+              }
+
+              // Case 2: Check for direct connectivity (Native Smooth Transition)
+              const links = currentPano.getLinks();
+              const isConnected = links?.some((link: any) => link.pano === newPanoId);
+
+              // If connected, we stay on the current panorama to use Google's native smooth glide
+              if (isConnected) {
+                  currentPano.setOptions({
+                      pano: newPanoId,
+                      pov: { heading, pitch: 0 },
+                      visible: true
+                  });
+              } 
+              // Case 3: Disconnected (Jump) - Use Double Buffering to avoid black screen
+              else {
+                  // Prepare the background panorama
+                  nextPano.setOptions({
+                      pano: newPanoId,
+                      pov: { heading, pitch: 0 },
+                      visible: true
+                  });
+
+                  // Define the swap action
+                  const doSwap = () => {
+                      activePanoRef.current = nextIdx;
+                      setVisiblePanoIdx(nextIdx); // This toggles Z-Index
+                      if (googleMap.current) {
+                          googleMap.current.setStreetView(nextPano); // Sync Pegman
+                      }
+                  };
+
+                  // Wait for the 'links_changed' event which implies metadata is loaded
+                  const listener = nextPano.addListener('links_changed', () => {
+                      google.maps.event.removeListener(listener);
+                      doSwap();
+                  });
+
+                  // Fallback: If event doesn't fire within 500ms, force swap
+                  // (Sometimes links_changed is skipped if data is cached)
+                  setTimeout(() => {
+                     if (activePanoRef.current !== nextIdx) {
+                         doSwap();
+                     }
+                  }, 500);
+              }
           }
       });
   }, []);
@@ -324,39 +390,39 @@ const App: React.FC = () => {
         // Restore Coverage Layer
         coverageLayer.current = new google.maps.StreetViewCoverageLayer();
 
-        panorama.current = new google.maps.StreetViewPanorama(svRef.current, {
-             visible: false,
+        // --- DOUBLE BUFFERING INITIALIZATION ---
+        const svOptions = {
+             visible: true, // Always visible internally, controlled by container
              enableCloseButton: false,
              disableDefaultUI: true,
              clickToGo: false,
-             motionTracking: true, // Enable motion tracking (gyroscope)
-             motionTrackingControl: true // Explicitly show the motion tracking button
-        });
-        googleMap.current.setStreetView(panorama.current);
+             motionTracking: true, 
+             motionTrackingControl: true
+        };
+
+        panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
+        panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
+        
+        // Initialize with Pano 1 active
+        googleMap.current.setStreetView(panorama1.current);
+        // ---------------------------------------
+
         svServiceRef.current = new google.maps.StreetViewService();
 
-        // Restore Street View Listeners
-        panorama.current.addListener('status_changed', () => {
-          if (panorama.current) {
-            const status = panorama.current.getStatus();
-            setSvStatus(status);
-            // We handle thresholds in the loop logic now, but this is a fallback
-            if (status === 'OK') { 
-                // Don't reset to 0 here to avoid flickering if we just recovered
-                // svErrorCount.current = 0; 
-                setShowSvWarning(false); 
-            }
-          }
-        });
-        panorama.current.addListener('visible_changed', () => {
-          if (panorama.current) {
-             const visible = panorama.current.getVisible();
-             setIsSvActive(visible);
-             setTimeout(() => { 
-                if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize'); 
-             }, 300);
-          }
-        });
+        // Listeners for Status (Attached to Pano 1 for general status tracking, 
+        // effectively we might need to track both but usually error status matters most)
+        const handleStatus = () => {
+             // We can check status of the active one
+             const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+             if (currentPano) {
+                const status = currentPano.getStatus();
+                setSvStatus(status);
+                if (status === 'OK') setShowSvWarning(false);
+             }
+        };
+
+        panorama1.current.addListener('status_changed', handleStatus);
+        panorama2.current.addListener('status_changed', handleStatus);
 
         googleMap.current.addListener("click", (e: any) => {
              e.stop();
@@ -406,7 +472,9 @@ const App: React.FC = () => {
   useEffect(() => {
     setTimeout(() => {
       if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize');
-      if (panorama.current) google.maps.event.trigger(panorama.current, 'resize');
+      // Trigger resize on both panoramas
+      if (panorama1.current) google.maps.event.trigger(panorama1.current, 'resize');
+      if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
   }, [isSvFullScreen]);
 
@@ -440,8 +508,12 @@ const App: React.FC = () => {
       simulationMarker.current.setOptions({ rotation: heading });
 
       // ---- STREET VIEW UPDATE LOGIC WITH RECOVERY STRATEGIES ----
-      if (panorama.current?.getVisible() && svServiceRef.current && !isSvSearching.current) {
-        const currentPanoLoc = panorama.current.getLocation()?.latLng;
+      // Note: We check `isSvActive` (React state) instead of `panorama.getVisible()`
+      if (isSvActive && svServiceRef.current && !isSvSearching.current) {
+        // Get location of *active* panorama
+        const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+        const currentPanoLoc = activePano?.getLocation()?.latLng;
+        
         const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
         
         // Threshold: Only search if we are far enough from current pano (>15m) or have no pano
@@ -456,7 +528,6 @@ const App: React.FC = () => {
                 foundData = await findStreetView(svServiceRef.current, currentPos, 50);
 
                 // Strategy 2: Look-ahead Search (Skip & Recovery)
-                // If current pos fails, check 1, 2, 3 steps ahead (approx 10-20m each step usually)
                 if (!foundData) {
                     const LOOK_AHEAD_STEPS = 5;
                     for (let i = 1; i <= LOOK_AHEAD_STEPS; i++) {
@@ -464,35 +535,26 @@ const App: React.FC = () => {
                         const targetPos = route.path[targetIdx];
                         foundData = await findStreetView(svServiceRef.current, targetPos, 50);
                         if (foundData) {
-                            // If we skip ahead, update heading to face from that point to the *next* point
                             const nextIdx = Math.min(targetIdx + 1, route.path.length - 1);
                             finalHeading = google.maps.geometry.spherical.computeHeading(targetPos, route.path[nextIdx]);
-                            // console.log(`Recovered using look-ahead step ${i}`);
                             break;
                         }
                     }
                 }
 
-                // Strategy 3: Wide Search (Fallback 100m) at current position
-                // Use this as a last resort if look-ahead failed
+                // Strategy 3: Wide Search (Fallback 100m)
                 if (!foundData) {
                     foundData = await findStreetView(svServiceRef.current, currentPos, 100);
                 }
 
                 if (foundData && foundData.location && foundData.location.pano) {
-                    // Update only if Pano ID changes to avoid jitter
-                    if (foundData.location.pano !== panorama.current.getPano()) {
-                        panorama.current.setOptions({
-                            pano: foundData.location.pano,
-                            pov: { heading: finalHeading, pitch: 0 },
-                            visible: true // Ensure visibility
-                        });
-                    }
+                    // Update Pano (This now calls the Hybrid Double Buffer Logic)
+                    setPanoramaView(foundData.location.latLng, finalHeading);
+                    
                     svErrorCount.current = 0;
                     setShowSvWarning(false);
                 } else {
                     svErrorCount.current += 1;
-                    // Only show warning if consecutive failures > 5 to allow invisible skipping of gaps
                     if (svErrorCount.current > 5) {
                         setShowSvWarning(true);
                     }
@@ -526,7 +588,7 @@ const App: React.FC = () => {
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
     }
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen]); 
+  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen, isSvActive]); 
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -664,14 +726,13 @@ const App: React.FC = () => {
       setElapsedTime(0);
       setCoveredDistance(0);
       
-      // Fix: Ensure Panorama is visible and reset to start, then go fullscreen
-      if (panorama.current && svServiceRef.current) {
-          const startPos = route.path[0];
-          const nextPos = route.path.length > 1 ? route.path[1] : startPos;
-          const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
-          
-          setPanoramaView(startPos, heading);
-      }
+      const startPos = route.path[0];
+      const nextPos = route.path.length > 1 ? route.path[1] : startPos;
+      const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
+      
+      // Update view (Hybrid)
+      setPanoramaView(startPos, heading);
+
       setIsSvFullScreen(true);
 
       speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
@@ -681,9 +742,13 @@ const App: React.FC = () => {
   const handleStopSimulation = () => {
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
     setIsSvFullScreen(false); // Reset fullscreen state
-    if (panorama.current) {
-        panorama.current.setVisible(false);
-    }
+    // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
+    // However, simulation.isActive sets isSvActive state usually in toggle? 
+    // Wait, isSvActive was controlled via visibility button. 
+    // We should probably hide the SV container when stopped?
+    // No, maybe user wants to see it? Let's leave isSvActive state as is, 
+    // but the simulation effect won't run.
+    
     setIsCoachThinking(false);
     setCoachData(null);
     window.speechSynthesis.cancel();
@@ -693,8 +758,8 @@ const App: React.FC = () => {
     setSimulation(prev => {
         const isActive = !prev.isActive;
         if (isActive) {
-            if (panorama.current && route && route.path[prev.currentIndex]) {
-                 // Restore heading if possible
+            // Restore heading/position
+            if (route && route.path[prev.currentIndex]) {
                  const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
                  const heading = google.maps.geometry.spherical.computeHeading(
                      route.path[prev.currentIndex], 
@@ -703,6 +768,7 @@ const App: React.FC = () => {
                  setPanoramaView(route.path[prev.currentIndex], heading);
             }
             setIsSvFullScreen(true);
+            setIsSvActive(true); // Ensure container is visible
         }
         return { ...prev, isActive };
     });
@@ -876,15 +942,14 @@ const App: React.FC = () => {
         if (autoStart) {
           setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
           
-          // Fix: Explicitly show SV and set position to prevent black screen
-          if (panorama.current) {
-              const startPos = densifiedPath[0];
-              const nextPos = densifiedPath.length > 1 ? densifiedPath[1] : startPos;
-              const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
-              setPanoramaView(startPos, heading);
-          }
+          const startPos = densifiedPath[0];
+          const nextPos = densifiedPath.length > 1 ? densifiedPath[1] : startPos;
+          const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
+          setPanoramaView(startPos, heading);
           
           setIsSvFullScreen(true);
+          setIsSvActive(true); // Auto show
+
           setIsCoachThinking(true);
           const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
           setCoachData(firstCoach);
@@ -1038,7 +1103,15 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      <div ref={svRef} className={`bg-black transition-all duration-500 ease-in-out ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`} />
+      
+      {/* Street View Container - Replaced single Ref with Dual Refs */}
+      <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}>
+         {/* Panorama 1: Z-Index 10 when not active, 20 when active */}
+         <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
+         {/* Panorama 2: Z-Index 10 when not active, 20 when active */}
+         <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
+      </div>
+
       {isSvActive && showSvWarning && (
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
@@ -1068,7 +1141,7 @@ const App: React.FC = () => {
         <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Coverage Layer" : "Show Coverage Layer"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
-        <button onClick={() => panorama.current?.setVisible(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <User size={24} fill={isSvActive ? "currentColor" : "none"} />
         </button>
         {isSvActive && (
