@@ -5,6 +5,7 @@ import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, 
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoMetadata } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 
+// Declare google global
 declare var google: any;
 
 const PLAYLIST = [
@@ -17,13 +18,16 @@ const PLAYLIST = [
 ];
 
 const App: React.FC = () => {
+  // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Double Buffering Refs
   const svRef1 = useRef<HTMLDivElement>(null);
   const svRef2 = useRef<HTMLDivElement>(null);
   const panorama1 = useRef<any>(null);
   const panorama2 = useRef<any>(null);
-  const activePanoRef = useRef<number>(0);
-  const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0);
+  const activePanoRef = useRef<number>(0); 
+  const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0); 
 
   const googleMap = useRef<any>(null);
   const directionsRenderer = useRef<any>(null);
@@ -39,11 +43,16 @@ const App: React.FC = () => {
   const coverageLayer = useRef<any>(null);
   const svServiceRef = useRef<any>(null); 
 
+  // Exact Coordinate References
   const originLocationRef = useRef<any>(null);
   const destLocationRef = useRef<any>(null);
+
+  // Audio References
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<number | null>(null);
+  const simulationActiveRef = useRef(false);
 
+  // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
   const [speedKmH, setSpeedKmH] = useState(20); 
@@ -60,21 +69,25 @@ const App: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [coveredDistance, setCoveredDistance] = useState(0);
 
+  // AI Coach State
   const [coachData, setCoachData] = useState<CoachingData | null>(null);
   const [isCoachThinking, setIsCoachThinking] = useState(false);
 
+  // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
 
+  // Input States
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [waypoints, setWaypoints] = useState<{name: string, location: any}[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
-  const [clickedLocation, setClickedLocation] = useState<any>(null);
 
+  // Favorites State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
     return saved ? JSON.parse(saved) : [];
@@ -85,6 +98,8 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [clickedLocation, setClickedLocation] = useState<any>(null);
+
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -92,221 +107,295 @@ const App: React.FC = () => {
     return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
   };
 
-  const setPanoramaView = useCallback((panoId: string, heading: number) => {
-    const nextIdx = activePanoRef.current === 0 ? 1 : 0;
-    const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-    const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+  /**
+   * Optimized Pano Switching: Uses PanoID directly to load tiles (Zero search traffic)
+   */
+  const setPanoramaById = useCallback((panoId: string, heading: number) => {
+      const currentIdx = activePanoRef.current;
+      const nextIdx = currentIdx === 0 ? 1 : 0;
+      const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+      const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
 
-    if (!currentPano || !nextPano) return;
+      if (!currentPano || !nextPano) return;
 
-    if (currentPano.getPano() === panoId) {
-      currentPano.setPov({ heading, pitch: 0 });
-      return;
-    }
+      if (currentPano.getPano() === panoId) {
+          currentPano.setPov({ heading, pitch: 0 });
+          return;
+      }
 
-    nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
-    
-    const doSwap = () => {
-      activePanoRef.current = nextIdx;
-      setVisiblePanoIdx(nextIdx);
-      if (googleMap.current) googleMap.current.setStreetView(nextPano);
-    };
+      nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+      
+      const doSwap = () => {
+          activePanoRef.current = nextIdx;
+          setVisiblePanoIdx(nextIdx);
+          if (googleMap.current) googleMap.current.setStreetView(nextPano);
+      };
 
-    const listener = nextPano.addListener('links_changed', () => {
-      google.maps.event.removeListener(listener);
-      doSwap();
-    });
-    setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 400);
+      const listener = nextPano.addListener('links_changed', () => {
+          google.maps.event.removeListener(listener);
+          doSwap();
+      });
+
+      setTimeout(() => {
+         if (activePanoRef.current !== nextIdx) doSwap();
+      }, 400);
   }, []);
 
-  const prefetchStreetView = async (path: any[]): Promise<PanoMetadata[]> => {
+  /**
+   * Pre-fetch Street View IDs for the entire route (Strategy 2)
+   */
+  const prefetchStreetViewData = async (path: any[]): Promise<PanoMetadata[]> => {
     if (!svServiceRef.current) return [];
+    
     const panoData: PanoMetadata[] = [];
-    // Pre-fetch every ~100m to reduce simulation-time API calls drastically
-    const STEP_DISTANCE = 100; 
-    let lastPrefetchDist = -Infinity;
+    const SCAN_INTERVAL_METERS = 100; // Scan for a new pano ID every 100m
+    let lastScanDistance = -Infinity;
 
     for (let i = 0; i < path.length; i++) {
-      const currentPos = path[i];
-      const distFromStart = i === 0 ? 0 : google.maps.geometry.spherical.computeDistanceBetween(path[0], currentPos);
-      
-      if (distFromStart - lastPrefetchDist >= STEP_DISTANCE || i === 0 || i === path.length - 1) {
-        const data = await new Promise<any>(resolve => {
-          svServiceRef.current.getPanorama({
-            location: currentPos, radius: 50, source: google.maps.StreetViewSource.GOOGLE
-          }, (res: any, status: string) => resolve(status === 'OK' ? res : null));
-        });
+        const currentPos = path[i];
+        const distFromStart = google.maps.geometry.spherical.computeDistanceBetween(path[0], currentPos);
 
-        if (data && data.location) {
-          const nextIdx = Math.min(i + 10, path.length - 1);
-          const heading = google.maps.geometry.spherical.computeHeading(currentPos, path[nextIdx]);
-          panoData.push({
-            pathIndex: i,
-            panoId: data.location.pano,
-            location: data.location.latLng,
-            heading: heading
-          });
-          lastPrefetchDist = distFromStart;
+        if (distFromStart - lastScanDistance >= SCAN_INTERVAL_METERS || i === 0 || i === path.length - 1) {
+            const result = await new Promise<any>(resolve => {
+                svServiceRef.current.getPanorama({
+                    location: currentPos,
+                    radius: 50,
+                    source: google.maps.StreetViewSource.GOOGLE,
+                    preference: google.maps.StreetViewPreference.NEAREST
+                }, (data: any, status: string) => {
+                    resolve(status === 'OK' ? data : null);
+                });
+            });
+
+            if (result && result.location) {
+                const lookAheadIdx = Math.min(i + 10, path.length - 1);
+                const heading = google.maps.geometry.spherical.computeHeading(currentPos, path[lookAheadIdx]);
+                panoData.push({
+                    pathIndex: i,
+                    panoId: result.location.pano,
+                    location: result.location.latLng,
+                    heading: heading
+                });
+                lastScanDistance = distFromStart;
+            }
         }
-      }
     }
     return panoData;
   };
 
+  // Maps Loading
   useEffect(() => {
-    if ((window as any).google && (window as any).google.maps) { setIsMapsApiLoaded(true); return; }
+    if ((window as any).google && (window as any).google.maps) {
+      setIsMapsApiLoaded(true);
+      return;
+    }
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.GOOGLE_MAPS_API_KEY}&libraries=places,geometry,elevation`;
-    script.async = true; script.onload = () => setIsMapsApiLoaded(true);
+    script.async = true; script.defer = true;
+    script.onload = () => setIsMapsApiLoaded(true);
     document.head.appendChild(script);
   }, []);
 
+  // Map Init
   useEffect(() => {
     if (isMapsApiLoaded && mapRef.current && !googleMap.current) {
-      googleMap.current = new google.maps.Map(mapRef.current, {
-        center: { lat: 37.7749, lng: -122.4194 }, zoom: 14,
-        mapTypeControl: false, streetViewControl: false, zoomControl: false, scaleControl: true,
-        scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_LEFT },
-        styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }]
-      });
-      directionsRenderer.current = new google.maps.DirectionsRenderer({ map: googleMap.current, suppressMarkers: true, preserveViewport: true });
-      geocoder.current = new google.maps.Geocoder();
-      placesService.current = new google.maps.places.PlacesService(googleMap.current);
-      elevationService.current = new google.maps.ElevationService();
-      svServiceRef.current = new google.maps.StreetViewService();
-      coverageLayer.current = new google.maps.StreetViewCoverageLayer();
-      
-      const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false };
-      panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
-      panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
-      googleMap.current.setStreetView(panorama1.current);
-
-      googleMap.current.addListener("click", (e: any) => {
-        geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
-          if (status === 'OK' && results[0]) {
-            setClickedLocation({ lat: e.latLng.lat(), lng: e.latLng.lng(), name: results[0].formatted_address, address: results[0].formatted_address, location: e.latLng });
-          }
+        googleMap.current = new google.maps.Map(mapRef.current, {
+            center: { lat: 37.7749, lng: -122.4194 },
+            zoom: 14,
+            mapTypeControl: false, streetViewControl: false, scaleControl: true,
+            scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_LEFT },
+            styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }]
         });
-      });
+
+        directionsRenderer.current = new google.maps.DirectionsRenderer({
+            map: googleMap.current, suppressMarkers: true, preserveViewport: true
+        });
+
+        geocoder.current = new google.maps.Geocoder();
+        placesService.current = new google.maps.places.PlacesService(googleMap.current);
+        elevationService.current = new google.maps.ElevationService();
+        svServiceRef.current = new google.maps.StreetViewService();
+        coverageLayer.current = new google.maps.StreetViewCoverageLayer();
+
+        const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false };
+        panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
+        panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
+        googleMap.current.setStreetView(panorama1.current);
+
+        googleMap.current.addListener("click", (e: any) => {
+            geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
+                if (status === 'OK' && results[0]) {
+                    setClickedLocation({
+                        lat: e.latLng.lat(), lng: e.latLng.lng(),
+                        name: results[0].formatted_address, address: results[0].formatted_address,
+                        location: e.latLng
+                    });
+                }
+            });
+        });
     }
   }, [isMapsApiLoaded]);
 
-  // Main Simulation Loop - OPTIMIZED: Uses Pre-fetched Data
+  // Main Simulation Loop - ZERO TRAFFIC OPTIMIZED
   useEffect(() => {
     let timer: number;
     if (simulation.isActive && route) {
       const idx = simulation.currentIndex;
-      if (idx >= route.path.length - 1) { setSimulation(prev => ({ ...prev, isActive: false })); speak("Ride finished."); return; }
-      
-      const currentPos = route.path[idx];
-      if (!simulationMarker.current) {
-        simulationMarker.current = new google.maps.Marker({ position: currentPos, map: googleMap.current, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 5, fillColor: '#3b82f6', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } });
+      if (idx >= route.path.length - 1) {
+          setSimulation(prev => ({ ...prev, isActive: false }));
+          speak(`Ride finished. Excellent work.`);
+          return;
       }
       
-      const nextIdx = Math.min(idx + 5, route.path.length - 1);
-      const heading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[nextIdx]);
+      const currentPos = route.path[idx];
+      
+      // Update Simulation Marker
+      if (!simulationMarker.current) {
+          simulationMarker.current = new google.maps.Marker({ 
+              position: currentPos, map: googleMap.current, 
+              icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 4, fillColor: '#3b82f6', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } 
+          });
+      }
+      const lookAheadIdx = Math.min(idx + 5, route.path.length - 1);
+      const heading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[lookAheadIdx]);
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
 
-      // Zero-Traffic SV Logic: Use cached pano metadata
+      // Zero-Traffic SV Logic: Use pre-fetched data
       if (isSvActive && route.panoData.length > 0) {
-        const closestPano = route.panoData.reduce((prev, curr) => 
-          Math.abs(curr.pathIndex - idx) < Math.abs(prev.pathIndex - idx) ? curr : prev
-        );
-        setPanoramaView(closestPano.panoId, heading);
+          // Find closest pano entry in our cache
+          const closest = route.panoData.reduce((prev, curr) => 
+              Math.abs(curr.pathIndex - idx) < Math.abs(prev.pathIndex - idx) ? curr : prev
+          );
+          setPanoramaById(closest.panoId, heading);
       }
 
-      // Predictive Coaching: Only call when current plan expires
+      // Predictive Coaching Logic: Only call AI when segment expires
       if (!coachData || idx >= coachData.validUntilIndex) {
-        (async () => {
-          setIsCoachThinking(true);
-          const newPlan = await getAdvancedCoaching(idx, route.elevation, route.path.length, speedKmH, coachData?.resistance);
-          setCoachData(newPlan); speak(newPlan.tip); setIsCoachThinking(false);
-        })();
+          (async () => {
+              setIsCoachThinking(true);
+              const newPlan = await getAdvancedCoaching(idx, route.elevation, route.path.length, speedKmH, coachData?.resistance);
+              setCoachData(newPlan);
+              speak(newPlan.tip);
+              setIsCoachThinking(false);
+          })();
       }
 
-      const dist = google.maps.geometry.spherical.computeDistanceBetween(currentPos, route.path[idx + 1]);
+      // Move at physical speed
+      const nextPos = route.path[idx + 1];
+      const dist = google.maps.geometry.spherical.computeDistanceBetween(currentPos, nextPos);
       const delay = Math.max(50, (dist / ((speedKmH * 1000) / 3600)) * 1000);
-      timer = window.setTimeout(() => setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })), delay);
+      
+      timer = window.setTimeout(() => {
+          setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
+      }, delay);
     }
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route, isSvActive, speedKmH]);
+  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvActive]);
 
-  const calculateRoute = useCallback(async (targetMode?: TravelMode, autoStart: boolean = false, custO?: string, custD?: string) => {
-    const finalO = custO || origin; const finalD = custD || destination;
-    if (!finalO || !finalD) return;
-    setLoading(true); setElapsedTime(0); setCoveredDistance(0);
-    try {
-      const res = await new Promise<any>((resolve, reject) => {
-        new google.maps.DirectionsService().route({
-          origin: originLocationRef.current || finalO, destination: destLocationRef.current || finalD,
-          waypoints: waypoints.map(w => ({ location: w.location, stopover: true })), travelMode: google.maps.TravelMode[targetMode || mode]
-        }, (r: any, s: string) => s === 'OK' ? resolve(r) : reject(s));
-      });
-
-      const path = res.routes[0].overview_path;
-      const densified: any[] = [];
-      for (let i = 0; i < path.length - 1; i++) {
-        densified.push(path[i]);
-        const d = google.maps.geometry.spherical.computeDistanceBetween(path[i], path[i+1]);
-        if (d > 2) {
-          const steps = Math.floor(d / 2);
-          const h = google.maps.geometry.spherical.computeHeading(path[i], path[i+1]);
-          for (let j = 1; j <= steps; j++) densified.push(google.maps.geometry.spherical.computeOffset(path[i], j * 2, h));
-        }
-      }
-      densified.push(path[path.length - 1]);
-
-      const elevRes = await elevationService.current.getElevationAlongPath({ path: densified, samples: 100 });
-      
-      // PRE-FETCH SV METADATA (Crucial for traffic reduction)
-      const panoData = await prefetchStreetView(densified);
-      
-      setRoute({ 
-        origin: finalO, destination: finalD, 
-        distance: res.routes[0].legs[0].distance.text, 
-        duration: res.routes[0].legs[0].duration.text, 
-        path: densified, elevation: elevRes.results, panoData 
-      });
-      directionsRenderer.current.setDirections(res);
-      if (autoStart) setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
-    } catch (e) { alert("Failed to calculate route."); }
-    finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode]);
+  // Secondary Timer Stats
+  useEffect(() => {
+    let timer: number;
+    if (simulation.isActive) {
+      timer = window.setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+        setCoveredDistance(prev => prev + ((speedKmH * 1000) / 3600));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [simulation.isActive, speedKmH]);
 
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.onstart = () => setIsSpeaking(true); u.onend = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(u);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
   };
 
-  const handleToggleSimulation = () => setSimulation(p => ({ ...p, isActive: !p.isActive }));
-  const handleStopSimulation = () => setSimulation(p => ({ ...p, isActive: false, currentIndex: 0 }));
+  const calculateRoute = useCallback(async (targetMode?: TravelMode, autoStart: boolean = false, custO?: string, custD?: string) => {
+    const finalO = custO || origin; const finalD = custD || destination;
+    if (!finalO || !finalD) return;
+    setLoading(true); setCoachData(null); setRouteSource(null); setElapsedTime(0); setCoveredDistance(0);
+    
+    try {
+      const result = await new Promise<any>((resolve, reject) => {
+        new google.maps.DirectionsService().route({
+          origin: originLocationRef.current || finalO, destination: destLocationRef.current || finalD,
+          waypoints: waypoints.map(wp => ({ location: wp.location, stopover: true })),
+          travelMode: google.maps.TravelMode[targetMode || mode]
+        }, (res: any, status: string) => status === 'OK' ? resolve(res) : reject(status));
+      });
+
+      const path = result.routes[0].overview_path;
+      const densified: any[] = [];
+      for (let i = 0; i < path.length - 1; i++) {
+          densified.push(path[i]);
+          const d = google.maps.geometry.spherical.computeDistanceBetween(path[i], path[i+1]);
+          if (d > 2) {
+              const steps = Math.floor(d / 2);
+              const h = google.maps.geometry.spherical.computeHeading(path[i], path[i+1]);
+              for (let j = 1; j <= steps; j++) densified.push(google.maps.geometry.spherical.computeOffset(path[i], j * 2, h));
+          }
+      }
+      densified.push(path[path.length - 1]);
+
+      const elevationRes = await elevationService.current.getElevationAlongPath({ path: densified, samples: 100 });
+      
+      // PRE-FETCH SV DATA (Strategy 2: Reduce Traffic)
+      const panoData = await prefetchStreetViewData(densified);
+      
+      setRoute({
+          origin: finalO, destination: finalD,
+          distance: result.routes[0].legs[0].distance.text,
+          duration: result.routes[0].legs[0].duration.text,
+          path: densified, elevation: elevationRes.results, panoData
+      });
+      directionsRenderer.current.setDirections(result);
+      setRouteSource('GOOGLE');
+
+      if (autoStart) setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+
+    } catch (err) { alert("Could not find route."); }
+    finally { setLoading(false); }
+  }, [origin, destination, waypoints, mode, speedKmH]);
+
+  const handleToggleSimulation = () => setSimulation(prev => ({ ...prev, isActive: !prev.isActive }));
+  const handleStopSimulation = () => { setSimulation({ isActive: false, currentIndex: 0, speed: 100 }); setIsSvFullScreen(false); };
+
+  const handleToggleMapType = () => {
+    const next = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
+    googleMap.current.setMapTypeId(next); setMapType(next);
+  };
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
+      {/* Street View Dual Panoramas */}
       <div className={`bg-black transition-all duration-500 ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40' : 'absolute top-0 h-[50%] w-full z-20 border-b border-white/10') : 'h-0 opacity-0'}`}>
-        <div ref={svRef1} className={`absolute inset-0 transition-opacity ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10 opacity-0'}`} />
-        <div ref={svRef2} className={`absolute inset-0 transition-opacity ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10 opacity-0'}`} />
+         <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10 opacity-0'}`} />
+         <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10 opacity-0'}`} />
       </div>
 
       <div ref={mapRef} className={`transition-all duration-500 ${isSvFullScreen ? "absolute top-4 left-4 w-32 h-32 z-50 rounded-2xl border-2 border-white shadow-xl" : (isSvActive ? "absolute bottom-0 h-[50%] w-full z-10" : "absolute inset-0 z-10")}`} />
-
+      
       {simulation.isActive && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[80%] pointer-events-none">
-          <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-3 shadow-2xl animate-in slide-in-from-top-4 duration-500 text-center">
-             <p className="text-white font-bold text-sm tracking-tight">{coachData.tip}</p>
+          <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-3 shadow-2xl animate-in slide-in-from-top-4 duration-500">
+             <p className="text-white font-bold text-center text-sm tracking-tight">{coachData.tip}</p>
           </div>
         </div>
       )}
 
+      {/* Primary UI Overlays */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
+        <button onClick={() => setShowCoverage(!showCoverage)} className={`w-12 h-12 rounded-full shadow-xl flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}><RouteIcon size={24} /></button>
         <button onClick={() => setIsSvActive(!isSvActive)} className={`w-12 h-12 rounded-full shadow-xl flex items-center justify-center ${isSvActive ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}><User size={24} /></button>
         {isSvActive && <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} className="w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-900">{isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}</button>}
+        <button onClick={handleToggleMapType} className="w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-400"><Layers size={24} /></button>
       </div>
 
+      {/* Bottom Control Sheet */}
       <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ${routeInputExpanded ? 'w-[calc(100%-2rem)] max-w-[450px]' : 'w-12 h-12 rounded-full overflow-hidden'}`}>
         <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-4 w-full border border-slate-200">
            <div className="flex flex-col gap-3">
@@ -316,16 +405,17 @@ const App: React.FC = () => {
               </div>
               <div className="flex items-center gap-3">
                  <span className="text-[10px] font-black text-slate-400 uppercase">Speed</span>
-                 <input type="range" min="10" max="80" value={speedKmH} onChange={e => setSpeedKmH(Number(e.target.value))} className="flex-1 accent-blue-600 h-1 bg-slate-200 rounded-lg appearance-none" />
-                 <span className="text-xs font-bold text-slate-700 w-12">{speedKmH} km/h</span>
+                 <input type="range" min="10" max="100" value={speedKmH} onChange={e => setSpeedKmH(Number(e.target.value))} className="flex-1 accent-blue-600" />
+                 <span className="text-xs font-bold text-slate-700 w-12">{speedKmH}km</span>
               </div>
               <button onClick={() => calculateRoute()} disabled={loading} className="w-full bg-blue-600 text-white rounded-xl h-11 font-black shadow-lg active:scale-95 transition-all flex items-center justify-center">
-                {loading ? <Activity size={20} className="animate-spin" /> : 'CALCULATE EXPEDITION'}
+                {loading ? <Activity size={20} className="animate-spin" /> : 'START MISSION'}
               </button>
            </div>
         </div>
       </div>
 
+      {/* Elevation Sheet */}
       {route && (
         <div className={`absolute bottom-4 right-4 z-[50] transition-all duration-300 ${elevationExpanded ? 'w-full max-w-[300px]' : 'w-12 h-12 rounded-full overflow-hidden'}`}>
           <div className="bg-white shadow-2xl rounded-3xl p-4 border border-slate-100">
@@ -336,7 +426,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                    <button onClick={handleToggleSimulation} className={`w-10 h-10 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button>
-                   <button onClick={handleStopSimulation} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center"><RotateCcw size={18}/></button>
+                   <button onClick={() => { setSimulation({ isActive: false, currentIndex: 0, speed: 100 }); setElapsedTime(0); setCoveredDistance(0); }} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center"><RotateCcw size={18}/></button>
                 </div>
              </div>
              <div className="h-12 w-full bg-slate-50 rounded-xl overflow-hidden">
@@ -346,6 +436,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Point Selection Prompt */}
       {clickedLocation && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[80%] max-w-[280px]">
           <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-200">
@@ -354,7 +445,6 @@ const App: React.FC = () => {
               <button onClick={() => { setOrigin(clickedLocation.address); setClickedLocation(null); }} className="bg-blue-50 text-blue-600 h-10 rounded-xl text-xs font-bold">START HERE</button>
               <button onClick={() => { setDestination(clickedLocation.address); setClickedLocation(null); }} className="bg-blue-600 text-white h-10 rounded-xl text-xs font-bold">END HERE</button>
             </div>
-            <button onClick={() => setClickedLocation(null)} className="w-full mt-3 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Cancel</button>
           </div>
         </div>
       )}

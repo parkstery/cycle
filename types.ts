@@ -13,8 +13,9 @@ export interface RouteInfo {
   duration: string;
   path: any[];
   elevation: ElevationPoint[];
-  panoData: PanoMetadata[]; // Pre-fetched Street View points
+  panoData: PanoMetadata[]; // Pre-fetched Street View metadata
   totalDistanceMeters?: number;
+  cumulativeDistances?: number[];
 }
 
 export interface ElevationPoint {
@@ -40,7 +41,7 @@ export interface CoachingData {
   resistance: string;
   intensity: 'LOW' | 'MODERATE' | 'HIGH' | 'MAX';
   action: 'SIT' | 'STAND' | 'TUCK' | 'PEDAL';
-  validUntilIndex: number; // For predictive coaching
+  validUntilIndex: number; // The simulation index until which this coaching remains valid
 }
 
 export interface SavedRoute {
@@ -53,4 +54,6 @@ export interface SavedRoute {
     lng: number;
   }[];
   timestamp: number;
+  panoData?: PanoMetadata[]; // Cached SV data for favorites
+  elevation?: ElevationPoint[]; // Cached elevation for favorites
 }
