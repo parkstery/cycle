@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, User, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute } from './types';
 import { getAdvancedCoaching } from './services/aiCoach';
 // It's me EG
@@ -1145,7 +1145,7 @@ const App: React.FC = () => {
             <RouteIcon size={24} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-            <User size={24} fill={isSvActive ? "currentColor" : "none"} />
+            <img src="https://cdn.jsdelivr.net/gh/Raruto/leaflet-pegman@master/maps.gstatic.com/api-3/cb_scout2.png" alt="Street View" className="w-6 h-6 object-contain" />
         </button>
         {isSvActive && (
             <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
