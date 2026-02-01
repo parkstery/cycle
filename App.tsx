@@ -245,6 +245,14 @@ const App: React.FC = () => {
     return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
   };
 
+  /** 주행 시간 표시용 단순 형식 (예: 1:25) */
+  const formatDurationSimple = (totalSeconds: number) => {
+    if (!isFinite(totalSeconds) || totalSeconds < 0) return '0:00';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.round((totalSeconds % 3600) / 60);
+    return `${h}:${m.toString().padStart(2, '0')}`;
+  };
+
   // Helper to check if current route is saved
   const isCurrentRouteSaved = useCallback(() => {
     if (!origin || !destination) return false;
@@ -318,8 +326,6 @@ const App: React.FC = () => {
         location: new google.maps.LatLng(wp.lat, wp.lng)
     }));
     setWaypoints(restoredWaypoints);
-    
-    calculateRoute(mode, false, saved.origin, saved.destination, restoredWaypoints);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
@@ -1070,7 +1076,7 @@ const App: React.FC = () => {
           distText = totalMeters >= 1000 ? `${(totalMeters/1000).toFixed(1)} km` : `${totalMeters} m`;
           let totalSecs = 0;
           result.routes[0].legs.forEach((leg: any) => { totalSecs += leg.duration.value; });
-          durText = totalSecs >= 3600 ? `${Math.floor(totalSecs/3600)} h ${Math.round((totalSecs%3600)/60)} min` : `${Math.round(totalSecs/60)} min`;
+          durText = formatDurationSimple(totalSecs);
           setRouteSource('GOOGLE');
         }
       } catch (e) {
@@ -1107,7 +1113,7 @@ const App: React.FC = () => {
         if (data.code === 'Ok') {
           path = google.maps.geometry.encoding.decodePath(data.routes[0].geometry);
           distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
-          durText = `${Math.round(data.routes[0].duration / 60)} min`;
+          durText = formatDurationSimple(data.routes[0].duration);
           setRouteSource('OSRM');
           const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); googleMap.current.fitBounds(b);
         }
@@ -1143,9 +1149,7 @@ const App: React.FC = () => {
             }
         }
         
-        const h = Math.floor(calculatedSeconds / 3600);
-        const m = Math.round((calculatedSeconds % 3600) / 60);
-        durText = h > 0 ? `${h} h ${m} min` : `${m} min`;
+        durText = formatDurationSimple(calculatedSeconds);
 
         const densifiedPath = [];
         const segmentLength = 2;
@@ -1237,7 +1241,6 @@ const App: React.FC = () => {
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
 
       setClickedLocation(null);
-      if (destination) { calculateRoute(mode, false, newOrigin, destination); }
     }
   };
 
@@ -1251,7 +1254,6 @@ const App: React.FC = () => {
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
 
       setClickedLocation(null);
-      if (origin) { calculateRoute(mode, false, origin, newDest); }
     }
   };
 
@@ -1269,11 +1271,6 @@ const App: React.FC = () => {
     setOrigin(newOrigin);
     setDestination(newDestination);
     setWaypoints(newWaypoints);
-    
-    // Trigger recalculation immediately with new values
-    if (newOrigin && newDestination) {
-        calculateRoute(mode, false, newOrigin, newDestination, newWaypoints);
-    }
   };
 
   const handleAddWaypoint = () => {
@@ -1286,8 +1283,6 @@ const App: React.FC = () => {
       waypointMarkers.current.push(m);
 
       setClickedLocation(null);
-      // Recalculate if we have full set
-      if (origin && destination) { calculateRoute(mode, false, origin, destination, newWaypoints); }
     }
   };
 
@@ -1304,10 +1299,6 @@ const App: React.FC = () => {
         });
     }
 
-    // Recalculate after removal if routing is active
-    if (origin && destination) {
-       calculateRoute(mode, false, origin, destination, newWaypoints);
-    }
   };
 
   const handleRemoveStart = () => {
@@ -1528,13 +1519,16 @@ const App: React.FC = () => {
                              <button onClick={clearMapOverlays} title="Delete Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
                          </div>
                     </div>
-                    <div className="flex items-center gap-1 w-full">
-                        <div className="flex-1 flex items-center justify-center gap-2 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
+                    <div className="flex items-center gap-1.5 w-full">
+                        <div className="flex-1 min-w-0 max-w-[88px] flex items-center justify-center gap-1 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
                             <span className="text-[10px] font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span>
                             <div className="h-3 w-px bg-slate-300 shrink-0"></div>
-                            <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0 min'}</span>
+                            <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                         </div>
-                        <button onClick={() => calculateRoute(mode, true)} title="Calculate Route" disabled={loading} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => calculateRoute(mode, false)} title="경로탐색" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
+                            <Search size={14} />
+                        </button>
+                        <button onClick={() => calculateRoute(mode, true)} title="Go" disabled={loading || !origin || !destination} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
