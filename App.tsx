@@ -1309,6 +1309,24 @@ const App: React.FC = () => {
        calculateRoute(mode, false, origin, destination, newWaypoints);
     }
   };
+
+  const handleRemoveStart = () => {
+    setOrigin('');
+    originLocationRef.current = null;
+    if (startMarker.current) {
+      startMarker.current.setMap(null);
+      startMarker.current = null;
+    }
+  };
+
+  const handleRemoveEnd = () => {
+    setDestination('');
+    destLocationRef.current = null;
+    if (endMarker.current) {
+      endMarker.current.setMap(null);
+      endMarker.current = null;
+    }
+  };
   
   const handlePlaceSearch = (term?: string) => {
       const query = term || searchTerm;
@@ -1470,6 +1488,9 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                             <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }} />
+                            <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
+                                <X size={10} />
+                            </button>
                         </div>
                         {/* Waypoints Render */}
                         {waypoints.length > 0 && (
@@ -1488,6 +1509,9 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
                             <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }} />
+                            <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
+                                <X size={10} />
+                            </button>
                         </div>
                     </div>
                     <div className="flex items-center gap-1 w-full px-0.5">
