@@ -150,6 +150,7 @@ const App: React.FC = () => {
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
   const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
   const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
+  const pendingSwapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Fallback swap if status_changed never OK (방안 A)
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -352,12 +353,42 @@ const App: React.FC = () => {
     localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
   };
 
+  // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지)
+  const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void) => {
+    if (pendingSwapFallbackRef.current) {
+      clearTimeout(pendingSwapFallbackRef.current);
+      pendingSwapFallbackRef.current = null;
+    }
+    const doSwapWithDelay = () => {
+      pendingSwapTimeoutRef.current = null;
+      doSwap();
+    };
+    const FALLBACK_MS = 1500;
+    const DELAY_AFTER_OK_MS = 150;
+    let listener: any = null;
+    pendingSwapFallbackRef.current = setTimeout(() => {
+      pendingSwapFallbackRef.current = null;
+      if (listener) google.maps.event.removeListener(listener);
+      doSwap();
+    }, FALLBACK_MS);
+    listener = nextPano.addListener('status_changed', () => {
+      if (nextPano.getStatus() !== 'OK') return;
+      if (listener) { google.maps.event.removeListener(listener); listener = null; }
+      if (pendingSwapFallbackRef.current) { clearTimeout(pendingSwapFallbackRef.current); pendingSwapFallbackRef.current = null; }
+      pendingSwapTimeoutRef.current = setTimeout(doSwapWithDelay, DELAY_AFTER_OK_MS);
+    });
+  }, []);
+
   // Helper function to update panorama atomically (Hybrid Double Buffer)
   const setPanoramaView = useCallback((location: any, heading: number) => {
       if (!svServiceRef.current) return;
       if (pendingSwapTimeoutRef.current) {
           clearTimeout(pendingSwapTimeoutRef.current);
           pendingSwapTimeoutRef.current = null;
+      }
+      if (pendingSwapFallbackRef.current) {
+          clearTimeout(pendingSwapFallbackRef.current);
+          pendingSwapFallbackRef.current = null;
       }
       svServiceRef.current.getPanorama({
           location: location,
@@ -389,33 +420,24 @@ const App: React.FC = () => {
                   visible: true
               });
 
-              if (currentPanoId === newPanoId) {
-                  pendingSwapTimeoutRef.current = setTimeout(doSwap, 50);
-                  return;
-              }
-              const links = currentPano.getLinks();
-              const isConnected = links?.some((link: any) => link.pano === newPanoId);
-              if (isConnected) {
-                  pendingSwapTimeoutRef.current = setTimeout(doSwap, 80);
-                  return;
-              }
-              const listener = nextPano.addListener('links_changed', () => {
-                  google.maps.event.removeListener(listener);
-                  doSwap();
-              });
-              pendingSwapTimeoutRef.current = setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
+              scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
           }
       });
-  }, []);
+  }, [scheduleSwapAfterOk]);
 
   /**
    * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
    * 같은 파노라마·동일 heading이면 스왑 생략(같은 이미지 두 번 노출 방지).
+   * 방안 A: nextPano status_changed → OK 후 150ms 지연 스왑 + 1.5s 폴백.
    */
   const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number) => {
     if (pendingSwapTimeoutRef.current) {
       clearTimeout(pendingSwapTimeoutRef.current);
       pendingSwapTimeoutRef.current = null;
+    }
+    if (pendingSwapFallbackRef.current) {
+      clearTimeout(pendingSwapFallbackRef.current);
+      pendingSwapFallbackRef.current = null;
     }
     const currentIdx = activePanoRef.current;
     const nextIdx = currentIdx === 0 ? 1 : 0;
@@ -439,22 +461,8 @@ const App: React.FC = () => {
     }
 
     nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
-    if (currentPanoId === panoId) {
-      pendingSwapTimeoutRef.current = setTimeout(doSwap, 50);
-      return;
-    }
-    const links = currentPano.getLinks();
-    const isConnected = links?.some((link: any) => link.pano === panoId);
-    if (isConnected) {
-      pendingSwapTimeoutRef.current = setTimeout(doSwap, 80);
-      return;
-    }
-    const listener = nextPano.addListener('links_changed', () => {
-      google.maps.event.removeListener(listener);
-      doSwap();
-    });
-    pendingSwapTimeoutRef.current = setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
-  }, []);
+    scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
+  }, [scheduleSwapAfterOk]);
 
   /** Pre-fetch Street View along path with driving-direction filter. fromDistanceM/maxDistanceM = segment (e.g. initial 0–150m). */
   const preFetchStreetViewData = useCallback(async (
@@ -1524,7 +1532,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[95%] max-w-[500px]' : 'w-[95%] max-w-[290px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? 'w-[95%] max-w-[500px]' : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
