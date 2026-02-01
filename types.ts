@@ -21,7 +21,7 @@ export interface RouteInfo {
   elevation: ElevationPoint[];
   totalDistanceMeters?: number;
   cumulativeDistances?: number[];
-  /** Pre-fetched Street View metadata (100m intervals); used in RUNNING without API */
+  /** Pre-fetched Street View metadata (30m intervals); used in RUNNING without API */
   panoData?: PanoDataItem[];
   /** Predictive coaching segments; used in RUNNING without API */
   cachedCoaching?: CachedCoachingItem[];

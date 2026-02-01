@@ -381,7 +381,7 @@ const App: React.FC = () => {
     setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
   }, []);
 
-  // Pre-fetch Street View metadata along path at 100m intervals (no API during RUNNING)
+  // Pre-fetch Street View metadata along path at 30m intervals (continuous Street View; no API during RUNNING)
   const preFetchStreetViewData = useCallback(async (path: any[], onProgress: (k: number, n: number) => void): Promise<PanoDataItem[]> => {
     if (!svServiceRef.current || !path.length) return [];
     const cumDist: number[] = [0];
@@ -389,7 +389,7 @@ const App: React.FC = () => {
       cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = 100;
+    const intervalM = 30;
     const samples: number[] = [];
     for (let d = 0; d <= totalM; d += intervalM) {
       let i = 0;
@@ -1062,7 +1062,7 @@ const App: React.FC = () => {
         });
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
 
-        // Traffic optimization: pre-fetch Street View metadata (100m intervals), then optionally auto-start
+        // Traffic optimization: pre-fetch Street View metadata (30m intervals), then optionally auto-start
         (async () => {
           setAppPhase('PREPARING');
           setPreparingProgress({ k: 0, n: 1 });
