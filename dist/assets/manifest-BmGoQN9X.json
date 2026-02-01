@@ -1,0 +1,16 @@
+{
+  "name": "Cycle simulator",
+  "short_name": "CycleSim",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3774/3774278.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

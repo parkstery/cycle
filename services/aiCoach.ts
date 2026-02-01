@@ -1,159 +1,162 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
-import { CoachingData, ElevationPoint } from "../types";
+import { CoachingData, ElevationPoint, RouteInfo } from "../types";
+import {
+  getTipIndicesByResistance,
+  getCoachingPhrases,
+} from "./phraseManifest";
 
 declare var google: any;
 
-const FALLBACK_TIPS = [
-  // Form
-  "Elbows soft. Upper body quiet.",
-  "Hips stable. Let legs work.",
-  "Relax your grip. No white knuckles.",
-  "Core tight. Stop bouncing.",
-  "Smooth circles, not stomps.",
+/** 저항 밴드(1~8) → intensity, action. 경사도 세분화에 맞춤 */
+function resistanceToIntensityAction(targetRes: number): {
+  intensity: "LOW" | "MODERATE" | "HIGH" | "MAX";
+  action: "SIT" | "STAND" | "TUCK" | "PEDAL";
+} {
+  if (targetRes >= 6) return { intensity: "HIGH", action: "STAND" };
+  if (targetRes <= 2) return { intensity: "LOW", action: "TUCK" };
+  return { intensity: "MODERATE", action: "PEDAL" };
+}
 
-  // Breathing
-  "Deep breath. Long exhale.",
-  "Breathe low. Stay calm.",
-  "Control breath before speed.",
-  "Steady lungs, steady legs.",
-
-  // Power & Cadence
-  "Light feet. Faster spin.",
-  "Ease power. Find rhythm.",
-  "Hold cadence. Ignore speed.",
-  "Even pressure through the stroke.",
-  "Save watts. Ride efficient.",
-
-  // Terrain-aware feel
-  "Stay tall. Let the hill come.",
-  "Float the pedals here.",
-  "Settle in. This section lasts.",
-  "Let gravity work for you.",
-
-  // Mental / Focus
-  "Eyes up. Line stays clean.",
-  "Calm mind. Strong legs.",
-  "No rush. Ride smart.",
-  "Focus now. Free speed ahead."
-];
+/** 배열에서 랜덤 한 요소 반환 */
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export const getAdvancedCoaching = async (
-  currentElevation: number,
+  _currentElevation: number,
   upcomingPoints: ElevationPoint[],
-  currentSpeed: number,
+  _currentSpeed: number,
   previousResistance?: string
-): Promise<CoachingData> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
+): Promise<CoachingData & { tipId?: string; resId?: string }> => {
   // 1. Calculate accurate slope
   let slope = 0;
   if (upcomingPoints.length > 1) {
-    // Check if google maps geometry library is loaded
-    if (typeof google !== 'undefined' && google.maps && google.maps.geometry) {
+    if (typeof google !== "undefined" && google.maps && google.maps.geometry) {
       const start = upcomingPoints[0];
       const end = upcomingPoints[upcomingPoints.length - 1];
-      const distance = google.maps.geometry.spherical.computeDistanceBetween(start.location, end.location);
+      const distance = google.maps.geometry.spherical.computeDistanceBetween(
+        start.location,
+        end.location
+      );
       const rise = end.elevation - start.elevation;
-      
-      if (distance > 0) {
-        slope = (rise / distance) * 100;
-      }
+      if (distance > 0) slope = (rise / distance) * 100;
     }
   }
 
-  // 2. Determine Resistance based on Slope (Correct Physics Logic)
-  // Mapping:
-  // Slope >= 10% (Extreme Uphill) -> Resistance 8 (Max Load) -> Action: Stand/Grind
-  // 7% <= Slope < 10% (Strong Uphill) -> Resistance 7 (Very Heavy) -> Action: Heavy Pedal
-  // 3% <= Slope < 7% (Moderate Uphill) -> Resistance 5-6 (Heavy) -> Action: Steady Rhythm
-  // -1% <= Slope < 3% (Flat) -> Resistance 3-4 (Moderate) -> Action: Cruise
-  // -3% <= Slope < -1% (Slight Downhill) -> Resistance 2 (Light) -> Action: High Cadence/Rest
-  // Slope < -3% (Steep Downhill) -> Resistance 1 (Min Load) -> Action: Coast/Tuck
-
+  // 2. Resistance based on slope (기존 고정 로직 유지)
   let targetRes = 3;
-  let contextDesc = "Flat - Cruising";
-
-  if (slope >= 10) { targetRes = 8; contextDesc = "Extreme Uphill (MAX LOAD). 'Wall climbing' feel. Needs Standing."; }
-  else if (slope >= 7) { targetRes = 7; contextDesc = "Steep Uphill (Very Heavy). Needs strong core & heavy torque."; }
-  else if (slope >= 5) { targetRes = 6; contextDesc = "Moderate Uphill (Heavy). Maintaining steady climbing rhythm."; }
-  else if (slope >= 3) { targetRes = 5; contextDesc = "Uphill Start. Breathing control required."; }
-  else if (slope >= 1) { targetRes = 4; contextDesc = "False Flat. Maintenance pace."; }
-  else if (slope >= -1) { targetRes = 3; contextDesc = "Flat. Cruising. Relax shoulders."; }
-  else if (slope >= -3) { targetRes = 2; contextDesc = "Slight Downhill. Speed picks up. Spin fast or rest."; }
-  else { targetRes = 1; contextDesc = "Steep Downhill (MIN LOAD). Gravity acceleration. Aero Tuck or Coasting."; }
+  if (slope >= 10) targetRes = 8;
+  else if (slope >= 7) targetRes = 7;
+  else if (slope >= 5) targetRes = 6;
+  else if (slope >= 3) targetRes = 5;
+  else if (slope >= 1) targetRes = 4;
+  else if (slope >= -1) targetRes = 3;
+  else if (slope >= -3) targetRes = 2;
+  else targetRes = 1;
 
   const resistanceText = `Resistance ${targetRes}`;
+  const resId = `res_${targetRes}`;
 
-  // 3. AI Generation for Tip & Intensity
-  const prompt = `
-    Role: You are a Professional Indoor Cycling Coach.
-    
-    Current Status: 
-    - Slope: ${slope.toFixed(1)}%
-    - Target Dial: ${targetRes} / 8 (${contextDesc})
-    - Speed: ${currentSpeed} km/h
-    - Previous Dial: ${previousResistance || 'None'}
-    
-    Task: Provide a SHORT, PUNCHY coaching command (max 10 words).
-    
-    Strategy Combinations:
-    - If Uphill (Res 5-8): Command to increase resistance. Mention posture (e.g., "Stand up", "Hips back"). Mental push ("Crush it", "Don't give up").
-    - If Flat (Res 3-4): Command to maintain rhythm. Posture (e.g., "Shoulders down", "Smooth circles").
-    - If Downhill (Res 1-2): Command to drop resistance. Action (e.g., "Aero tuck", "Recover legs", "Enjoy the speed").
+  // 3. 경사도(저항 밴드)별 코칭 멘트 후보 4개 중 랜덤 선택 (Gemini 없음)
+  const candidateIndices = getTipIndicesByResistance(targetRes);
+  const tipIndex =
+    candidateIndices.length > 0
+      ? pickRandom(candidateIndices)
+      : Math.floor(Math.random() * 32);
+  const phrases = getCoachingPhrases();
+  const tipId = `tip_${tipIndex}`;
+  const tipText = phrases[tipIndex]?.text ?? phrases[0].text;
 
-    Output constraints:
-    - Tone: Authoritative, motivating, sensory.
-    - JSON format only.
-  `;
+  const { intensity, action } = resistanceToIntensityAction(targetRes);
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            tip: { type: Type.STRING, description: "Short, sensory, imperative coaching command." },
-            intensity: { type: Type.STRING, enum: ['LOW', 'MODERATE', 'HIGH', 'MAX'] },
-            action: { type: Type.STRING, enum: ['SIT', 'STAND', 'TUCK', 'PEDAL'] }
-          },
-          required: ["tip", "intensity", "action"]
-        }
-      }
-    });
+  // UI 표시용: 저항이 바뀐 경우 "(Set to N)" 붙임 (캐시 재생은 tipId + resId 로 분리 재생)
+  const tipForDisplay =
+    resistanceText !== previousResistance
+      ? `${tipText} (Set to ${targetRes})`
+      : tipText;
 
-    const data = JSON.parse(response.text || "{}");
-    
-    const originalTip = data.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    
-    // Conditionally append resistance change message if it changed
-    let tipWithRes = originalTip;
-    if (resistanceText !== previousResistance) {
-        // Shorten the message for UI
-        tipWithRes = `${originalTip} (Set to ${targetRes})`;
-    }
+  return {
+    tip: tipForDisplay,
+    resistance: resistanceText,
+    intensity,
+    action,
+    tipId,
+    resId,
+  };
+};
 
-    return {
-      tip: tipWithRes,
-      resistance: resistanceText, 
-      intensity: (data.intensity as any) || "MODERATE",
-      action: (data.action as any) || "PEDAL"
-    };
-  } catch (error) {
-    const randomTip = FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)];
-    let tipWithRes = randomTip;
-    if (resistanceText !== previousResistance) {
-        tipWithRes = `${randomTip} (Set to ${targetRes})`;
-    }
+/** 예측 코칭: 경사 기반 로컬 로직만 사용(Gemini 없음). validUntilPathIndex 반환. */
+export const getPredictiveCoaching = async (
+  upcomingPoints: ElevationPoint[],
+  _pathLen: number,
+  _elevLen: number,
+  currentIdx: number,
+  _currentSpeed: number,
+  previousResistance?: string
+): Promise<{
+  coaching: CoachingData & { tipId?: string; resId?: string };
+  validUntilPathIndex: number;
+}> => {
+  const segmentSize = 80;
+  const validUntilPathIndex = Math.min(
+    currentIdx + segmentSize,
+    currentIdx + Math.max(20, upcomingPoints.length * 4)
+  );
+  const result = await getAdvancedCoaching(
+    0,
+    upcomingPoints,
+    _currentSpeed,
+    previousResistance
+  );
+  return { coaching: result, validUntilPathIndex };
+};
 
-    return {
-      tip: tipWithRes,
-      resistance: resistanceText,
-      intensity: "MODERATE",
-      action: "PEDAL"
-    };
+/** 주행 시작 시 코스 전반 안내 (Gemini 1회 호출) */
+export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {
+  const apiKey = (process as { env?: { GOOGLE_GEMINI_API_KEY?: string } }).env
+    ?.GOOGLE_GEMINI_API_KEY;
+  if (!apiKey) {
+    return `Starting the ride. Total distance ${route.distance}, estimated ${route.duration}. Shall we start a fun ride today?`;
   }
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `You are a friendly cycling coach. Give one short (1-2 sentences) encouraging course overview for a ride. Route: from "${route.origin}" to "${route.destination}". Distance: ${route.distance}, estimated duration: ${route.duration}. Reply in English only, friendly and motivating. No bullet points.`;
+    const res = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+    const text = (res as { text?: string }).text?.trim();
+    if (text) return text;
+  } catch (_) {
+    // fallback
+  }
+  return `Starting the ride. Total distance ${route.distance}, estimated ${route.duration}. Shall we start a fun ride today?`;
+};
+
+/** 주행 종료 시 격려 멘트 (Gemini 1회 호출) */
+export const getRideEncouragement = async (
+  route: RouteInfo,
+  stats?: { distance: string; duration: string }
+): Promise<string> => {
+  const apiKey = (process as { env?: { GOOGLE_GEMINI_API_KEY?: string } }).env
+    ?.GOOGLE_GEMINI_API_KEY;
+  const dist = stats?.distance ?? route.distance;
+  const dur = stats?.duration ?? route.duration;
+  if (!apiKey) {
+    return `Ride finished. Distance covered ${dist}, duration ${dur}. Great job!`;
+  }
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `You are a cycling coach. The rider just finished: "${route.origin}" to "${route.destination}". Distance covered: ${dist}, duration: ${dur}. Give one short (1 sentence) encouraging closing message in English. No bullet points.`;
+    const res = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+    const text = (res as { text?: string }).text?.trim();
+    if (text) return text;
+  } catch (_) {
+    // fallback
+  }
+  return `Ride finished. Distance covered ${dist}, duration ${dur}. Great job!`;
 };

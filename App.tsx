@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
-import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute } from './types';
-import { getAdvancedCoaching } from './services/aiCoach';
+import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
+import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
+import { playCoachingThenResistance } from './services/audioCache';
 // It's me EG
 // Declare google global
 declare var google: any;
@@ -114,6 +115,7 @@ const App: React.FC = () => {
   const [coachData, setCoachData] = useState<CoachingData | null>(null);
   const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
+  const lastValidUntilFetched = useRef<number>(-1);
 
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -129,6 +131,11 @@ const App: React.FC = () => {
   
   // Script Loading State
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+
+  // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
+  const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
+  const [preparingProgress, setPreparingProgress] = useState<{ k: number; n: number } | null>(null);
+  const lastPanToTime = useRef<number>(0);
 
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
@@ -343,6 +350,84 @@ const App: React.FC = () => {
       });
   }, []);
 
+  // Zero-traffic: set panorama by panoId only (no getPanorama API)
+  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number) => {
+    const currentIdx = activePanoRef.current;
+    const nextIdx = currentIdx === 0 ? 1 : 0;
+    const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+    const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+    if (!currentPano || !nextPano) return;
+    const currentPanoId = currentPano.getPano();
+    if (currentPanoId === panoId) {
+      currentPano.setPov({ heading, pitch: 0 });
+      return;
+    }
+    const links = currentPano.getLinks();
+    const isConnected = links?.some((link: any) => link.pano === panoId);
+    if (isConnected) {
+      currentPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+      return;
+    }
+    nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+    const doSwap = () => {
+      activePanoRef.current = nextIdx;
+      setVisiblePanoIdx(nextIdx);
+      if (googleMap.current) googleMap.current.setStreetView(nextPano);
+    };
+    const listener = nextPano.addListener('links_changed', () => {
+      google.maps.event.removeListener(listener);
+      doSwap();
+    });
+    setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
+  }, []);
+
+  // Pre-fetch Street View metadata along path at 100m intervals (no API during RUNNING)
+  const preFetchStreetViewData = useCallback(async (path: any[], onProgress: (k: number, n: number) => void): Promise<PanoDataItem[]> => {
+    if (!svServiceRef.current || !path.length) return [];
+    const cumDist: number[] = [0];
+    for (let i = 1; i < path.length; i++) {
+      cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
+    }
+    const totalM = cumDist[path.length - 1];
+    const intervalM = 100;
+    const samples: number[] = [];
+    for (let d = 0; d <= totalM; d += intervalM) {
+      let i = 0;
+      while (i < path.length - 1 && cumDist[i + 1] < d) i++;
+      samples.push(Math.min(i, path.length - 1));
+    }
+    const panoData: PanoDataItem[] = [];
+    const n = samples.length;
+    for (let k = 0; k < n; k++) {
+      const pathIndex = samples[k];
+      const loc = path[pathIndex];
+      const nextIdx = Math.min(pathIndex + 10, path.length - 1);
+      const heading = google.maps.geometry.spherical.computeHeading(loc, path[nextIdx]);
+      const data = await findStreetView(svServiceRef.current, loc, 50);
+      if (data?.location?.pano) {
+        panoData.push({
+          pathIndex,
+          panoId: data.location.pano,
+          location: data.location.latLng,
+          heading
+        });
+      }
+      onProgress(k + 1, n);
+      if (k < n - 1) await new Promise(r => setTimeout(r, 80));
+    }
+    return panoData;
+  }, []);
+
+  // Find panoData item with largest pathIndex <= current path index
+  const getPanoDataForIndex = useCallback((panoData: PanoDataItem[], pathIndex: number): PanoDataItem | null => {
+    if (!panoData.length) return null;
+    let best: PanoDataItem | null = null;
+    for (const p of panoData) {
+      if (p.pathIndex <= pathIndex && (best === null || p.pathIndex > best.pathIndex)) best = p;
+    }
+    return best ?? panoData[0];
+  }, []);
+
   // Dynamic Script Loading
   useEffect(() => {
     if ((window as any).google && (window as any).google.maps) {
@@ -496,11 +581,13 @@ const App: React.FC = () => {
   useEffect(() => {
     let timer: number;
     if (simulation.isActive && route) {
+      setAppPhase('RUNNING');
       if (tempMarker.current) { tempMarker.current.setMap(null); }
       const currentIdx = simulation.currentIndex;
       if (currentIdx >= route.path.length - 1) {
           setSimulation(prev => ({ ...prev, isActive: false }));
-          speak(`Ride finished. Distance covered ${route.distance}, duration ${route.duration}.`);
+          setAppPhase('IDLE');
+          getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
           return;
       }
       const currentPos = route.path[currentIdx];
@@ -522,75 +609,95 @@ const App: React.FC = () => {
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
 
-      // ---- STREET VIEW UPDATE LOGIC WITH RECOVERY STRATEGIES ----
-      // Note: We check `isSvActive` (React state) instead of `panorama.getVisible()`
-      if (isSvActive && svServiceRef.current && !isSvSearching.current) {
-        // Get location of *active* panorama
-        const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-        const currentPanoLoc = activePano?.getLocation()?.latLng;
-        
-        const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
-        
-        // Threshold: Only search if we are far enough from current pano (>15m) or have no pano
-        if (distFromLastPano > 15 || !currentPanoLoc) {
-            isSvSearching.current = true; // Lock semaphore
-
+      // ---- STREET VIEW: Zero-traffic (panoData) or fallback (real-time API) ----
+      if (isSvActive) {
+        if (route.panoData?.length) {
+          const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
+          if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading);
+        } else if (svServiceRef.current && !isSvSearching.current) {
+          const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+          const currentPanoLoc = activePano?.getLocation()?.latLng;
+          const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(currentPos, currentPanoLoc) : Infinity;
+          if (distFromLastPano > 15 || !currentPanoLoc) {
+            isSvSearching.current = true;
             (async () => {
-                let foundData: any = null;
-                let finalHeading = heading; // Default to path heading
-                
-                // Strategy 1: Standard Search (50m) at current position
-                foundData = await findStreetView(svServiceRef.current, currentPos, 50);
-
-                // Strategy 2: Look-ahead Search (Skip & Recovery)
-                if (!foundData) {
-                    const LOOK_AHEAD_STEPS = 5;
-                    for (let i = 1; i <= LOOK_AHEAD_STEPS; i++) {
-                        const targetIdx = Math.min(currentIdx + i, route.path.length - 1);
-                        const targetPos = route.path[targetIdx];
-                        foundData = await findStreetView(svServiceRef.current, targetPos, 50);
-                        if (foundData) {
-                            const nextIdx = Math.min(targetIdx + 1, route.path.length - 1);
-                            finalHeading = google.maps.geometry.spherical.computeHeading(targetPos, route.path[nextIdx]);
-                            break;
-                        }
-                    }
+              let foundData = await findStreetView(svServiceRef.current, currentPos, 50);
+              if (!foundData) {
+                for (let i = 1; i <= 5; i++) {
+                  const targetIdx = Math.min(currentIdx + i, route.path.length - 1);
+                  foundData = await findStreetView(svServiceRef.current, route.path[targetIdx], 50);
+                  if (foundData) break;
                 }
-
-                // Strategy 3: Wide Search (Fallback 100m)
-                if (!foundData) {
-                    foundData = await findStreetView(svServiceRef.current, currentPos, 100);
-                }
-
-                if (foundData && foundData.location && foundData.location.pano) {
-                    // Update Pano (This now calls the Hybrid Double Buffer Logic)
-                    setPanoramaView(foundData.location.latLng, finalHeading);
-                    
-                    svErrorCount.current = 0;
-                    setShowSvWarning(false);
-                } else {
-                    svErrorCount.current += 1;
-                    if (svErrorCount.current > 5) {
-                        setShowSvWarning(true);
-                    }
-                }
-
-                isSvSearching.current = false; // Unlock semaphore
+              }
+              if (!foundData) foundData = await findStreetView(svServiceRef.current, currentPos, 100);
+              if (foundData?.location?.pano) {
+                const nextIdx = Math.min(currentIdx + 1, route.path.length - 1);
+                const finalHeading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[nextIdx]);
+                setPanoramaView(foundData.location.latLng, finalHeading);
+                setShowSvWarning(false);
+              } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
+              isSvSearching.current = false;
             })();
+          }
         }
-        if (isSvFullScreen && googleMap.current) { googleMap.current.panTo(currentPos); }
+        if (isSvFullScreen && googleMap.current) {
+          const now = Date.now();
+          if (now - lastPanToTime.current > 1000) {
+            lastPanToTime.current = now;
+            googleMap.current.panTo(currentPos);
+          }
+        }
       }
       // -----------------------------------------------------------
 
-      if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
-          (async () => {
-              const currentElev = route.elevation[Math.floor((currentIdx/route.path.length)*route.elevation.length)]?.elevation || 0;
-              const upcoming = route.elevation.slice(Math.floor((currentIdx/route.path.length)*route.elevation.length), Math.floor(((currentIdx+20)/route.path.length)*route.elevation.length));
-              setIsCoachThinking(true);
-              const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
-              setCoachData(newCoaching); speak(newCoaching.tip); setIsCoachThinking(false);
-          })();
+      // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps) ----
+      const cached = route.cachedCoaching;
+      const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
+      if (currentCached) {
+        setCoachData(currentCached.coaching);
+        const lastValid = cached[cached.length - 1]?.validUntilPathIndex ?? 0;
+        if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && route.elevation.length > 0) {
+          lastValidUntilFetched.current = lastValid;
+          const pathLen = route.path.length;
+          const elevLen = route.elevation.length;
+          const startElevIdx = Math.floor((currentIdx / pathLen) * elevLen);
+          const segmentSize = Math.min(20, elevLen - startElevIdx);
+          if (segmentSize > 0) {
+            const upcomingSlice = route.elevation.slice(startElevIdx, startElevIdx + segmentSize);
+            setIsCoachThinking(true);
+            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, speedKmH, coachData?.resistance)
+              .then(({ coaching, validUntilPathIndex }) => {
+                setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
+                setCoachData(coaching);
+                const tipId = (coaching as { tipId?: string }).tipId;
+                const resId = (coaching as { resId?: string }).resId;
+                if (tipId && resId) {
+                  playCoachingThenResistance(tipId, resId).then((r) => { if (r.fallback) speak(coaching.tip); });
+                } else {
+                  speak(coaching.tip);
+                }
+              })
+              .finally(() => setIsCoachThinking(false));
+          }
+        }
+      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
+        (async () => {
+          const currentElev = route.elevation[Math.floor((currentIdx / route.path.length) * route.elevation.length)]?.elevation || 0;
+          const upcoming = route.elevation.slice(Math.floor((currentIdx / route.path.length) * route.elevation.length), Math.floor(((currentIdx + 20) / route.path.length) * route.elevation.length));
+          setIsCoachThinking(true);
+          const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
+          setCoachData(newCoaching);
+          const tipId = newCoaching.tipId;
+          const resId = newCoaching.resId;
+          if (tipId && resId) {
+            const r = await playCoachingThenResistance(tipId, resId);
+            if (r.fallback) speak(newCoaching.tip);
+          } else {
+            speak(newCoaching.tip);
+          }
+          setIsCoachThinking(false);
           lastCoachedIndex.current = currentIdx;
+        })();
       }
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];
@@ -706,6 +813,8 @@ const App: React.FC = () => {
   };
 
   const clearMapOverlays = () => {
+    setAppPhase('IDLE');
+    setPreparingProgress(null);
     if (directionsRenderer.current) directionsRenderer.current.setDirections({ routes: [] });
     if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
     if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
@@ -749,12 +858,14 @@ const App: React.FC = () => {
 
       setIsSvFullScreen(true);
 
-      speak(`Starting the ride. Total distance ${route.distance}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
+      getCourseBriefing(route).then(speak);
     }
   };
 
   const handleStopSimulation = () => {
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
+    setAppPhase('IDLE');
+    lastValidUntilFetched.current = -1;
     setIsSvFullScreen(false); // Reset fullscreen state
     // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
     // However, simulation.isActive sets isSvActive state usually in toggle? 
@@ -950,31 +1061,50 @@ const App: React.FC = () => {
             path: densifiedPath, strokeColor: '#ff3020', strokeWeight: 5, clickable: false, map: googleMap.current 
         });
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
-        
-        // REMOVED HISTORY UPDATE LOGIC
 
-        if (autoStart) {
-          setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
-          
-          const startPos = densifiedPath[0];
-          const nextPos = densifiedPath.length > 1 ? densifiedPath[1] : startPos;
-          const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
-          setPanoramaView(startPos, heading);
-          
-          setIsSvFullScreen(true);
-          setIsSvActive(true); // Auto show
+        // Traffic optimization: pre-fetch Street View metadata (100m intervals), then optionally auto-start
+        (async () => {
+          setAppPhase('PREPARING');
+          setPreparingProgress({ k: 0, n: 1 });
+          const panoData = await preFetchStreetViewData(densifiedPath, (k, n) => setPreparingProgress({ k, n }));
+          setPreparingProgress(null);
+          setRoute((prev) => (prev ? { ...prev, panoData } : null));
+          setAppPhase('IDLE');
 
-          setIsCoachThinking(true);
-          const firstCoach = await getAdvancedCoaching(elevationRes.results[0].elevation, elevationRes.results.slice(0, 10), speedKmH);
-          setCoachData(firstCoach);
-          speak(`Starting the ride. Total distance ${distText}, speed ${speedKmH} km/h. Shall we start a fun ride today?`);
-          setIsCoachThinking(false);
-          lastCoachedIndex.current = 0;
-        }
+          if (autoStart) {
+            setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+            setAppPhase('RUNNING');
+            setIsSvFullScreen(true);
+            setIsSvActive(true);
+            const pathLen = densifiedPath.length;
+            const elevLen = elevationRes.results.length;
+            const segmentSize = Math.min(20, elevLen);
+            const upcomingSlice = elevationRes.results.slice(0, segmentSize);
+            if (upcomingSlice.length > 0) {
+              setIsCoachThinking(true);
+              try {
+                const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
+                setCoachData(coaching);
+                setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
+                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
+              } finally {
+                setIsCoachThinking(false);
+              }
+            }
+            lastCoachedIndex.current = 0;
+            const firstPano = panoData.length > 0 ? panoData[0] : null;
+            if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading);
+            else {
+              const startPos = densifiedPath[0];
+              const heading = google.maps.geometry.spherical.computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
+              setPanoramaView(startPos, heading);
+            }
+          }
+        })();
       }
     } catch (err) { alert("경로를 찾을 수 없습니다."); }
     finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView]);
+  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
 
   const handleSetStart = () => {
     if (clickedLocation) {
@@ -1126,6 +1256,13 @@ const App: React.FC = () => {
          <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
       </div>
 
+      {appPhase === 'PREPARING' && preparingProgress && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] pointer-events-none">
+          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
+            <span className="text-white font-bold text-sm">Preparing Street View... ({preparingProgress.k}/{preparingProgress.n})</span>
+          </div>
+        </div>
+      )}
       {isSvActive && showSvWarning && (
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
