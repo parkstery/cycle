@@ -29,10 +29,10 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1"
 ];
 
-// Helper to wrap getPanorama in a Promise
+// Helper to wrap getPanorama in a Promise (no direction filter)
 const findStreetView = (
-    service: any, 
-    location: any, 
+    service: any,
+    location: any,
     radius: number
 ): Promise<any> => {
     return new Promise((resolve) => {
@@ -47,6 +47,57 @@ const findStreetView = (
             } else {
                 resolve(null);
             }
+        });
+    });
+};
+
+/** Normalize angle difference to [-180, 180] */
+function normalizeAngleDiff(deg: number): number {
+    while (deg > 180) deg -= 360;
+    while (deg < -180) deg += 360;
+    return deg;
+}
+
+/**
+ * 주행 방향 각도 범위 내 거리뷰만 채택.
+ * radius만 쓰면 전·후·좌·우 pano가 나오므로, 반환 pano가 전방 반구(±90°) 내인지 검사.
+ */
+const findStreetViewInDirection = (
+    service: any,
+    pathPoint: any,
+    pathNext: any,
+    pathIndex: number,
+    path: any[],
+    radius: number,
+    maxAngleDeg: number = 90
+): Promise<PanoDataItem | null> => {
+    return new Promise((resolve) => {
+        service.getPanorama({
+            location: pathPoint,
+            radius,
+            source: google.maps.StreetViewSource.GOOGLE,
+            preference: google.maps.StreetViewPreference.NEAREST
+        }, (data: any, status: string) => {
+            if (status !== 'OK' || !data?.location?.pano) {
+                resolve(null);
+                return;
+            }
+            const driveHeading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
+            const panoLatLng = data.location.latLng;
+            const bearingToPano = google.maps.geometry.spherical.computeHeading(pathPoint, panoLatLng);
+            const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
+            if (angleDiff > maxAngleDeg) {
+                resolve(null);
+                return;
+            }
+            const nextIdx = Math.min(pathIndex + 10, path.length - 1);
+            const heading = google.maps.geometry.spherical.computeHeading(pathPoint, path[nextIdx]);
+            resolve({
+                pathIndex,
+                panoId: data.location.pano,
+                location: data.location.latLng,
+                heading
+            });
         });
     });
 };
@@ -82,6 +133,7 @@ const App: React.FC = () => {
   const svServiceRef = useRef<any>(null); 
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
+  const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -381,17 +433,23 @@ const App: React.FC = () => {
     setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
   }, []);
 
-  // Pre-fetch Street View metadata along path at 30m intervals (continuous Street View; no API during RUNNING)
-  const preFetchStreetViewData = useCallback(async (path: any[], onProgress: (k: number, n: number) => void): Promise<PanoDataItem[]> => {
+  /** Pre-fetch Street View along path with driving-direction filter. fromDistanceM/maxDistanceM = segment (e.g. initial 0–150m). */
+  const preFetchStreetViewData = useCallback(async (
+    path: any[],
+    onProgress: (k: number, n: number) => void,
+    options?: { fromDistanceM?: number; maxDistanceM?: number; intervalM?: number }
+  ): Promise<PanoDataItem[]> => {
     if (!svServiceRef.current || !path.length) return [];
     const cumDist: number[] = [0];
     for (let i = 1; i < path.length; i++) {
       cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = 30;
+    const intervalM = options?.intervalM ?? 15;
+    const fromDistanceM = options?.fromDistanceM ?? 0;
+    const maxDistanceM = options?.maxDistanceM ?? totalM;
     const samples: number[] = [];
-    for (let d = 0; d <= totalM; d += intervalM) {
+    for (let d = fromDistanceM; d <= Math.min(totalM, maxDistanceM); d += intervalM) {
       let i = 0;
       while (i < path.length - 1 && cumDist[i + 1] < d) i++;
       samples.push(Math.min(i, path.length - 1));
@@ -400,18 +458,22 @@ const App: React.FC = () => {
     const n = samples.length;
     for (let k = 0; k < n; k++) {
       const pathIndex = samples[k];
-      const loc = path[pathIndex];
-      const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-      const heading = google.maps.geometry.spherical.computeHeading(loc, path[nextIdx]);
-      const data = await findStreetView(svServiceRef.current, loc, 50);
-      if (data?.location?.pano) {
-        panoData.push({
+      const pathPoint = path[pathIndex];
+      const pathNext = path[Math.min(pathIndex + 10, path.length - 1)];
+      let item: PanoDataItem | null = null;
+      for (const r of [30, 20, 15]) {
+        item = await findStreetViewInDirection(
+          svServiceRef.current,
+          pathPoint,
+          pathNext,
           pathIndex,
-          panoId: data.location.pano,
-          location: data.location.latLng,
-          heading
-        });
+          path,
+          r,
+          90
+        );
+        if (item) break;
       }
+      if (item) panoData.push(item);
       onProgress(k + 1, n);
       if (k < n - 1) await new Promise(r => setTimeout(r, 80));
     }
@@ -609,11 +671,41 @@ const App: React.FC = () => {
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
 
-      // ---- STREET VIEW: Zero-traffic (panoData) or fallback (real-time API) ----
+      // ---- STREET VIEW: Progressive (panoData cache + on-demand segment fetch) or fallback (real-time API) ----
       if (isSvActive) {
         if (route.panoData?.length) {
           const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
           if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading);
+          // On-demand: fetch next segment when approaching end of cached panoData (throttle via isSegmentFetchingRef)
+          const lastPano = route.panoData[route.panoData.length - 1];
+          if (
+            lastPano &&
+            currentIdx >= lastPano.pathIndex - 50 &&
+            !isSegmentFetchingRef.current &&
+            svServiceRef.current
+          ) {
+            isSegmentFetchingRef.current = true;
+            const path = route.path;
+            const cumDist: number[] = [0];
+            for (let i = 1; i < path.length; i++) {
+              cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
+            }
+            const totalM = cumDist[path.length - 1];
+            const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
+            const fromM = distAtLast + 15;
+            const toM = Math.min(distAtLast + 150, totalM);
+            if (fromM < toM) {
+              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 15 })
+                .then((nextPanos) => {
+                  if (nextPanos.length) {
+                    setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
+                  }
+                })
+                .finally(() => { isSegmentFetchingRef.current = false; });
+            } else {
+              isSegmentFetchingRef.current = false;
+            }
+          }
         } else if (svServiceRef.current && !isSvSearching.current) {
           const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
           const currentPanoLoc = activePano?.getLocation()?.latLng;
@@ -621,21 +713,32 @@ const App: React.FC = () => {
           if (distFromLastPano > 15 || !currentPanoLoc) {
             isSvSearching.current = true;
             (async () => {
-              let foundData = await findStreetView(svServiceRef.current, currentPos, 50);
-              if (!foundData) {
+              const pathNext = route.path[Math.min(currentIdx + 10, route.path.length - 1)];
+              let item: PanoDataItem | null = await findStreetViewInDirection(
+                svServiceRef.current, currentPos, pathNext, currentIdx, route.path, 30, 90
+              );
+              if (!item) {
                 for (let i = 1; i <= 5; i++) {
                   const targetIdx = Math.min(currentIdx + i, route.path.length - 1);
-                  foundData = await findStreetView(svServiceRef.current, route.path[targetIdx], 50);
-                  if (foundData) break;
+                  const pt = route.path[targetIdx];
+                  const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
+                  item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, 30, 90);
+                  if (item) break;
                 }
               }
-              if (!foundData) foundData = await findStreetView(svServiceRef.current, currentPos, 100);
-              if (foundData?.location?.pano) {
-                const nextIdx = Math.min(currentIdx + 1, route.path.length - 1);
-                const finalHeading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[nextIdx]);
-                setPanoramaView(foundData.location.latLng, finalHeading);
+              if (!item) {
+                const fallback = await findStreetView(svServiceRef.current, currentPos, 100);
+                if (fallback?.location?.pano) {
+                  const nextIdx = Math.min(currentIdx + 1, route.path.length - 1);
+                  const finalHeading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[nextIdx]);
+                  setPanoramaView(fallback.location.latLng, finalHeading);
+                  setShowSvWarning(false);
+                } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
+              } else {
+                setRoute((prev) => prev ? { ...prev, panoData: [item!] } : null);
+                setPanoramaViewByPanoId(item.panoId, item.heading);
                 setShowSvWarning(false);
-              } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
+              }
               isSvSearching.current = false;
             })();
           }
@@ -1062,11 +1165,15 @@ const App: React.FC = () => {
         });
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
 
-        // Traffic optimization: pre-fetch Street View metadata (30m intervals), then optionally auto-start
+        // Progressive loading: pre-fetch first 150m only (15m interval), then start; rest loaded on-demand during ride
         (async () => {
           setAppPhase('PREPARING');
           setPreparingProgress({ k: 0, n: 1 });
-          const panoData = await preFetchStreetViewData(densifiedPath, (k, n) => setPreparingProgress({ k, n }));
+          const panoData = await preFetchStreetViewData(
+            densifiedPath,
+            (k, n) => setPreparingProgress({ k, n }),
+            { maxDistanceM: 150, intervalM: 15 }
+          );
           setPreparingProgress(null);
           setRoute((prev) => (prev ? { ...prev, panoData } : null));
           setAppPhase('IDLE');
