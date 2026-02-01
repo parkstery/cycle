@@ -348,61 +348,45 @@ const App: React.FC = () => {
               const newPanoId = data.location.pano;
               const currentPanoId = currentPano.getPano();
 
-              // Case 1: Same Pano, just rotate (optimization)
+              const doSwap = () => {
+                  activePanoRef.current = nextIdx;
+                  setVisiblePanoIdx(nextIdx);
+                  if (googleMap.current) googleMap.current.setStreetView(nextPano);
+              };
+
+              // 항상 배경 버퍼에 계산된 heading 적용 후 스왑 → 사용자는 각도 변경 과정을 보지 않음
+              nextPano.setOptions({
+                  pano: newPanoId,
+                  pov: { heading, pitch: 0 },
+                  visible: true
+              });
+
+              // Case 1: Same Pano — 배경에 새 heading 적용 후 스왑 (회전 비노출)
               if (currentPanoId === newPanoId) {
-                  currentPano.setPov({ heading, pitch: 0 });
+                  setTimeout(doSwap, 50);
                   return;
               }
-
-              // Case 2: Check for direct connectivity (Native Smooth Transition)
               const links = currentPano.getLinks();
               const isConnected = links?.some((link: any) => link.pano === newPanoId);
-
-              // If connected, we stay on the current panorama to use Google's native smooth glide
+              // Case 2: 연결된 파노라마 — 배경에 새 pano + heading 적용 후 스왑
               if (isConnected) {
-                  currentPano.setOptions({
-                      pano: newPanoId,
-                      pov: { heading, pitch: 0 },
-                      visible: true
-                  });
-              } 
-              // Case 3: Disconnected (Jump) - Use Double Buffering to avoid black screen
-              else {
-                  // Prepare the background panorama
-                  nextPano.setOptions({
-                      pano: newPanoId,
-                      pov: { heading, pitch: 0 },
-                      visible: true
-                  });
-
-                  // Define the swap action
-                  const doSwap = () => {
-                      activePanoRef.current = nextIdx;
-                      setVisiblePanoIdx(nextIdx); // This toggles Z-Index
-                      if (googleMap.current) {
-                          googleMap.current.setStreetView(nextPano); // Sync Pegman
-                      }
-                  };
-
-                  // Wait for the 'links_changed' event which implies metadata is loaded
-                  const listener = nextPano.addListener('links_changed', () => {
-                      google.maps.event.removeListener(listener);
-                      doSwap();
-                  });
-
-                  // Fallback: If event doesn't fire within 500ms, force swap
-                  // (Sometimes links_changed is skipped if data is cached)
-                  setTimeout(() => {
-                     if (activePanoRef.current !== nextIdx) {
-                         doSwap();
-                     }
-                  }, 500);
+                  setTimeout(doSwap, 80);
+                  return;
               }
+              // Case 3: 비연속 — 메타데이터 로드 후 스왑
+              const listener = nextPano.addListener('links_changed', () => {
+                  google.maps.event.removeListener(listener);
+                  doSwap();
+              });
+              setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
           }
       });
   }, []);
 
-  // Zero-traffic: set panorama by panoId only (no getPanorama API)
+  /**
+   * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
+   * 같은 파노라마에서도 각도 변경을 화면에 노출하지 않고, 배경 버퍼에 목표 각도를 적용 후 스왑.
+   */
   const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number) => {
     const currentIdx = activePanoRef.current;
     const nextIdx = currentIdx === 0 ? 1 : 0;
@@ -410,22 +394,28 @@ const App: React.FC = () => {
     const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
     if (!currentPano || !nextPano) return;
     const currentPanoId = currentPano.getPano();
-    if (currentPanoId === panoId) {
-      currentPano.setPov({ heading, pitch: 0 });
-      return;
-    }
-    const links = currentPano.getLinks();
-    const isConnected = links?.some((link: any) => link.pano === panoId);
-    if (isConnected) {
-      currentPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
-      return;
-    }
-    nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+
     const doSwap = () => {
       activePanoRef.current = nextIdx;
       setVisiblePanoIdx(nextIdx);
       if (googleMap.current) googleMap.current.setStreetView(nextPano);
     };
+
+    // 항상 배경 버퍼에 pano + 계산된 heading을 적용 후 스왑 → 사용자는 각도 변경 과정을 보지 않음
+    nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+    if (currentPanoId === panoId) {
+      // 같은 파노라마: 배경에 같은 pano + 새 heading 적용 후 내부적으로 렌더 완료 후 스왑 (회전 비노출)
+      setTimeout(doSwap, 50);
+      return;
+    }
+    const links = currentPano.getLinks();
+    const isConnected = links?.some((link: any) => link.pano === panoId);
+    if (isConnected) {
+      // 연결된 파노라마: 배경에 새 pano + heading 적용 후 렌더 완료 후 스왑
+      setTimeout(doSwap, 80);
+      return;
+    }
+    // 비연속: 메타데이터 로드 후 스왑
     const listener = nextPano.addListener('links_changed', () => {
       google.maps.event.removeListener(listener);
       doSwap();
