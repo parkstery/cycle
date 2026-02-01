@@ -122,6 +122,7 @@ const App: React.FC = () => {
   const endMarker = useRef<any>(null);
   const waypointMarkers = useRef<any[]>([]);
   const tempMarker = useRef<any>(null);
+  const searchMarkerRef = useRef<any>(null); // 검색 결과 지도 마커
   
   // We keep a general reference to the *currently active* panorama for non-swapping logic if needed,
   // but mostly we use panorama1/panorama2 directly.
@@ -935,6 +936,7 @@ const App: React.FC = () => {
     if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
     if (startMarker.current) { startMarker.current.setMap(null); startMarker.current = null; }
     if (endMarker.current) { endMarker.current.setMap(null); endMarker.current = null; }
+    if (searchMarkerRef.current) { searchMarkerRef.current.setMap(null); searchMarkerRef.current = null; }
     waypointMarkers.current.forEach(m => m.setMap(null));
     waypointMarkers.current = [];
     setRoute(null);
@@ -1326,6 +1328,15 @@ const App: React.FC = () => {
                   if (place.geometry && place.geometry.location) {
                       googleMap.current.setCenter(place.geometry.location);
                       googleMap.current.setZoom(16);
+                      if (searchMarkerRef.current) {
+                          searchMarkerRef.current.setMap(null);
+                          searchMarkerRef.current = null;
+                      }
+                      searchMarkerRef.current = createCustomMarker(
+                          place.geometry.location,
+                          'P',
+                          '#22c55e'
+                      );
                       setClickedLocation({
                           lat: place.geometry.location.lat(),
                           lng: place.geometry.location.lng(),
@@ -1351,6 +1362,15 @@ const App: React.FC = () => {
   const handlePlaceHistoryClick = (term: string) => {
       setSearchTerm(term);
       handlePlaceSearch(term);
+  };
+
+  const handleClearSearch = () => {
+      setSearchTerm('');
+      setClickedLocation(null);
+      if (searchMarkerRef.current) {
+          searchMarkerRef.current.setMap(null);
+          searchMarkerRef.current = null;
+      }
   };
   
   const handleToggleMapType = () => {
@@ -1426,7 +1446,7 @@ const App: React.FC = () => {
           <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
-            <button onClick={() => setSearchTerm('')} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
+            <button onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
                <X size={14} />
             </button>
           )}
