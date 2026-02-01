@@ -102,6 +102,20 @@ const findStreetViewInDirection = (
     });
 };
 
+/** True when current inputs match the last successful route request (for Go reuse). */
+function inputsMatch(
+  origin: string,
+  destination: string,
+  waypoints: { name: string; location: any }[],
+  mode: TravelMode,
+  last: { origin: string; destination: string; waypointNames: string[]; mode: TravelMode }
+): boolean {
+  if (mode !== last.mode) return false;
+  if (origin.trim() !== last.origin || destination.trim() !== last.destination) return false;
+  if (waypoints.length !== last.waypointNames.length) return false;
+  return waypoints.every((w, i) => (w.name || '').trim() === (last.waypointNames[i] || '').trim());
+}
+
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -140,6 +154,9 @@ const App: React.FC = () => {
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
   const destLocationRef = useRef<any>(null);
+
+  // Last route request params: reuse route on Go when inputs unchanged (avoid duplicate Directions/Elevation)
+  const lastRouteRequestRef = useRef<{ origin: string; destination: string; waypointNames: string[]; mode: TravelMode } | null>(null);
 
   // Audio References
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -946,6 +963,7 @@ const App: React.FC = () => {
     waypointMarkers.current.forEach(m => m.setMap(null));
     waypointMarkers.current = [];
     setRoute(null);
+    lastRouteRequestRef.current = null;
     setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
     setCoachData(null);
     setRouteSource(null);
@@ -1182,6 +1200,7 @@ const App: React.FC = () => {
             path: densifiedPath, strokeColor: '#ff3020', strokeWeight: 5, clickable: false, map: googleMap.current 
         });
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
+        lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
         // Progressive loading: pre-fetch first 200m (10m interval) for continuous display; rest loaded on-demand
         (async () => {
@@ -1230,6 +1249,42 @@ const App: React.FC = () => {
     } catch (err) { alert("경로를 찾을 수 없습니다."); }
     finally { setLoading(false); }
   }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
+
+  /** Start simulation using existing route (no Directions/Elevation). Used when Go is clicked after 경로탐색 with same inputs. */
+  const startSimulationOnly = useCallback(async (currentRoute: RouteInfo) => {
+    setElapsedTime(0);
+    setCoveredDistance(0);
+    lastCoachedIndex.current = -1;
+    setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+    setAppPhase('RUNNING');
+    setIsSvFullScreen(true);
+    setIsSvActive(true);
+    const pathLen = currentRoute.path.length;
+    const elevLen = currentRoute.elevation.length;
+    const segmentSize = Math.min(20, elevLen);
+    const upcomingSlice = currentRoute.elevation.slice(0, segmentSize);
+    if (upcomingSlice.length > 0) {
+      setIsCoachThinking(true);
+      try {
+        const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
+        setCoachData(coaching);
+        setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
+        getCourseBriefing(currentRoute).then(speak);
+      } finally {
+        setIsCoachThinking(false);
+      }
+    }
+    lastCoachedIndex.current = 0;
+    const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
+    if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading);
+    else {
+      const startPos = currentRoute.path[0];
+      const heading = pathLen > 1
+        ? google.maps.geometry.spherical.computeHeading(startPos, currentRoute.path[1])
+        : 0;
+      setPanoramaView(startPos, heading);
+    }
+  }, [speedKmH, setPanoramaView, setPanoramaViewByPanoId]);
 
   const handleSetStart = () => {
     if (clickedLocation) {
@@ -1528,7 +1583,7 @@ const App: React.FC = () => {
                         <button onClick={() => calculateRoute(mode, false)} title="경로탐색" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
                             <Search size={14} />
                         </button>
-                        <button onClick={() => calculateRoute(mode, true)} title="Go" disabled={loading || !origin || !destination} className="ml-auto w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { startSimulationOnly(route); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="ml-auto w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
