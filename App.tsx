@@ -445,7 +445,7 @@ const App: React.FC = () => {
       cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = options?.intervalM ?? 15;
+    const intervalM = options?.intervalM ?? 10;
     const fromDistanceM = options?.fromDistanceM ?? 0;
     const maxDistanceM = options?.maxDistanceM ?? totalM;
     const samples: number[] = [];
@@ -472,6 +472,19 @@ const App: React.FC = () => {
           90
         );
         if (item) break;
+      }
+      // 연속 디스플레이 우선: 방향 필터 실패 시에도 해당 구간에 pano가 있으면 추가 (생략 방지)
+      if (!item) {
+        const fallback = await findStreetView(svServiceRef.current, pathPoint, 30);
+        if (fallback?.location?.pano) {
+          const heading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
+          item = {
+            pathIndex,
+            panoId: fallback.location.pano,
+            location: fallback.location.latLng,
+            heading
+          };
+        }
       }
       if (item) panoData.push(item);
       onProgress(k + 1, n);
@@ -680,7 +693,7 @@ const App: React.FC = () => {
           const lastPano = route.panoData[route.panoData.length - 1];
           if (
             lastPano &&
-            currentIdx >= lastPano.pathIndex - 50 &&
+            currentIdx >= lastPano.pathIndex - 150 &&
             !isSegmentFetchingRef.current &&
             svServiceRef.current
           ) {
@@ -692,10 +705,10 @@ const App: React.FC = () => {
             }
             const totalM = cumDist[path.length - 1];
             const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
-            const fromM = distAtLast + 15;
-            const toM = Math.min(distAtLast + 150, totalM);
+            const fromM = distAtLast + 10;
+            const toM = Math.min(distAtLast + 200, totalM);
             if (fromM < toM) {
-              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 15 })
+              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
                 .then((nextPanos) => {
                   if (nextPanos.length) {
                     setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
@@ -1165,14 +1178,14 @@ const App: React.FC = () => {
         });
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
 
-        // Progressive loading: pre-fetch first 150m only (15m interval), then start; rest loaded on-demand during ride
+        // Progressive loading: pre-fetch first 200m (10m interval) for continuous display; rest loaded on-demand
         (async () => {
           setAppPhase('PREPARING');
           setPreparingProgress({ k: 0, n: 1 });
           const panoData = await preFetchStreetViewData(
             densifiedPath,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: 150, intervalM: 15 }
+            { maxDistanceM: 200, intervalM: 10 }
           );
           setPreparingProgress(null);
           setRoute((prev) => (prev ? { ...prev, panoData } : null));
