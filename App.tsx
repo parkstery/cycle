@@ -134,6 +134,7 @@ const App: React.FC = () => {
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
   const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
+  const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -330,7 +331,10 @@ const App: React.FC = () => {
   // Helper function to update panorama atomically (Hybrid Double Buffer)
   const setPanoramaView = useCallback((location: any, heading: number) => {
       if (!svServiceRef.current) return;
-      
+      if (pendingSwapTimeoutRef.current) {
+          clearTimeout(pendingSwapTimeoutRef.current);
+          pendingSwapTimeoutRef.current = null;
+      }
       svServiceRef.current.getPanorama({
           location: location,
           radius: 50,
@@ -349,45 +353,46 @@ const App: React.FC = () => {
               const currentPanoId = currentPano.getPano();
 
               const doSwap = () => {
+                  pendingSwapTimeoutRef.current = null;
                   activePanoRef.current = nextIdx;
                   setVisiblePanoIdx(nextIdx);
                   if (googleMap.current) googleMap.current.setStreetView(nextPano);
               };
 
-              // 항상 배경 버퍼에 계산된 heading 적용 후 스왑 → 사용자는 각도 변경 과정을 보지 않음
               nextPano.setOptions({
                   pano: newPanoId,
                   pov: { heading, pitch: 0 },
                   visible: true
               });
 
-              // Case 1: Same Pano — 배경에 새 heading 적용 후 스왑 (회전 비노출)
               if (currentPanoId === newPanoId) {
-                  setTimeout(doSwap, 50);
+                  pendingSwapTimeoutRef.current = setTimeout(doSwap, 50);
                   return;
               }
               const links = currentPano.getLinks();
               const isConnected = links?.some((link: any) => link.pano === newPanoId);
-              // Case 2: 연결된 파노라마 — 배경에 새 pano + heading 적용 후 스왑
               if (isConnected) {
-                  setTimeout(doSwap, 80);
+                  pendingSwapTimeoutRef.current = setTimeout(doSwap, 80);
                   return;
               }
-              // Case 3: 비연속 — 메타데이터 로드 후 스왑
               const listener = nextPano.addListener('links_changed', () => {
                   google.maps.event.removeListener(listener);
                   doSwap();
               });
-              setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
+              pendingSwapTimeoutRef.current = setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
           }
       });
   }, []);
 
   /**
    * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
-   * 같은 파노라마에서도 각도 변경을 화면에 노출하지 않고, 배경 버퍼에 목표 각도를 적용 후 스왑.
+   * 같은 파노라마·동일 heading이면 스왑 생략(같은 이미지 두 번 노출 방지).
    */
   const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number) => {
+    if (pendingSwapTimeoutRef.current) {
+      clearTimeout(pendingSwapTimeoutRef.current);
+      pendingSwapTimeoutRef.current = null;
+    }
     const currentIdx = activePanoRef.current;
     const nextIdx = currentIdx === 0 ? 1 : 0;
     const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
@@ -396,31 +401,35 @@ const App: React.FC = () => {
     const currentPanoId = currentPano.getPano();
 
     const doSwap = () => {
+      pendingSwapTimeoutRef.current = null;
       activePanoRef.current = nextIdx;
       setVisiblePanoIdx(nextIdx);
       if (googleMap.current) googleMap.current.setStreetView(nextPano);
     };
 
-    // 항상 배경 버퍼에 pano + 계산된 heading을 적용 후 스왑 → 사용자는 각도 변경 과정을 보지 않음
+    // 같은 파노라마·동일(또는 거의 동일) heading이면 스왑하지 않음 → 같은 이미지 두 번 보이는 부작용 방지
+    if (currentPanoId === panoId) {
+      const currentPov = currentPano.getPov?.();
+      const curH = currentPov?.heading ?? 0;
+      if (Math.abs(normalizeAngleDiff(curH - heading)) < 3) return;
+    }
+
     nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
     if (currentPanoId === panoId) {
-      // 같은 파노라마: 배경에 같은 pano + 새 heading 적용 후 내부적으로 렌더 완료 후 스왑 (회전 비노출)
-      setTimeout(doSwap, 50);
+      pendingSwapTimeoutRef.current = setTimeout(doSwap, 50);
       return;
     }
     const links = currentPano.getLinks();
     const isConnected = links?.some((link: any) => link.pano === panoId);
     if (isConnected) {
-      // 연결된 파노라마: 배경에 새 pano + heading 적용 후 렌더 완료 후 스왑
-      setTimeout(doSwap, 80);
+      pendingSwapTimeoutRef.current = setTimeout(doSwap, 80);
       return;
     }
-    // 비연속: 메타데이터 로드 후 스왑
     const listener = nextPano.addListener('links_changed', () => {
       google.maps.event.removeListener(listener);
       doSwap();
     });
-    setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
+    pendingSwapTimeoutRef.current = setTimeout(() => { if (activePanoRef.current !== nextIdx) doSwap(); }, 500);
   }, []);
 
   /** Pre-fetch Street View along path with driving-direction filter. fromDistanceM/maxDistanceM = segment (e.g. initial 0–150m). */
