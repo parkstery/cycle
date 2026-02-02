@@ -2,11 +2,23 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets|manifest.json|sw.js|favicon.ico|.*\\.(js|css|json|ico|png|jpg|svg|woff|woff2|ttf|eot)).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    },
+    {
+      "source": "/assets/:path*",
       "headers": [
         {
           "key": "Content-Type",
