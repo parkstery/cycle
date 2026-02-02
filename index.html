@@ -45,34 +45,30 @@
   
   <script type="module" src="/index.tsx"></script>
   
-  <!-- Service Worker Registration - Unregister old SW and clear caches -->
+  <!-- Service Worker Registration - Clear all caches first -->
   <script>
     if ("serviceWorker" in navigator) {
-      // First, unregister all existing service workers
+      // First, unregister all existing service workers and clear caches
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
           registration.unregister();
         }
-      });
-      
-      // Clear all caches
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let name of names) {
-            caches.delete(name);
-          }
+        // Clear all caches
+        if ('caches' in window) {
+          return caches.keys().then(function(names) {
+            return Promise.all(names.map((name) => caches.delete(name)));
+          });
+        }
+      }).then(() => {
+        // Register new service worker after clearing
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js?v=" + Date.now())
+            .then(reg => {
+              console.log("SW Registered!", reg);
+              reg.update();
+            })
+            .catch(err => console.log("SW Failed:", err));
         });
-      }
-      
-      // Then register new service worker
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js?v=" + Date.now())
-          .then(reg => {
-            console.log("SW Registered!", reg);
-            // Force update
-            reg.update();
-          })
-          .catch(err => console.log("SW Failed:", err));
       });
     }
   </script>
