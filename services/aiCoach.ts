@@ -129,16 +129,29 @@ export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {
     if (text) return text;
   } catch (error: any) {
     // Log Gemini API errors for debugging
-    if (error?.status === 403 || error?.message?.includes('403')) {
+    const errorMessage = error?.message || 'Unknown error';
+    const errorStatus = error?.status || (errorMessage.includes('429') ? 429 : null);
+    
+    if (errorStatus === 403 || errorMessage.includes('403')) {
       console.error('[GEMINI_API_403_ERROR]', {
         timestamp: new Date().toISOString(),
         error: '403 Forbidden - Check GOOGLE_GEMINI_API_KEY is valid and Gemini API is enabled',
-        message: error?.message || 'Unknown error'
+        message: errorMessage
+      });
+    } else if (errorStatus === 429 || errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+      // Extract retry delay from error message if available
+      const retryDelayMatch = errorMessage.match(/retryDelay["']?\s*:\s*["']?(\d+)s/);
+      const retryDelay = retryDelayMatch ? retryDelayMatch[1] : 'unknown';
+      console.warn('[GEMINI_API_429_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: '429 Too Many Requests - API rate limit exceeded',
+        message: `Rate limit exceeded. Please wait ${retryDelay} seconds before retrying.`,
+        retryDelay: `${retryDelay}s`
       });
     } else {
       console.error('[GEMINI_API_ERROR]', {
         timestamp: new Date().toISOString(),
-        error: error?.message || 'Unknown error'
+        error: errorMessage
       });
     }
     // fallback
@@ -170,16 +183,29 @@ export const getRideEncouragement = async (
     if (text) return text;
   } catch (error: any) {
     // Log Gemini API errors for debugging
-    if (error?.status === 403 || error?.message?.includes('403')) {
+    const errorMessage = error?.message || 'Unknown error';
+    const errorStatus = error?.status || (errorMessage.includes('429') ? 429 : null);
+    
+    if (errorStatus === 403 || errorMessage.includes('403')) {
       console.error('[GEMINI_API_403_ERROR]', {
         timestamp: new Date().toISOString(),
         error: '403 Forbidden - Check GOOGLE_GEMINI_API_KEY is valid and Gemini API is enabled',
-        message: error?.message || 'Unknown error'
+        message: errorMessage
+      });
+    } else if (errorStatus === 429 || errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+      // Extract retry delay from error message if available
+      const retryDelayMatch = errorMessage.match(/retryDelay["']?\s*:\s*["']?(\d+)s/);
+      const retryDelay = retryDelayMatch ? retryDelayMatch[1] : 'unknown';
+      console.warn('[GEMINI_API_429_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: '429 Too Many Requests - API rate limit exceeded',
+        message: `Rate limit exceeded. Please wait ${retryDelay} seconds before retrying.`,
+        retryDelay: `${retryDelay}s`
       });
     } else {
       console.error('[GEMINI_API_ERROR]', {
         timestamp: new Date().toISOString(),
-        error: error?.message || 'Unknown error'
+        error: errorMessage
       });
     }
     // fallback
