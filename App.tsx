@@ -1122,6 +1122,15 @@ const App: React.FC = () => {
           setRouteSource('GOOGLE');
         }
       } catch (e) {
+        // Log Directions API error for debugging
+        console.error('[DIRECTIONS_API_ERROR]', {
+          timestamp: new Date().toISOString(),
+          origin: finalOrigin.substring(0, 50),
+          destination: finalDestination.substring(0, 50),
+          error: e instanceof Error ? e.message : String(e),
+          fallingBackToOSRM: true
+        });
+        
         // Safe geocoding helper that reuses LatLng object if available, or geocodes address
         const getCoord = async (val: any, addr: string) => {
             if (val && typeof val.lat === 'function') return val; // It's a Google LatLng object
@@ -1282,7 +1291,15 @@ const App: React.FC = () => {
           }
         })();
       }
-    } catch (err) { alert("경로를 찾을 수 없습니다."); }
+    } catch (err) { 
+      console.error('[CALCULATE_ROUTE_FINAL_ERROR]', {
+        timestamp: new Date().toISOString(),
+        origin: finalOrigin.substring(0, 50),
+        destination: finalDestination.substring(0, 50),
+        error: err instanceof Error ? err.message : String(err)
+      });
+      alert("경로를 찾을 수 없습니다."); 
+    }
     finally { setLoading(false); }
   }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
 
