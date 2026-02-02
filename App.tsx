@@ -4,7 +4,6 @@ import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
-import { playCoachingThenResistance } from './services/audioCache';
 // It's me EG
 // Declare google global
 declare var google: any;
@@ -188,8 +187,6 @@ const App: React.FC = () => {
   const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
   const lastValidUntilFetched = useRef<number>(-1);
-  /** 주행 시작 TTS 재생 중에는 캐시 TTS 생략 (시작 후 3초) */
-  const startMentPlayingUntilRef = useRef<number>(0);
 
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -799,27 +796,12 @@ const App: React.FC = () => {
       }
       // -----------------------------------------------------------
 
-      // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps) ----
-      // 주행 시작 TTS 후 3초 / 주행 종료 TTS 전 3초 동안은 캐시 TTS 생략 (중첩 방지)
-      const now = Date.now();
-      const inStartMentWindow = now < startMentPlayingUntilRef.current;
-      let remainingTimeSec = 0;
-      if (currentIdx < route.path.length - 1) {
-        let remainingM = 0;
-        for (let i = currentIdx; i < route.path.length - 1; i++) {
-          remainingM += google.maps.geometry.spherical.computeDistanceBetween(route.path[i], route.path[i + 1]);
-        }
-        const speedMetersPerSec = (speedKmH * 1000) / 3600;
-        remainingTimeSec = speedMetersPerSec > 0 ? remainingM / speedMetersPerSec : 0;
-      }
-      const inEndMentWindow = remainingTimeSec > 0 && remainingTimeSec <= 5;
-      const skipCacheTts = inStartMentWindow || inEndMentWindow;
-
+      // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps). 모든 멘트는 브라우저 TTS(speak). ----
       const cached = route.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
-      if (currentCached && !skipCacheTts) {
+      if (currentCached) {
         setCoachData(currentCached.coaching);
-        const lastValid = cached[cached.length - 1]?.validUntilPathIndex ?? 0;
+        const lastValid = cached?.length ? cached[cached.length - 1]?.validUntilPathIndex ?? 0 : 0;
         if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && route.elevation.length > 0) {
           lastValidUntilFetched.current = lastValid;
           const pathLen = route.path.length;
@@ -833,32 +815,19 @@ const App: React.FC = () => {
               .then(({ coaching, validUntilPathIndex }) => {
                 setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
                 setCoachData(coaching);
-                const tipId = (coaching as { tipId?: string }).tipId;
-                const resId = (coaching as { resId?: string }).resId;
-                if (tipId && resId) {
-                  playCoachingThenResistance(tipId, resId).then((r) => { if (r.fallback) speak(coaching.tip); });
-                } else {
-                  speak(coaching.tip);
-                }
+                speak(coaching.tip);
               })
               .finally(() => setIsCoachThinking(false));
           }
         }
-      } else if (!skipCacheTts && currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
+      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
         (async () => {
           const currentElev = route.elevation[Math.floor((currentIdx / route.path.length) * route.elevation.length)]?.elevation || 0;
           const upcoming = route.elevation.slice(Math.floor((currentIdx / route.path.length) * route.elevation.length), Math.floor(((currentIdx + 20) / route.path.length) * route.elevation.length));
           setIsCoachThinking(true);
           const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
           setCoachData(newCoaching);
-          const tipId = newCoaching.tipId;
-          const resId = newCoaching.resId;
-          if (tipId && resId) {
-            const r = await playCoachingThenResistance(tipId, resId);
-            if (r.fallback) speak(newCoaching.tip);
-          } else {
-            speak(newCoaching.tip);
-          }
+          speak(newCoaching.tip);
           setIsCoachThinking(false);
           lastCoachedIndex.current = currentIdx;
         })();
@@ -1024,7 +993,7 @@ const App: React.FC = () => {
 
       setIsSvFullScreen(true);
 
-      getCourseBriefing(route).then((text) => { startMentPlayingUntilRef.current = Date.now() + 10000; speak(text); });
+      getCourseBriefing(route).then(speak);
     }
   };
 
@@ -1337,7 +1306,7 @@ const App: React.FC = () => {
                 const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
                 setCoachData(coaching);
                 setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
-                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then((text) => { startMentPlayingUntilRef.current = Date.now() + 10000; speak(text); });
+                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
               } finally {
                 setIsCoachThinking(false);
               }
@@ -1384,7 +1353,7 @@ const App: React.FC = () => {
         const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        getCourseBriefing(currentRoute).then((text) => { startMentPlayingUntilRef.current = Date.now() + 10000; speak(text); });
+        getCourseBriefing(currentRoute).then(speak);
       } finally {
         setIsCoachThinking(false);
       }
