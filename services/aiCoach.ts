@@ -110,53 +110,10 @@ export const getPredictiveCoaching = async (
   return { coaching: result, validUntilPathIndex };
 };
 
-/** 주행 시작 시 코스 전반 안내 (Gemini 1회 호출) */
+/** 주행 시작 시 코스 전반 안내 (브라우저 TTS만 사용, Gemini API 호출 없음) */
 export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {
-  const apiKey = (process as { env?: { GOOGLE_GEMINI_API_KEY?: string } }).env
-    ?.GOOGLE_GEMINI_API_KEY;
-  if (!apiKey) {
-    return `Starting the ride. Total distance ${route.distance}, estimated ${route.duration}. Shall we start a fun ride today?`;
-  }
-  try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey });
-    const prompt = `You are a friendly cycling coach. Give one short (1-2 sentences) encouraging course overview for a ride. Route: from "${route.origin}" to "${route.destination}". Distance: ${route.distance}, estimated duration: ${route.duration}. Reply in English only, friendly and motivating. No bullet points.`;
-    const res = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-    });
-    const text = (res as { text?: string }).text?.trim();
-    if (text) return text;
-  } catch (error: any) {
-    // Log Gemini API errors for debugging
-    const errorMessage = error?.message || 'Unknown error';
-    const errorStatus = error?.status || (errorMessage.includes('429') ? 429 : null);
-    
-    if (errorStatus === 403 || errorMessage.includes('403')) {
-      console.error('[GEMINI_API_403_ERROR]', {
-        timestamp: new Date().toISOString(),
-        error: '403 Forbidden - Check GOOGLE_GEMINI_API_KEY is valid and Gemini API is enabled',
-        message: errorMessage
-      });
-    } else if (errorStatus === 429 || errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-      // Extract retry delay from error message if available
-      const retryDelayMatch = errorMessage.match(/retryDelay["']?\s*:\s*["']?(\d+)s/);
-      const retryDelay = retryDelayMatch ? retryDelayMatch[1] : 'unknown';
-      console.warn('[GEMINI_API_429_ERROR]', {
-        timestamp: new Date().toISOString(),
-        error: '429 Too Many Requests - API rate limit exceeded',
-        message: `Rate limit exceeded. Please wait ${retryDelay} seconds before retrying.`,
-        retryDelay: `${retryDelay}s`
-      });
-    } else {
-      console.error('[GEMINI_API_ERROR]', {
-        timestamp: new Date().toISOString(),
-        error: errorMessage
-      });
-    }
-    // fallback
-  }
-  return `Starting the ride. Total distance ${route.distance}, estimated ${route.duration}. Shall we start a fun ride today?`;
+  // Gemini API 호출 제거: 브라우저 TTS만 사용하여 거리만 안내
+  return `The ride distance is ${route.distance}. Have a great ride!`;
 };
 
 /** 주행 종료 시 격려 멘트 (브라우저 TTS만 사용, Gemini API 호출 없음) */
@@ -165,7 +122,6 @@ export const getRideEncouragement = async (
   stats?: { distance: string; duration: string }
 ): Promise<string> => {
   const dist = stats?.distance ?? route.distance;
-  const dur = stats?.duration ?? route.duration;
-  // Gemini API 호출 제거: 브라우저 TTS만 사용하여 거리와 시간만 안내
-  return `Ride finished. Distance covered ${dist}, duration ${dur}. Great job!`;
+  // Gemini API 호출 제거: 브라우저 TTS만 사용하여 거리만 안내
+  return `You covered ${dist}. Great job!`;
 };
