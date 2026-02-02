@@ -19,13 +19,17 @@ const PEGMAN_ICON =
     '</svg>'
   );
 
-const PLAYLIST = [
+const PLAYLIST = [  
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
   "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=hsarn2s1&raw=1",
   "https://www.dropbox.com/scl/fi/8fbdd1t6v18z2m17ecidt/1.mp3?rlkey=sm15ow3aun8az4z6y2vseefy0&st=kbmlsn1m&raw=1",
   "https://www.dropbox.com/scl/fi/bvtw5s1pimhv42k3bgdxh/.mp3?rlkey=6ujd668vw7kzioe277gkqvsq7&st=cq1x65f8&raw=1",
   "https://www.dropbox.com/scl/fi/j1hzv2yx22uc0xl9redbj/1.mp3?rlkey=vjay2iyw06u84gygzxcoatz9w&st=9so3eh5n&raw=1",
-  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1"
+  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1",
+  "https://www.dropbox.com/scl/fi/gcdfjs66qadt5jinkmou4/EG.mp3?rlkey=sb88y1sinjseqslsdqb385jod&st=vn1vnzqb&raw=1",
+  "https://www.dropbox.com/scl/fi/s6fqpav6yuy8jt7i5kz9d/.mp3?rlkey=gtvqcypwwmltf1wfk6m5nwfht&st=kea9s4nx&raw=1",
+  "https://www.dropbox.com/scl/fi/5rlpfefbfqz94zhqcahgn/1.mp3?rlkey=v393xy7ky2xq26ilyq37z7bks&st=5wol32h6&raw=1",
+  "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=f4k7d6we&raw=1",
 ];
 
 // Helper to wrap getPanorama in a Promise (no direction filter)
