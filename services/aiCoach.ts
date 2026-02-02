@@ -110,86 +110,16 @@ export const getPredictiveCoaching = async (
   return { coaching: result, validUntilPathIndex };
 };
 
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL = "gemini-2.0-flash";
-const MAX_RETRIES_429 = 2;
-
-/** 429 응답에서 retryDelay(예: "39s") 파싱 후 ms 반환. 없으면 40_000 */
-function parseRetryDelayMs(body: string): number {
-  try {
-    const m = body.match(/"retryDelay"\s*:\s*"(\d+)s"/);
-    if (m) return Math.min(Number(m[1]) * 1000, 120_000);
-  } catch (_) {}
-  return 40_000; // 기본 40초 대기
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-/** Gemini generateContent REST 호출. 429 시 retryDelay 후 재시도(최대 MAX_RETRIES_429회) */
-async function callGeminiWithRetry(apiKey: string, prompt: string): Promise<string> {
-  const url = `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
-  });
-  let lastBody = "";
-  for (let attempt = 0; attempt <= MAX_RETRIES_429; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    });
-    lastBody = await res.text();
-    if (res.status === 429 && attempt < MAX_RETRIES_429) {
-      const delayMs = parseRetryDelayMs(lastBody);
-      await sleep(delayMs);
-      continue;
-    }
-    if (!res.ok) {
-      throw new Error(`Gemini API ${res.status}: ${lastBody.slice(0, 200)}`);
-    }
-    const data = JSON.parse(lastBody) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    return text ?? "";
-  }
-  throw new Error(`Gemini API 429 after ${MAX_RETRIES_429} retries: ${lastBody.slice(0, 200)}`);
-}
-
-/** 주행 시작 시 코스 전반 안내. API 키 있으면 Gemini 호출(429 재시도), 없으면 고정 문구 */
+/** 주행 시작 시 코스 전반 안내. 브라우저 TTS만 사용(고정 문구) */
 export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {
-  const apiKey = (typeof process !== "undefined" && process.env?.GOOGLE_GEMINI_API_KEY) || "";
-  const fallback = `The ride distance is ${route.distance}. Have a great ride!`;
-  if (!apiKey) return fallback;
-  try {
-    const text = await callGeminiWithRetry(
-      apiKey,
-      `Brief the cyclist in one short sentence. Ride distance: ${route.distance}. Be encouraging. English only.`
-    );
-    return text || fallback;
-  } catch (_) {
-    return fallback;
-  }
+  return `The ride distance is ${route.distance}. Have a great ride!`;
 };
 
-/** 주행 종료 시 격려 멘트. API 키 있으면 Gemini 호출(429 재시도), 없으면 고정 문구 */
+/** 주행 종료 시 격려 멘트. 브라우저 TTS만 사용(고정 문구) */
 export const getRideEncouragement = async (
   route: RouteInfo,
   stats?: { distance: string; duration: string }
 ): Promise<string> => {
-  const apiKey = (typeof process !== "undefined" && process.env?.GOOGLE_GEMINI_API_KEY) || "";
   const dist = stats?.distance ?? route.distance;
-  const dur = stats?.duration ?? "";
-  const fallback = `You covered ${dist}. Great job!`;
-  if (!apiKey) return fallback;
-  try {
-    const text = await callGeminiWithRetry(
-      apiKey,
-      `Congratulate the cyclist in one short sentence. Distance: ${dist}${dur ? `, Duration: ${dur}` : ""}. English only.`
-    );
-    return text || fallback;
-  } catch (_) {
-    return fallback;
-  }
+  return `You covered ${dist}. Great job!`;
 };
