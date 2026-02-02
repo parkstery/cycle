@@ -1532,8 +1532,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      {/* <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[472px] min-w-[472px] max-w-[472px]' : 'w-[300px] min-w-[300px] max-w-[300px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}> */}
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[570px] min-w-[570px] max-w-[570px]' : 'w-[300px] min-w-[300px] max-w-[300px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}></div>      
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[300px] min-w-[300px] max-w-[300px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
