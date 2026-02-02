@@ -1097,14 +1097,33 @@ const App: React.FC = () => {
       let path: any[] = [];
       let distText = '', durText = '';
       try {
-        const result = await ds.route({ 
-          origin: useOrigin, 
-          destination: useDest, 
-          waypoints: activeWaypoints.map(wp => ({ location: wp.location, stopover: true })),
-          optimizeWaypoints: true,
-          travelMode: google.maps.TravelMode[activeMode] 
+        const result = await new Promise<any>((resolve, reject) => {
+          ds.route({ 
+            origin: useOrigin, 
+            destination: useDest, 
+            waypoints: activeWaypoints.map(wp => ({ location: wp.location, stopover: true })),
+            optimizeWaypoints: true,
+            travelMode: google.maps.TravelMode[activeMode] 
+          }, (result: any, status: any) => {
+            // Handle Directions API response status
+            if (status === 'OK' && result) {
+              resolve(result);
+            } else {
+              // Log status errors (including 403)
+              console.error('[DIRECTIONS_API_STATUS_ERROR]', {
+                timestamp: new Date().toISOString(),
+                status: status,
+                origin: finalOrigin.substring(0, 50),
+                destination: finalDestination.substring(0, 50),
+                message: status === 'REQUEST_DENIED' 
+                  ? '403 Forbidden - Check API key permissions and restrictions'
+                  : `Directions API returned status: ${status}`
+              });
+              reject(new Error(`Directions API error: ${status}`));
+            }
+          });
         });
-        if (result.routes[0]) {
+        if (result.routes && result.routes[0]) {
           directionsRenderer.current?.setDirections(result);
 
           // Fix: Explicitly fit bounds for Google Routes so the camera moves to the route

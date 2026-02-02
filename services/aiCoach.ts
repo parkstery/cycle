@@ -127,7 +127,20 @@ export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {
     });
     const text = (res as { text?: string }).text?.trim();
     if (text) return text;
-  } catch (_) {
+  } catch (error: any) {
+    // Log Gemini API errors for debugging
+    if (error?.status === 403 || error?.message?.includes('403')) {
+      console.error('[GEMINI_API_403_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: '403 Forbidden - Check GOOGLE_GEMINI_API_KEY is valid and Gemini API is enabled',
+        message: error?.message || 'Unknown error'
+      });
+    } else {
+      console.error('[GEMINI_API_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: error?.message || 'Unknown error'
+      });
+    }
     // fallback
   }
   return `Starting the ride. Total distance ${route.distance}, estimated ${route.duration}. Shall we start a fun ride today?`;
@@ -155,7 +168,20 @@ export const getRideEncouragement = async (
     });
     const text = (res as { text?: string }).text?.trim();
     if (text) return text;
-  } catch (_) {
+  } catch (error: any) {
+    // Log Gemini API errors for debugging
+    if (error?.status === 403 || error?.message?.includes('403')) {
+      console.error('[GEMINI_API_403_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: '403 Forbidden - Check GOOGLE_GEMINI_API_KEY is valid and Gemini API is enabled',
+        message: error?.message || 'Unknown error'
+      });
+    } else {
+      console.error('[GEMINI_API_ERROR]', {
+        timestamp: new Date().toISOString(),
+        error: error?.message || 'Unknown error'
+      });
+    }
     // fallback
   }
   return `Ride finished. Distance covered ${dist}, duration ${dur}. Great job!`;
