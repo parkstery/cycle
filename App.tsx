@@ -32,25 +32,50 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=f4k7d6we&raw=1",
 ];
 
-// Helper to wrap getPanorama in a Promise (no direction filter)
+/**
+ * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
+ * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
+ */
+const getPanoramaWithFallback = (
+    service: any,
+    opts: { location: any; radius: number; preference?: any }
+): Promise<{ data: any; usedFallback: boolean }> => {
+    return new Promise((resolve) => {
+        service.getPanorama({
+            location: opts.location,
+            radius: opts.radius,
+            source: google.maps.StreetViewSource.GOOGLE,
+            preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
+        }, (data: any, status: string) => {
+            if (status === 'OK' && data?.location?.pano) {
+                resolve({ data, usedFallback: false });
+                return;
+            }
+            service.getPanorama({
+                location: opts.location,
+                radius: opts.radius,
+                source: google.maps.StreetViewSource.DEFAULT,
+                preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
+            }, (fallbackData: any, fallbackStatus: string) => {
+                if (fallbackStatus === 'OK' && fallbackData?.location?.pano) {
+                    resolve({ data: fallbackData, usedFallback: true });
+                } else {
+                    resolve({ data: null, usedFallback: false });
+                }
+            });
+        });
+    });
+};
+
+// Helper to wrap getPanorama in a Promise (no direction filter); uses GOOGLE then DEFAULT fallback
 const findStreetView = (
     service: any,
     location: any,
     radius: number
-): Promise<any> => {
-    return new Promise((resolve) => {
-        service.getPanorama({
-            location,
-            radius,
-            source: google.maps.StreetViewSource.GOOGLE,
-            preference: google.maps.StreetViewPreference.NEAREST
-        }, (data: any, status: string) => {
-            if (status === 'OK' && data) {
-                resolve(data);
-            } else {
-                resolve(null);
-            }
-        });
+): Promise<{ data: any; usedFallback: boolean } | null> => {
+    return getPanoramaWithFallback(service, { location, radius }).then(({ data, usedFallback }) => {
+        if (data) return { data, usedFallback };
+        return null;
     });
 };
 
@@ -63,7 +88,7 @@ function normalizeAngleDiff(deg: number): number {
 
 /**
  * 주행 방향 각도 범위 내 거리뷰만 채택.
- * radius만 쓰면 전·후·좌·우 pano가 나오므로, 반환 pano가 전방 반구(±90°) 내인지 검사.
+ * GOOGLE 먼저 시도, 없으면 DEFAULT(사용자 파노라마 포함) 폴백.
  */
 const findStreetViewInDirection = (
     service: any,
@@ -74,34 +99,26 @@ const findStreetViewInDirection = (
     radius: number,
     maxAngleDeg: number = 90
 ): Promise<PanoDataItem | null> => {
-    return new Promise((resolve) => {
-        service.getPanorama({
-            location: pathPoint,
-            radius,
-            source: google.maps.StreetViewSource.GOOGLE,
-            preference: google.maps.StreetViewPreference.NEAREST
-        }, (data: any, status: string) => {
-            if (status !== 'OK' || !data?.location?.pano) {
-                resolve(null);
-                return;
-            }
-            const driveHeading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
-            const panoLatLng = data.location.latLng;
-            const bearingToPano = google.maps.geometry.spherical.computeHeading(pathPoint, panoLatLng);
-            const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
-            if (angleDiff > maxAngleDeg) {
-                resolve(null);
-                return;
-            }
-            const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-            const heading = google.maps.geometry.spherical.computeHeading(pathPoint, path[nextIdx]);
-            resolve({
-                pathIndex,
-                panoId: data.location.pano,
-                location: data.location.latLng,
-                heading
-            });
-        });
+    return getPanoramaWithFallback(service, {
+        location: pathPoint,
+        radius,
+        preference: google.maps.StreetViewPreference.NEAREST
+    }).then(({ data, usedFallback }) => {
+        if (!data?.location?.pano) return null;
+        const driveHeading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
+        const panoLatLng = data.location.latLng;
+        const bearingToPano = google.maps.geometry.spherical.computeHeading(pathPoint, panoLatLng);
+        const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
+        if (angleDiff > maxAngleDeg) return null;
+        const nextIdx = Math.min(pathIndex + 10, path.length - 1);
+        const heading = google.maps.geometry.spherical.computeHeading(pathPoint, path[nextIdx]);
+        return {
+            pathIndex,
+            panoId: data.location.pano,
+            location: data.location.latLng,
+            heading,
+            isUserPhoto: usedFallback
+        };
     });
 };
 
@@ -179,6 +196,7 @@ const App: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [svStatus, setSvStatus] = useState<string>('OK');
   const [showSvWarning, setShowSvWarning] = useState(false);
+  const [isUserPano, setIsUserPano] = useState(false); // true when showing user-contributed panorama (fallback)
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
   
@@ -393,47 +411,42 @@ const App: React.FC = () => {
           clearTimeout(pendingSwapFallbackRef.current);
           pendingSwapFallbackRef.current = null;
       }
-      svServiceRef.current.getPanorama({
-          location: location,
-          radius: 50,
-          source: google.maps.StreetViewSource.GOOGLE,
-          preference: google.maps.StreetViewPreference.NEAREST
-      }, (data: any, status: string) => {
-          if (status === 'OK' && data?.location) {
-              const currentIdx = activePanoRef.current;
-              const nextIdx = currentIdx === 0 ? 1 : 0;
-              const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-              const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
+          if (!data?.location) return;
+          setIsUserPano(usedFallback);
+          const currentIdx = activePanoRef.current;
+          const nextIdx = currentIdx === 0 ? 1 : 0;
+          const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+          const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
 
-              if (!currentPano || !nextPano) return;
+          if (!currentPano || !nextPano) return;
 
-              const newPanoId = data.location.pano;
-              const currentPanoId = currentPano.getPano();
+          const newPanoId = data.location.pano;
+          const currentPanoId = currentPano.getPano();
 
-              const doSwap = () => {
-                  pendingSwapTimeoutRef.current = null;
-                  activePanoRef.current = nextIdx;
-                  setVisiblePanoIdx(nextIdx);
-                  if (googleMap.current) googleMap.current.setStreetView(nextPano);
-              };
+          const doSwap = () => {
+              pendingSwapTimeoutRef.current = null;
+              activePanoRef.current = nextIdx;
+              setVisiblePanoIdx(nextIdx);
+              if (googleMap.current) googleMap.current.setStreetView(nextPano);
+          };
 
-              nextPano.setOptions({
-                  pano: newPanoId,
-                  pov: { heading, pitch: 0 },
-                  visible: true
-              });
+          nextPano.setOptions({
+              pano: newPanoId,
+              pov: { heading, pitch: 0 },
+              visible: true
+          });
 
-              scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
-          }
+          scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
       });
   }, [scheduleSwapAfterOk]);
 
   /**
    * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
-   * 같은 파노라마·동일 heading이면 스왑 생략(같은 이미지 두 번 노출 방지).
-   * 방안 A: nextPano status_changed → OK 후 150ms 지연 스왑 + 1.5s 폴백.
+   * isUserPhoto: 사용자 제작 이미지 여부(배지 표시용).
    */
-  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number) => {
+  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number, isUserPhoto?: boolean) => {
+    setIsUserPano(!!isUserPhoto);
     if (pendingSwapTimeoutRef.current) {
       clearTimeout(pendingSwapTimeoutRef.current);
       pendingSwapTimeoutRef.current = null;
@@ -510,13 +523,14 @@ const App: React.FC = () => {
       // 연속 디스플레이 우선: 방향 필터 실패 시에도 해당 구간에 pano가 있으면 추가 (생략 방지)
       if (!item) {
         const fallback = await findStreetView(svServiceRef.current, pathPoint, 30);
-        if (fallback?.location?.pano) {
+        if (fallback?.data?.location?.pano) {
           const heading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
           item = {
             pathIndex,
-            panoId: fallback.location.pano,
-            location: fallback.location.latLng,
-            heading
+            panoId: fallback.data.location.pano,
+            location: fallback.data.location.latLng,
+            heading,
+            isUserPhoto: fallback.usedFallback
           };
         }
       }
@@ -722,7 +736,7 @@ const App: React.FC = () => {
       if (isSvActive) {
         if (route.panoData?.length) {
           const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
-          if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading);
+          if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
           // On-demand: fetch next segment when approaching end of cached panoData (throttle via isSegmentFetchingRef)
           const lastPano = route.panoData[route.panoData.length - 1];
           if (
@@ -775,15 +789,16 @@ const App: React.FC = () => {
               }
               if (!item) {
                 const fallback = await findStreetView(svServiceRef.current, currentPos, 100);
-                if (fallback?.location?.pano) {
+                if (fallback?.data?.location?.pano) {
                   const nextIdx = Math.min(currentIdx + 1, route.path.length - 1);
                   const finalHeading = google.maps.geometry.spherical.computeHeading(currentPos, route.path[nextIdx]);
-                  setPanoramaView(fallback.location.latLng, finalHeading);
+                  setIsUserPano(fallback.usedFallback);
+                  setPanoramaView(fallback.data.location.latLng, finalHeading);
                   setShowSvWarning(false);
                 } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
               } else {
                 setRoute((prev) => prev ? { ...prev, panoData: [item!] } : null);
-                setPanoramaViewByPanoId(item.panoId, item.heading);
+                setPanoramaViewByPanoId(item.panoId, item.heading, item.isUserPhoto);
                 setShowSvWarning(false);
               }
               isSvSearching.current = false;
@@ -977,6 +992,7 @@ const App: React.FC = () => {
 
     svErrorCount.current = 0;
     setShowSvWarning(false);
+    setIsUserPano(false);
     setElapsedTime(0);
     setCoveredDistance(0);
   };
@@ -1005,7 +1021,8 @@ const App: React.FC = () => {
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
-    setIsSvFullScreen(false); // Reset fullscreen state
+    setIsSvFullScreen(false);
+    setIsUserPano(false);
     // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
     // However, simulation.isActive sets isSvActive state usually in toggle? 
     // Wait, isSvActive was controlled via visibility button. 
@@ -1317,7 +1334,7 @@ const App: React.FC = () => {
             }
             lastCoachedIndex.current = 0;
             const firstPano = panoData.length > 0 ? panoData[0] : null;
-            if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading);
+            if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
             else {
               const startPos = densifiedPath[0];
               const heading = google.maps.geometry.spherical.computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
@@ -1364,7 +1381,7 @@ const App: React.FC = () => {
     }
     lastCoachedIndex.current = 0;
     const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
-    if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading);
+    if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
     else {
       const startPos = currentRoute.path[0];
       const heading = pathLen > 1
@@ -1559,6 +1576,13 @@ const App: React.FC = () => {
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
              <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
              <span className="text-white font-bold text-xs">No Street View available for this section.</span>
+          </div>
+        </div>
+      )}
+      {isSvActive && isUserPano && (
+        <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
+          <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
+             <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
           </div>
         </div>
       )}

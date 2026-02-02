@@ -4,6 +4,8 @@ export interface PanoDataItem {
   panoId: string;
   location: any;
   heading: number;
+  /** true when panorama is user-contributed (fallback when no Google official imagery) */
+  isUserPhoto?: boolean;
 }
 
 /** Coaching valid until this path index (predictive coaching) */
