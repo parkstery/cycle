@@ -1532,12 +1532,12 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[500px] min-w-[500px] max-w-[500px]' : 'w-[328px] min-w-[328px] max-w-[328px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[472px] min-w-[472px] max-w-[472px]' : 'w-[300px] min-w-[300px] max-w-[300px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
-                <div className="flex-none w-[260px] flex flex-col justify-center gap-1.5">
+                <div className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                     <div className="relative flex flex-col gap-1.5">
                         <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
@@ -1572,7 +1572,7 @@ const App: React.FC = () => {
                          <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
                          <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
                          <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                         <div className="flex items-center gap-1 ml-auto shrink-0 mr-7">
+                         <div className="flex items-center gap-1 ml-auto shrink-0">
                              <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
                              
                              <button onClick={handleToggleFavorite} title={isSaved ? "My Routes" : "Add to Favorites"} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
@@ -1588,10 +1588,10 @@ const App: React.FC = () => {
                             <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                             <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                         </div>
-                        <button onClick={() => calculateRoute(mode, false)} title="경로탐색" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
+                        <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
                             <Search size={14} />
                         </button>
-                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { startSimulationOnly(route); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="ml-auto w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { startSimulationOnly(route); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
