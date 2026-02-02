@@ -1109,16 +1109,27 @@ const App: React.FC = () => {
             if (status === 'OK' && result) {
               resolve(result);
             } else {
-              // Log status errors (including 403)
-              console.error('[DIRECTIONS_API_STATUS_ERROR]', {
-                timestamp: new Date().toISOString(),
-                status: status,
-                origin: finalOrigin.substring(0, 50),
-                destination: finalDestination.substring(0, 50),
-                message: status === 'REQUEST_DENIED' 
-                  ? '403 Forbidden - Check API key permissions and restrictions'
-                  : `Directions API returned status: ${status}`
-              });
+              // ZERO_RESULTS is not an error - it means no route found, will fallback to OSRM
+              if (status === 'ZERO_RESULTS') {
+                console.info('[DIRECTIONS_API_ZERO_RESULTS]', {
+                  timestamp: new Date().toISOString(),
+                  status: status,
+                  origin: finalOrigin.substring(0, 50),
+                  destination: finalDestination.substring(0, 50),
+                  message: 'No route found in Google Directions API. Falling back to OSRM...'
+                });
+              } else {
+                // Log actual errors (403, etc.)
+                console.error('[DIRECTIONS_API_STATUS_ERROR]', {
+                  timestamp: new Date().toISOString(),
+                  status: status,
+                  origin: finalOrigin.substring(0, 50),
+                  destination: finalDestination.substring(0, 50),
+                  message: status === 'REQUEST_DENIED' 
+                    ? '403 Forbidden - Check API key permissions and restrictions'
+                    : `Directions API returned status: ${status}`
+                });
+              }
               reject(new Error(`Directions API error: ${status}`));
             }
           });
@@ -1142,13 +1153,28 @@ const App: React.FC = () => {
         }
       } catch (e) {
         // Log Directions API error for debugging
-        console.error('[DIRECTIONS_API_ERROR]', {
-          timestamp: new Date().toISOString(),
-          origin: finalOrigin.substring(0, 50),
-          destination: finalDestination.substring(0, 50),
-          error: e instanceof Error ? e.message : String(e),
-          fallingBackToOSRM: true
-        });
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        const isZeroResults = errorMessage.includes('ZERO_RESULTS');
+        
+        if (isZeroResults) {
+          // ZERO_RESULTS is expected - will use OSRM fallback
+          console.info('[DIRECTIONS_API_FALLBACK]', {
+            timestamp: new Date().toISOString(),
+            origin: finalOrigin.substring(0, 50),
+            destination: finalDestination.substring(0, 50),
+            message: 'Google Directions API found no route. Using OSRM fallback...',
+            fallingBackToOSRM: true
+          });
+        } else {
+          // Actual error (403, network error, etc.)
+          console.error('[DIRECTIONS_API_ERROR]', {
+            timestamp: new Date().toISOString(),
+            origin: finalOrigin.substring(0, 50),
+            destination: finalDestination.substring(0, 50),
+            error: errorMessage,
+            fallingBackToOSRM: true
+          });
+        }
         
         // Safe geocoding helper that reuses LatLng object if available, or geocodes address
         const getCoord = async (val: any, addr: string) => {
