@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
@@ -238,16 +238,9 @@ const App: React.FC = () => {
     // Default Routes if nothing saved
     return [
       {
-        id: "def-jeju",
-        origin: "대한민국 제주특별자치도 서귀포시 성산읍 신산리 1130-12",
-        destination: "대한민국 제주특별자치도 서귀포시 성산읍 온평리 1286-4",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-paris",
-        origin: "Ch. de Gaulle - Étoile Grande Armée, 75116 Paris, 프랑스",
-        destination: "33 Bd de Grenelle, 75015 Paris, 프랑스",
+        id: "def-seoul",
+        origin: "대한민국 서울특별시 용산구 한남동 784-1",
+        destination: "대한민국 서울특별시 강남구 압구정동 384-2",
         waypoints: [],
         timestamp: Date.now()
       },
@@ -259,9 +252,27 @@ const App: React.FC = () => {
         timestamp: Date.now()
       },
       {
-        id: "def-italy",
-        origin: "Via dell’Abbondanza, 6, 80045 Pompei NA, 이탈리아",
-        destination: "Villa delle Tombe, 8, 80045 Pompei NA, 이탈리아",
+        id: "def-florence",
+        origin: "Piazza Piave, 1, 50122 Firenze FI, 이탈리아",
+        destination: "Piazza di San Giovanni, 30r, 50124 Firenze FI, 이탈리아",
+        waypoints: [
+          { name: "Piazza di Santa Croce, 7 R, 50122 Firenze FI, 이탈리아", lat: 0, lng: 0 },
+          { name: "Piazzale degli Uffizi, 418, 50122 Firenze FI, 이탈리아", lat: 0, lng: 0 },
+          { name: "단테의 집 박물관", lat: 0, lng: 0 }
+        ],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-greece",
+        origin: "F96M+QX Oia, 그리스",
+        destination: "F9HJ+VJ Ia, 그리스",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-egypt",
+        origin: "X4C9+XVP, Al Haram, Giza Governorate 3512201 이집트",
+        destination: "22 Abou Al Hool Al Seiahi, Nazlet El-Semman, Al Haram, Giza Governorate 3512201 이집트",
         waypoints: [],
         timestamp: Date.now()
       }
