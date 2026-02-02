@@ -1061,6 +1061,22 @@ const App: React.FC = () => {
     const activeWaypoints = customWaypoints || waypoints;
 
     if (!finalOrigin || !finalDestination) return;
+    
+    // Log calculateRoute call for debugging excessive API calls
+    const routeCallTime = new Date().toISOString();
+    const stackTrace = new Error().stack || '';
+    const caller = stackTrace.split('\n')[2]?.trim() || 'unknown';
+    const routeCallInfo = {
+      timestamp: routeCallTime,
+      origin: finalOrigin.substring(0, 50), // Truncate for readability
+      destination: finalDestination.substring(0, 50),
+      mode: activeMode,
+      autoStart,
+      hasWaypoints: activeWaypoints.length > 0,
+      caller: caller
+    };
+    console.log('[CALCULATE_ROUTE_CALL]', JSON.stringify(routeCallInfo, null, 2));
+    
     setLoading(true);
     setCoachData(null);
     setRouteSource(null);
@@ -1145,6 +1161,18 @@ const App: React.FC = () => {
         }
       }
       if (path.length > 0) {
+        // Log Elevation API call for debugging
+        const elevationCallTime = new Date().toISOString();
+        const elevationCallInfo = {
+          timestamp: elevationCallTime,
+          origin: finalOrigin,
+          destination: finalDestination,
+          pathLength: path.length,
+          mode: activeMode,
+          stackTrace: new Error().stack
+        };
+        console.log('[ELEVATION_API_CALL]', JSON.stringify(elevationCallInfo, null, 2));
+        
         const elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
 
         // Calculate physiological duration based on slope and user speed
