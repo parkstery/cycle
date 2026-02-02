@@ -46,12 +46,33 @@
   <div id="root"></div>
   
   
-  <!-- Service Worker Registration -->
+  <!-- Service Worker Registration - Unregister old SW and clear caches -->
   <script>
     if ("serviceWorker" in navigator) {
+      // First, unregister all existing service workers
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      
+      // Clear all caches
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+      
+      // Then register new service worker
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js")
-          .then(reg => console.log("SW Registered!", reg))
+        navigator.serviceWorker.register("/sw.js?v=" + Date.now())
+          .then(reg => {
+            console.log("SW Registered!", reg);
+            // Force update
+            reg.update();
+          })
           .catch(err => console.log("SW Failed:", err));
       });
     }
