@@ -188,6 +188,8 @@ const App: React.FC = () => {
   const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
   const lastValidUntilFetched = useRef<number>(-1);
+  /** 주행 시작 TTS 재생 중에는 캐시 TTS 생략 (시작 후 3초) */
+  const startMentPlayingUntilRef = useRef<number>(0);
 
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -798,9 +800,24 @@ const App: React.FC = () => {
       // -----------------------------------------------------------
 
       // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps) ----
+      // 주행 시작 TTS 후 3초 / 주행 종료 TTS 전 3초 동안은 캐시 TTS 생략 (중첩 방지)
+      const now = Date.now();
+      const inStartMentWindow = now < startMentPlayingUntilRef.current;
+      let remainingTimeSec = 0;
+      if (currentIdx < route.path.length - 1) {
+        let remainingM = 0;
+        for (let i = currentIdx; i < route.path.length - 1; i++) {
+          remainingM += google.maps.geometry.spherical.computeDistanceBetween(route.path[i], route.path[i + 1]);
+        }
+        const speedMetersPerSec = (speedKmH * 1000) / 3600;
+        remainingTimeSec = speedMetersPerSec > 0 ? remainingM / speedMetersPerSec : 0;
+      }
+      const inEndMentWindow = remainingTimeSec > 0 && remainingTimeSec <= 3;
+      const skipCacheTts = inStartMentWindow || inEndMentWindow;
+
       const cached = route.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
-      if (currentCached) {
+      if (currentCached && !skipCacheTts) {
         setCoachData(currentCached.coaching);
         const lastValid = cached[cached.length - 1]?.validUntilPathIndex ?? 0;
         if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && route.elevation.length > 0) {
@@ -827,7 +844,7 @@ const App: React.FC = () => {
               .finally(() => setIsCoachThinking(false));
           }
         }
-      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
+      } else if (!skipCacheTts && currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
         (async () => {
           const currentElev = route.elevation[Math.floor((currentIdx / route.path.length) * route.elevation.length)]?.elevation || 0;
           const upcoming = route.elevation.slice(Math.floor((currentIdx / route.path.length) * route.elevation.length), Math.floor(((currentIdx + 20) / route.path.length) * route.elevation.length));
@@ -1007,7 +1024,7 @@ const App: React.FC = () => {
 
       setIsSvFullScreen(true);
 
-      getCourseBriefing(route).then(speak);
+      getCourseBriefing(route).then((text) => { startMentPlayingUntilRef.current = Date.now() + 3000; speak(text); });
     }
   };
 
@@ -1320,7 +1337,7 @@ const App: React.FC = () => {
                 const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
                 setCoachData(coaching);
                 setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
-                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
+                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then((text) => { startMentPlayingUntilRef.current = Date.now() + 3000; speak(text); });
               } finally {
                 setIsCoachThinking(false);
               }
@@ -1367,7 +1384,7 @@ const App: React.FC = () => {
         const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        getCourseBriefing(currentRoute).then(speak);
+        getCourseBriefing(currentRoute).then((text) => { startMentPlayingUntilRef.current = Date.now() + 3000; speak(text); });
       } finally {
         setIsCoachThinking(false);
       }
