@@ -10,8 +10,8 @@ import {
   getResistancePhrases,
 } from "./phraseManifest";
 
-/** 오디오 파일 기본 경로 (public/audio/coaching/ 또는 CDN) */
-const DEFAULT_BASE_URL = "/audio/coaching/";
+/** 오디오 파일 기본 경로: services/choaching → 배포 시 public/choaching (dist/choaching) */
+const DEFAULT_BASE_URL = "/choaching/";
 const DEFAULT_EXT = ".mp3";
 
 export type AudioCacheOptions = {
