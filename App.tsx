@@ -576,7 +576,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isMapsApiLoaded && mapRef.current && !googleMap.current) {
         googleMap.current = new google.maps.Map(mapRef.current, {
-            center: { lat: 37.7749, lng: -122.4194 },
+            center: { lat: 37.5512, lng: 126.9882 }, // 남산타워(엔서울타워)
             zoom: 14,
             mapTypeControl: false, // Disabled default map type control
             streetViewControl: false,
