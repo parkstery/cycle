@@ -5,6 +5,7 @@ const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
+import * as openElevation from './services/openElevation';
 // It's me EG
 // Declare google global
 declare var google: any;
@@ -1328,8 +1329,20 @@ const App: React.FC = () => {
           stackTrace: new Error().stack
         };
         console.log('[ELEVATION_API_CALL]', JSON.stringify(elevationCallInfo, null, 2));
-        
-        const elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
+
+        let elevationRes: { results: Array<{ location: any; elevation: number; resolution?: number }> };
+        try {
+          const openRes = await openElevation.getElevationAlongPath(path, 100);
+          elevationRes = {
+            results: openRes.results.map((r) => ({
+              elevation: r.elevation,
+              location: new google.maps.LatLng(r.latitude, r.longitude),
+              resolution: 0
+            }))
+          };
+        } catch {
+          elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
+        }
 
         // Calculate physiological duration based on slope and user speed
         let calculatedSeconds = 0;
