@@ -766,10 +766,9 @@ const App: React.FC = () => {
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
 
-      // Street View 표시 인덱스: 속도별 2단 전략 — 80 km/h 이하는 60 km/h, 초과 시 50 km/h 상한으로 멈춤 완화
+      // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한. 80 km/h 초과 시 20m 간격 점프로 전환 횟수 감소
       const METERS_PER_PATH_POINT = 2;
-      const maxSvSpeedKmH = speedKmH <= 80 ? 60 : 50;
-      const MAX_SV_SPEED_M_PER_SEC = (maxSvSpeedKmH * 1000) / 3600;
+      const MAX_SV_SPEED_M_PER_SEC = (60 * 1000) / 3600;
       if (currentIdx === 0) {
         svDisplayPathIndexRef.current = 0;
         lastSvDisplayUpdateRef.current = Date.now();
@@ -783,11 +782,16 @@ const App: React.FC = () => {
         }
       }
       const svDisplayIdx = svDisplayPathIndexRef.current;
+      // 80 km/h 초과 시 20m(≈10 path points) 단위로만 파노 전환 — 같은 파노를 더 오래 보여 멈춤 감소
+      const JUMP_POINTS_20M = 10;
+      const svDisplayIdxForPano = speedKmH > 80
+        ? Math.floor(svDisplayIdx / JUMP_POINTS_20M) * JUMP_POINTS_20M
+        : svDisplayIdx;
 
       // ---- STREET VIEW: Progressive (panoData cache + on-demand segment fetch) or fallback (real-time API) ----
       if (isSvActive) {
         if (route.panoData?.length) {
-          const panoItem = getPanoDataForIndex(route.panoData, svDisplayIdx);
+          const panoItem = getPanoDataForIndex(route.panoData, svDisplayIdxForPano);
           if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
           // On-demand: fetch next segment when approaching end of cached panoData (throttle via isSegmentFetchingRef)
           const lastPano = route.panoData[route.panoData.length - 1];
@@ -820,20 +824,20 @@ const App: React.FC = () => {
             }
           }
         } else if (svServiceRef.current && !isSvSearching.current) {
-          const svDisplayPos = route.path[Math.min(svDisplayIdx, route.path.length - 1)];
+          const svDisplayPos = route.path[Math.min(svDisplayIdxForPano, route.path.length - 1)];
           const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
           const currentPanoLoc = activePano?.getLocation()?.latLng;
           const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(svDisplayPos, currentPanoLoc) : Infinity;
           if (distFromLastPano > 15 || !currentPanoLoc) {
             isSvSearching.current = true;
             (async () => {
-              const pathNext = route.path[Math.min(svDisplayIdx + 10, route.path.length - 1)];
+              const pathNext = route.path[Math.min(svDisplayIdxForPano + 10, route.path.length - 1)];
               let item: PanoDataItem | null = await findStreetViewInDirection(
-                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdx, route.path, 30, 90
+                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, 30, 90
               );
               if (!item) {
                 for (let i = 1; i <= 5; i++) {
-                  const targetIdx = Math.min(svDisplayIdx + i, route.path.length - 1);
+                  const targetIdx = Math.min(svDisplayIdxForPano + i, route.path.length - 1);
                   const pt = route.path[targetIdx];
                   const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
                   item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, 30, 90);
@@ -843,7 +847,7 @@ const App: React.FC = () => {
               if (!item) {
                 const fallback = await findStreetView(svServiceRef.current, svDisplayPos, 100);
                 if (fallback?.data?.location?.pano) {
-                  const nextIdx = Math.min(svDisplayIdx + 1, route.path.length - 1);
+                  const nextIdx = Math.min(svDisplayIdxForPano + 1, route.path.length - 1);
                   const finalHeading = google.maps.geometry.spherical.computeHeading(svDisplayPos, route.path[nextIdx]);
                   setIsUserPano(fallback.usedFallback);
                   setPanoramaView(fallback.data.location.latLng, finalHeading);
