@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
@@ -220,6 +220,8 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [coachingOn, setCoachingOn] = useState(true);
+  const [musicOn, setMusicOn] = useState(true);
 
   // Input States
   const [origin, setOrigin] = useState('');
@@ -1003,17 +1005,17 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (simulation.isActive) {
+    if (simulation.isActive && musicOn) {
         if (audioRef.current && audioRef.current.paused) { playRandomMusic(); }
     } else {
         if (audioRef.current && !audioRef.current.paused) {
             fadeAudio(0, 2000, () => { audioRef.current?.pause(); });
         }
     }
-  }, [simulation.isActive]);
+  }, [simulation.isActive, musicOn]);
 
   const speak = (text: string) => {
-    if (!window.speechSynthesis) return;
+    if (!coachingOn || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US'; 
@@ -1685,7 +1687,7 @@ const App: React.FC = () => {
         </div>
       )}
       <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} />
-      {simulation.isActive && coachData && (
+      {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
              <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
@@ -1848,10 +1850,20 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
-                  <Suspense fallback={<div className="h-full w-full bg-slate-800 rounded animate-pulse" />}>
-                    <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
-                  </Suspense>
+                <div className="h-10 w-full flex items-stretch gap-1">
+                  <div className="flex flex-col justify-center gap-1 shrink-0">
+                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "코칭 멘트 끄기" : "코칭 멘트 켜기"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
+                      <Mic size={16} />
+                    </button>
+                    <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "배경 음악 끄기" : "배경 음악 켜기"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
+                      <Music size={16} />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0 bg-slate-900 rounded-xl p-1 relative overflow-hidden">
+                    <Suspense fallback={<div className="h-full w-full bg-slate-800 rounded animate-pulse" />}>
+                      <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
+                    </Suspense>
+                  </div>
                 </div>
               </div>
             )}
