@@ -766,9 +766,10 @@ const App: React.FC = () => {
       simulationMarker.current.setPosition(currentPos);
       simulationMarker.current.setOptions({ rotation: heading });
 
-      // Street View 표시 인덱스: 고속(70+ km/h)에서도 거리뷰가 정지하지 않도록 최대 60 km/h 상당으로만 진행
+      // Street View 표시 인덱스: 속도별 2단 전략 — 80 km/h 이하는 60 km/h, 초과 시 50 km/h 상한으로 멈춤 완화
       const METERS_PER_PATH_POINT = 2;
-      const MAX_SV_SPEED_M_PER_SEC = (60 * 1000) / 3600;
+      const maxSvSpeedKmH = speedKmH <= 80 ? 60 : 50;
+      const MAX_SV_SPEED_M_PER_SEC = (maxSvSpeedKmH * 1000) / 3600;
       if (currentIdx === 0) {
         svDisplayPathIndexRef.current = 0;
         lastSvDisplayUpdateRef.current = Date.now();
