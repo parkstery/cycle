@@ -185,7 +185,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
   const [isSvFullScreen, setIsSvFullScreen] = useState(false);
-  const [showCoverage, setShowCoverage] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [svStatus, setSvStatus] = useState<string>('OK');
   const [showSvWarning, setShowSvWarning] = useState(false);
@@ -688,6 +688,18 @@ const App: React.FC = () => {
     }, 900);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvActive]);
+
+  // Coverage Layer(노선) 버튼: showCoverage에 따라 경로 폴리라인 표시/숨김
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    const poly = leafletPolylineRef.current;
+    if (!map || !poly) return;
+    if (showCoverage) {
+      if (!map.hasLayer(poly)) map.addLayer(poly);
+    } else {
+      if (map.hasLayer(poly)) map.removeLayer(poly);
+    }
+  }, [showCoverage]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -1254,7 +1266,8 @@ const App: React.FC = () => {
             waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
         });
         const latlngs = densifiedPath.map((p: any) => [p.lat(), p.lng()] as [number, number]);
-        leafletPolylineRef.current = L.polyline(latlngs, { color: '#ff3020', weight: 5 }).addTo(leafletMapRef.current!);
+        leafletPolylineRef.current = L.polyline(latlngs, { color: '#ff3020', weight: 5 });
+        if (showCoverage && leafletMapRef.current) leafletPolylineRef.current.addTo(leafletMapRef.current);
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
