@@ -558,30 +558,53 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
-  // Leaflet map init (OSM tiles) — no Google Map
+  // Leaflet map init (OSM tiles) — DOM 확정 후 2프레임 뒤 초기화, try/catch로 안정화
   useEffect(() => {
-    if (!mapRef.current || leafletMapRef.current) return;
-    const map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-    leafletMapRef.current = map;
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-      nominatim.reverse(lat, lng)
-        .then((res) => {
-          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
-          setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
-        })
-        .catch(() => {
-          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
-          setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
+    let mounted = true;
+    let map: L.Map | null = null;
+    let revealTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const init = () => {
+      if (!mounted || !mapRef.current || leafletMapRef.current) return;
+      try {
+        map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+        leafletMapRef.current = map;
+        map.on('click', (e: L.LeafletMouseEvent) => {
+          const lat = e.latlng.lat;
+          const lng = e.latlng.lng;
+          nominatim.reverse(lat, lng)
+            .then((res) => {
+              const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
+              setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
+            })
+            .catch(() => {
+              const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
+              setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
+            });
         });
+        setIsLeafletReady(true);
+        revealTimeoutId = window.setTimeout(() => setMapRevealed(true), 2000);
+      } catch (err) {
+        console.error('[Leaflet init]', err);
+        setIsLeafletReady(true);
+      }
+    };
+    const rafId = requestAnimationFrame(() => {
+      requestAnimationFrame(init);
     });
-    setIsLeafletReady(true);
-    const t = window.setTimeout(() => setMapRevealed(true), 2000);
-    return () => { clearTimeout(t); map.remove(); leafletMapRef.current = null; };
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(rafId);
+      if (revealTimeoutId != null) clearTimeout(revealTimeoutId);
+      if (map) {
+        map.remove();
+        map = null;
+      }
+      leafletMapRef.current = null;
+      setIsLeafletReady(false);
+    };
   }, []);
 
   // Google script: Street View only (no Map, no Places, no Geometry, no Elevation)
@@ -1078,7 +1101,7 @@ const App: React.FC = () => {
     const getCoord = async (val: any, addr: string) => {
       if (val && typeof val.lat === 'function') return val;
       if (val && val.lat != null && val.lng != null) return new google.maps.LatLng(val.lat, val.lng);
-      const res = await nominatim.search(addr);
+      const res = await nominatim.addressToCoord(addr);
       return new google.maps.LatLng(res.lat, res.lng);
     };
 
