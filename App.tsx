@@ -248,8 +248,8 @@ const App: React.FC = () => {
     return [
       {
         id: "def-seoul",
-        origin: "대한민국 서울특별시 용산구 한남동 784-1",
-        destination: "대한민국 서울특별시 강남구 압구정동 384-2",
+        origin: "대한민국 서울특별시 강남구 압구정동 384-2",
+        destination: "대한민국 서울특별시 용산구 한남동 784-1",
         waypoints: [],
         timestamp: Date.now()
       },
