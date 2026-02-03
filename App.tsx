@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AreaChart, Area, ResponsiveContainer, ReferenceLine } from 'recharts';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square } from 'lucide-react';
+const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 // It's me EG
@@ -1845,7 +1845,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="h-10 w-full bg-slate-900 rounded-xl p-1 relative overflow-hidden">
-                  <ResponsiveContainer width="100%" height="100%"><AreaChart data={route.elevation} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}><Area type="monotone" dataKey="elevation" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} isAnimationActive={false} /><ReferenceLine x={Math.floor((simulation.currentIndex / route.path.length) * (route.elevation.length - 1))} stroke="#ffffff" /></AreaChart></ResponsiveContainer>
+                  <Suspense fallback={<div className="h-full w-full bg-slate-800 rounded animate-pulse" />}>
+                    <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
+                  </Suspense>
                 </div>
               </div>
             )}

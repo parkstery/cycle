@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./App.tsx",
     "./index.tsx",
+    "./ElevationChartView.tsx",
     "./types.ts",
     "./services/**/*.ts",
   ],
