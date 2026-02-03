@@ -4,6 +4,7 @@ import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, 
 const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
+import * as nominatim from './services/nominatim';
 // It's me EG
 // Declare google global
 declare var google: any;
@@ -689,19 +690,33 @@ const App: React.FC = () => {
                      }
                  });
              } else {
-                 geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
-                     if (status === 'OK' && results[0]) {
-                         // Fix: Use the formatted address as name instead of "Selected Location" to prevent routing errors
+                 const lat = e.latLng.lat();
+                 const lng = e.latLng.lng();
+                 nominatim.reverse(lat, lng)
+                   .then((res) => {
+                     setClickedLocation({
+                       lat,
+                       lng,
+                       name: res.formatted_address,
+                       address: res.formatted_address,
+                       elevation: null,
+                       location: e.latLng
+                     });
+                   })
+                   .catch(() => {
+                     geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
+                       if (status === 'OK' && results[0]) {
                          setClickedLocation({
-                             lat: e.latLng.lat(),
-                             lng: e.latLng.lng(),
-                             name: results[0].formatted_address, 
-                             address: results[0].formatted_address,
-                             elevation: null,
-                             location: e.latLng
+                           lat: e.latLng.lat(),
+                           lng: e.latLng.lng(),
+                           name: results[0].formatted_address,
+                           address: results[0].formatted_address,
+                           elevation: null,
+                           location: e.latLng
                          });
-                     }
-                 });
+                       }
+                     });
+                   });
              }
         });
 
@@ -1258,20 +1273,25 @@ const App: React.FC = () => {
           });
         }
         
-        // Safe geocoding helper that reuses LatLng object if available, or geocodes address
+        // Safe geocoding helper: reuse LatLng if available; else Nominatim (fallback Google Geocoder)
         const getCoord = async (val: any, addr: string) => {
             if (val && typeof val.lat === 'function') return val; // It's a Google LatLng object
             if (val && val.lat && val.lng) return new google.maps.LatLng(val.lat, val.lng); // It's a plain coord object
-            
-            return new Promise<any>((resolve, reject) => {
-                geocoder.current.geocode({address: addr}, (results: any, status: any) => {
-                    if (status === 'OK' && results && results[0]) {
-                        resolve(results[0].geometry.location);
-                    } else {
-                        reject(status);
-                    }
+
+            try {
+                const res = await nominatim.search(addr);
+                return new google.maps.LatLng(res.lat, res.lng);
+            } catch {
+                return new Promise<any>((resolve, reject) => {
+                    geocoder.current.geocode({ address: addr }, (results: any, status: any) => {
+                        if (status === 'OK' && results && results[0]) {
+                            resolve(results[0].geometry.location);
+                        } else {
+                            reject(status);
+                        }
+                    });
                 });
-            });
+            }
         }
 
         const originLatLng = await getCoord(useOrigin, finalOrigin);
