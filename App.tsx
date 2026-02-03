@@ -567,7 +567,7 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
-  // Dynamic Script Loading — loading=async 시 API 준비는 callback으로만 알 수 있음 (onload는 너무 이르다)
+  // Dynamic Script Loading — 첫 페인트 후 지도 스크립트 로드해 LCP를 앱 껍데기로 유지
   useEffect(() => {
     if ((window as any).google?.maps?.Map) {
       setIsMapsApiLoaded(true);
@@ -580,20 +580,26 @@ const App: React.FC = () => {
       return;
     }
 
-    const callbackName = '__cycleMapsApiReady';
-    (window as any)[callbackName] = () => {
-      (window as any)[callbackName] = null;
-      setIsMapsApiLoaded(true);
+    const loadMaps = () => {
+      const callbackName = '__cycleMapsApiReady';
+      (window as any)[callbackName] = () => {
+        (window as any)[callbackName] = null;
+        setIsMapsApiLoaded(true);
+      };
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async&callback=${callbackName}`;
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        (window as any)[callbackName] = null;
+      };
+      document.head.appendChild(script);
     };
 
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async&callback=${callbackName}`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => {
-      (window as any)[callbackName] = null;
-    };
-    document.head.appendChild(script);
+    const afterFirstPaint = typeof requestIdleCallback !== 'undefined'
+      ? (cb: () => void) => requestIdleCallback(cb, { timeout: 500 })
+      : (cb: () => void) => setTimeout(cb, 100);
+    afterFirstPaint(loadMaps);
   }, []);
 
   // Map Initialization
@@ -1628,6 +1634,12 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
+      {/* LCP용: 지도 로드 전 보이는 껍데기 — 성능 점수 개선 */}
+      {!isMapsApiLoaded && (
+        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
+          <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
+        </div>
+      )}
       {/* Go 버튼 클릭 시 4초 카운트다운 오버레이 */}
       {countdown !== null && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
