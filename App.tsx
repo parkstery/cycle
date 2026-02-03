@@ -172,6 +172,8 @@ const App: React.FC = () => {
   /** Street View 표시용 path index: 시뮬 속도와 분리해 최대 60 km/h로만 진행해 고속에서도 거리뷰가 부드럽게 전환되도록 함 */
   const svDisplayPathIndexRef = useRef(0);
   const lastSvDisplayUpdateRef = useRef(0);
+  /** 마지막으로 표시한 파노의 pathIndex — 더 작은 인덱스로 갱신해 후진처럼 보이는 현상 방지 */
+  const lastDisplayedPanoPathIndexRef = useRef(-1);
   const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
   const pendingSwapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Fallback swap if status_changed never OK (방안 A)
 
@@ -772,6 +774,7 @@ const App: React.FC = () => {
       if (currentIdx === 0) {
         svDisplayPathIndexRef.current = 0;
         lastSvDisplayUpdateRef.current = Date.now();
+        lastDisplayedPanoPathIndexRef.current = -1;
       } else if (svDisplayPathIndexRef.current < currentIdx) {
         const elapsed = Date.now() - lastSvDisplayUpdateRef.current;
         const maxPoints = (MAX_SV_SPEED_M_PER_SEC * (elapsed / 1000)) / METERS_PER_PATH_POINT;
@@ -792,7 +795,11 @@ const App: React.FC = () => {
       if (isSvActive) {
         if (route.panoData?.length) {
           const panoItem = getPanoDataForIndex(route.panoData, svDisplayIdxForPano);
-          if (panoItem) setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+          // 전진만 허용: 이전보다 작은 pathIndex로 갱신하면 후진처럼 보이므로 생략
+          if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
+            lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+            setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+          }
           // On-demand: fetch next segment when approaching end of cached panoData (throttle via isSegmentFetchingRef)
           const lastPano = route.panoData[route.panoData.length - 1];
           if (
@@ -850,11 +857,13 @@ const App: React.FC = () => {
                   const nextIdx = Math.min(svDisplayIdxForPano + 1, route.path.length - 1);
                   const finalHeading = google.maps.geometry.spherical.computeHeading(svDisplayPos, route.path[nextIdx]);
                   setIsUserPano(fallback.usedFallback);
+                  lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, svDisplayIdxForPano);
                   setPanoramaView(fallback.data.location.latLng, finalHeading);
                   setShowSvWarning(false);
                 } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
               } else {
                 setRoute((prev) => prev ? { ...prev, panoData: [item!] } : null);
+                lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, item!.pathIndex);
                 setPanoramaViewByPanoId(item.panoId, item.heading, item.isUserPhoto);
                 setShowSvWarning(false);
               }
