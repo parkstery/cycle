@@ -233,6 +233,10 @@ const App: React.FC = () => {
   const [preparingProgress, setPreparingProgress] = useState<{ k: number; n: number } | null>(null);
   const lastPanToTime = useRef<number>(0);
 
+  // Go 버튼 클릭 시 4초 카운트다운 (3, 2, 1, Start!) — 로딩 대기 시간 활용
+  const [countdown, setCountdown] = useState<3 | 2 | 1 | 'start' | null>(null);
+  const countdownDoneRef = useRef<(() => void) | null>(null);
+
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
@@ -714,6 +718,22 @@ const App: React.FC = () => {
       if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
   }, [isSvFullScreen]);
+
+  // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
+  useEffect(() => {
+    if (countdown === null) return;
+    const t = window.setTimeout(() => {
+      if (countdown === 3) setCountdown(2);
+      else if (countdown === 2) setCountdown(1);
+      else if (countdown === 1) setCountdown('start');
+      else if (countdown === 'start') {
+        setCountdown(null);
+        countdownDoneRef.current?.();
+        countdownDoneRef.current = null;
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
 
   useEffect(() => {
     let timer: number;
@@ -1345,33 +1365,36 @@ const App: React.FC = () => {
           setAppPhase('IDLE');
 
           if (autoStart) {
-            setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
-            setAppPhase('RUNNING');
-            setIsSvFullScreen(true);
-            setIsSvActive(true);
-            const pathLen = densifiedPath.length;
-            const elevLen = elevationRes.results.length;
-            const segmentSize = Math.min(20, elevLen);
-            const upcomingSlice = elevationRes.results.slice(0, segmentSize);
-            if (upcomingSlice.length > 0) {
-              setIsCoachThinking(true);
-              try {
-                const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
-                setCoachData(coaching);
-                setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
-                getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
-              } finally {
-                setIsCoachThinking(false);
+            countdownDoneRef.current = async () => {
+              setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+              setAppPhase('RUNNING');
+              setIsSvFullScreen(true);
+              setIsSvActive(true);
+              const pathLen = densifiedPath.length;
+              const elevLen = elevationRes.results.length;
+              const segmentSize = Math.min(20, elevLen);
+              const upcomingSlice = elevationRes.results.slice(0, segmentSize);
+              if (upcomingSlice.length > 0) {
+                setIsCoachThinking(true);
+                try {
+                  const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
+                  setCoachData(coaching);
+                  setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
+                  getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
+                } finally {
+                  setIsCoachThinking(false);
+                }
               }
-            }
-            lastCoachedIndex.current = 0;
-            const firstPano = panoData.length > 0 ? panoData[0] : null;
-            if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-            else {
-              const startPos = densifiedPath[0];
-              const heading = google.maps.geometry.spherical.computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
-              setPanoramaView(startPos, heading);
-            }
+              lastCoachedIndex.current = 0;
+              const firstPano = panoData.length > 0 ? panoData[0] : null;
+              if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
+              else {
+                const startPos = densifiedPath[0];
+                const heading = google.maps.geometry.spherical.computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
+                setPanoramaView(startPos, heading);
+              }
+            };
+            setCountdown(3);
           }
         })();
       }
@@ -1587,7 +1610,15 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      
+      {/* Go 버튼 클릭 시 4초 카운트다운 오버레이 */}
+      {countdown !== null && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
+          <div className="text-white text-[120px] font-black tracking-tighter drop-shadow-2xl animate-pulse">
+            {countdown === 'start' ? 'Start!' : countdown}
+          </div>
+        </div>
+      )}
+
       {/* Street View Container - Replaced single Ref with Dual Refs */}
       <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}>
          {/* Panorama 1: Z-Index 10 when not active, 20 when active */}
@@ -1720,7 +1751,7 @@ const App: React.FC = () => {
                         <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
                             <Search size={14} />
                         </button>
-                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { startSimulationOnly(route); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
