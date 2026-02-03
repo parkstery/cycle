@@ -599,9 +599,9 @@ const App: React.FC = () => {
             fullscreenControl: false,
             zoomControl: false,
             rotateControl: false, // Disabled rotation/compass control
-            scaleControl: true, // Enabled scale control....by eg
+            scaleControl: true,
             scaleControlOptions: {
-              position: google.maps.ControlPosition.BOTTOM_LEFT
+              position: google.maps.ControlPosition?.BOTTOM_LEFT ?? 7
             },
             cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
             clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
