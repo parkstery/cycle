@@ -558,13 +558,18 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
-  // Leaflet map init (OSM tiles) — DOM 확정 후 2프레임 뒤 초기화, try/catch로 안정화
+  // 2초 후 맵 영역 노출 — 타일 로드 문제 방지를 위해 먼저 노출 후 맵 생성
   useEffect(() => {
-    let mounted = true;
+    const t = window.setTimeout(() => setMapRevealed(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Leaflet 맵 생성: mapRevealed가 true가 된 뒤(컨테이너가 보일 때) 한 번만 생성
+  useEffect(() => {
+    if (!mapRevealed || !mapRef.current || leafletMapRef.current) return;
     let map: L.Map | null = null;
-    let revealTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    const init = () => {
-      if (!mounted || !mapRef.current || leafletMapRef.current) return;
+    const rafId = requestAnimationFrame(() => {
+      if (!mapRef.current || leafletMapRef.current) return;
       try {
         map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -587,19 +592,13 @@ const App: React.FC = () => {
             });
         });
         setIsLeafletReady(true);
-        revealTimeoutId = window.setTimeout(() => setMapRevealed(true), 2000);
       } catch (err) {
         console.error('[Leaflet init]', err);
         setIsLeafletReady(true);
       }
-    };
-    const rafId = requestAnimationFrame(() => {
-      requestAnimationFrame(init);
     });
     return () => {
-      mounted = false;
       cancelAnimationFrame(rafId);
-      if (revealTimeoutId != null) clearTimeout(revealTimeoutId);
       if (map) {
         map.remove();
         map = null;
@@ -607,7 +606,7 @@ const App: React.FC = () => {
       leafletMapRef.current = null;
       setIsLeafletReady(false);
     };
-  }, []);
+  }, [mapRevealed]);
 
   // Google script: Street View only (no Map, no Places, no Geometry, no Elevation)
   useEffect(() => {
