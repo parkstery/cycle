@@ -10,7 +10,7 @@ import * as nominatim from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
-
+// 자동배포문제..
 // 거리뷰 버튼 아이콘 (옵션: streetview-icon-option-a.png | b | c)
 const STREETVIEW_ICON = '/streetview/streetview-icon-option-c.png';
 
