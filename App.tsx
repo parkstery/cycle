@@ -276,8 +276,8 @@ const App: React.FC = () => {
       },
       {
         id: "def-egypt",
-        origin: "X4C9+XVP, Al Haram, Giza Governorate 3512201 이집트",
-        destination: "22 Abou Al Hool Al Seiahi, Nazlet El-Semman, Al Haram, Giza Governorate 3512201 이집트",
+        origin: "X4FC+7H Al Haram, 이집트",
+        destination: "X4HM+V4 Al Haram, 이집트",
         waypoints: [],
         timestamp: Date.now()
       }
