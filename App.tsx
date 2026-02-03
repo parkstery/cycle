@@ -674,10 +674,19 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [mapRevealed]);
 
+  // 주행(Street View) 켜질 때 맵 영역이 50%로 리사이즈되므로, 전환 끝난 뒤 크기 재계산
   useEffect(() => {
     if (!leafletMapRef.current) return;
-    const t = window.setTimeout(() => leafletMapRef.current?.invalidateSize(), 400);
-    return () => clearTimeout(t);
+    const t1 = window.setTimeout(() => leafletMapRef.current?.invalidateSize(), 550);
+    const t2 = window.setTimeout(() => {
+      const m = leafletMapRef.current;
+      if (m) {
+        m.invalidateSize();
+        const c = m.getCenter();
+        m.setView([c.lat, c.lng], m.getZoom());
+      }
+    }, 900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvActive]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
@@ -1534,7 +1543,11 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} />
+      <div
+        ref={mapRef}
+        className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        onTransitionEnd={() => { leafletMapRef.current?.invalidateSize(); }}
+      />
       {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
