@@ -1634,9 +1634,10 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      {/* LCP용: 지도 로드 전 보이는 껍데기 — 성능 점수 개선 */}
+      {/* LCP용: 지도 로드 전 보이는 껍데기 — fetchpriority=high로 LCP를 우리 이미지로 고정 */}
       {!isMapsApiLoaded && (
-        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
+        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-4 bg-slate-900" aria-hidden="true">
+          <img src="/icon-512.png" alt="" width="128" height="128" fetchPriority="high" className="w-32 h-32 object-contain opacity-90" />
           <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
         </div>
       )}
