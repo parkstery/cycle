@@ -9,7 +9,7 @@ import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideE
 declare var google: any;
 
 // 거리뷰 버튼 아이콘 (옵션: streetview-icon-option-a.png | b | c)
-const STREETVIEW_ICON = '/streetview/streetview-icon-option-a.png';
+const STREETVIEW_ICON = '/streetview/streetview-icon-option-c.png';
 
 const PLAYLIST = [  
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
