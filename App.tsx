@@ -567,8 +567,10 @@ const App: React.FC = () => {
       if (!mounted || !mapRef.current || leafletMapRef.current) return;
       try {
         map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+          minZoom: 2,
         }).addTo(map);
         leafletMapRef.current = map;
         map.on('click', (e: L.LeafletMouseEvent) => {
@@ -655,6 +657,29 @@ const App: React.FC = () => {
       if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
   }, [isSvFullScreen]);
+
+  // 맵이 보이기 시작할 때·영역 크기 변경 시 타일 재계산 (검은 화면 방지)
+  useEffect(() => {
+    if (!mapRevealed || !leafletMapRef.current) return;
+    const t1 = window.setTimeout(() => {
+      const m = leafletMapRef.current;
+      if (m) {
+        m.invalidateSize();
+        const c = m.getCenter();
+        m.setView([c.lat, c.lng], m.getZoom());
+      }
+    }, 150);
+    const t2 = window.setTimeout(() => {
+      leafletMapRef.current?.invalidateSize();
+    }, 500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [mapRevealed]);
+
+  useEffect(() => {
+    if (!leafletMapRef.current) return;
+    const t = window.setTimeout(() => leafletMapRef.current?.invalidateSize(), 400);
+    return () => clearTimeout(t);
+  }, [isSvActive]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
