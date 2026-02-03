@@ -581,7 +581,7 @@ const App: React.FC = () => {
     }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => setIsMapsApiLoaded(true);

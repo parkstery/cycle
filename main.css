@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global layout (no Tailwind classes on #root in HTML) */
+body,
+html,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Hide specific Google Maps UI elements for a cleaner look */
+.gm-svpc {
+  display: none !important;
+}
