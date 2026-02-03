@@ -567,9 +567,9 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
-  // Dynamic Script Loading
+  // Dynamic Script Loading — loading=async 시 API 준비는 callback으로만 알 수 있음 (onload는 너무 이르다)
   useEffect(() => {
-    if ((window as any).google && (window as any).google.maps) {
+    if ((window as any).google?.maps?.Map) {
       setIsMapsApiLoaded(true);
       return;
     }
@@ -580,11 +580,19 @@ const App: React.FC = () => {
       return;
     }
 
+    const callbackName = '__cycleMapsApiReady';
+    (window as any)[callbackName] = () => {
+      (window as any)[callbackName] = null;
+      setIsMapsApiLoaded(true);
+    };
+
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async&callback=${callbackName}`;
     script.async = true;
     script.defer = true;
-    script.onload = () => setIsMapsApiLoaded(true);
+    script.onerror = () => {
+      (window as any)[callbackName] = null;
+    };
     document.head.appendChild(script);
   }, []);
 
