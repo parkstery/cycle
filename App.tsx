@@ -229,6 +229,8 @@ const App: React.FC = () => {
   
   // Script Loading State
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+  /** 지도 생성 후 2초간 숨겨 LCP를 껍데기 텍스트로 고정 */
+  const [mapRevealed, setMapRevealed] = useState(false);
 
   // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
@@ -708,6 +710,9 @@ const App: React.FC = () => {
                  });
              }
         });
+
+        const t = window.setTimeout(() => setMapRevealed(true), 2000);
+        return () => clearTimeout(t);
     }
   }, [isMapsApiLoaded]);
 
@@ -1634,10 +1639,9 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      {/* LCP용: 지도 로드 전 보이는 껍데기 — fetchpriority=high로 LCP를 우리 이미지로 고정 */}
+      {/* LCP용: 지도 로드 전 껍데기 — 대용량 아이콘 없이 텍스트만 (icon-512는 2048px로 4.5MB 유발) */}
       {!isMapsApiLoaded && (
-        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-4 bg-slate-900" aria-hidden="true">
-          <img src="/icon-512.png" alt="" width="128" height="128" fetchPriority="high" className="w-32 h-32 object-contain opacity-90" />
+        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
           <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
         </div>
       )}
@@ -1680,7 +1684,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")}`} />
+      <div ref={mapRef} className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-10" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} />
       {simulation.isActive && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
