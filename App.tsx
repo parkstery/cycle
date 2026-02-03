@@ -262,13 +262,9 @@ const App: React.FC = () => {
       },
       {
         id: "def-florence",
-        origin: "Piazza Piave, 1, 50122 Firenze FI, 이탈리아",
-        destination: "Piazza di San Giovanni, 30r, 50124 Firenze FI, 이탈리아",
-        waypoints: [
-          { name: "Piazza di Santa Croce, 7 R, 50122 Firenze FI, 이탈리아", lat: 0, lng: 0 },
-          { name: "Piazzale degli Uffizi, 418, 50122 Firenze FI, 이탈리아", lat: 0, lng: 0 },
-          { name: "단테의 집 박물관", lat: 0, lng: 0 }
-        ],
+        origin: "Borgo S. Lorenzo, 5 R, 50123 Firenze FI, 이탈리아",
+        destination: "Piazza di Santa Croce, 21, 50122 Firenze FI, 이탈리아",
+        waypoints: [],
         timestamp: Date.now()
       },
       {
