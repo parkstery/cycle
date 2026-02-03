@@ -4,29 +4,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Fitness Pro Mobile GIS</title>
-  
+  <title>Cycle Simulator</title>
+  <link rel="icon" href="/icon-512.png" type="image/png">
   <!-- PWA Configuration -->
-  <link rel="manifest" href="/assets/manifest-BmGoQN9X.json">
+  <link rel="manifest" href="/assets/manifest-vVEg05w5.json">
   <meta name="theme-color" content="#0f172a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- 성능: Maps/폰트 도메인 미리 연결 -->
+  <link rel="preconnect" href="https://maps.googleapis.com">
+  <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body, html, #root {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-    /* Hide specific Google Maps UI elements for a cleaner look while keeping essentials */
-    .gm-svpc {
-      display: none !important;
-    }
-  </style>
-
-<link rel="stylesheet" href="/index.css">
 <script type="importmap">
 {
   "imports": {
@@ -40,7 +29,8 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-DgzScdil.js"></script>
+  <script type="module" crossorigin src="/assets/index-CeXGR193.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-m1em6obR.css">
 </head>
 <body>
   <div id="root"></div>

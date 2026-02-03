@@ -3,8 +3,7 @@ import {
   getTipIndicesByResistance,
   getCoachingPhrases,
 } from "./phraseManifest";
-
-declare var google: any;
+import { computeDistanceBetween } from "./geoUtils";
 
 /** 저항 밴드(1~8) → intensity, action. 경사도 세분화에 맞춤 */
 function resistanceToIntensityAction(targetRes: number): {
@@ -30,16 +29,11 @@ export const getAdvancedCoaching = async (
   // 1. Calculate accurate slope
   let slope = 0;
   if (upcomingPoints.length > 1) {
-    if (typeof google !== "undefined" && google.maps && google.maps.geometry) {
-      const start = upcomingPoints[0];
-      const end = upcomingPoints[upcomingPoints.length - 1];
-      const distance = google.maps.geometry.spherical.computeDistanceBetween(
-        start.location,
-        end.location
-      );
-      const rise = end.elevation - start.elevation;
-      if (distance > 0) slope = (rise / distance) * 100;
-    }
+    const start = upcomingPoints[0];
+    const end = upcomingPoints[upcomingPoints.length - 1];
+    const distance = computeDistanceBetween(start.location, end.location);
+    const rise = end.elevation - start.elevation;
+    if (distance > 0) slope = (rise / distance) * 100;
   }
 
   // 2. Resistance based on slope (기존 고정 로직 유지)

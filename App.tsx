@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
 import * as openElevation from './services/openElevation';
-// It's me EG
-// Declare google global
+import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 
 // 거리뷰 버튼 아이콘 (옵션: streetview-icon-option-a.png | b | c)
@@ -99,13 +100,13 @@ const findStreetViewInDirection = (
         preference: google.maps.StreetViewPreference.NEAREST
     }).then(({ data, usedFallback }) => {
         if (!data?.location?.pano) return null;
-        const driveHeading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
+        const driveHeading = computeHeading(pathPoint, pathNext);
         const panoLatLng = data.location.latLng;
-        const bearingToPano = google.maps.geometry.spherical.computeHeading(pathPoint, panoLatLng);
+        const bearingToPano = computeHeading(pathPoint, panoLatLng);
         const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
         if (angleDiff > maxAngleDeg) return null;
         const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-        const heading = google.maps.geometry.spherical.computeHeading(pathPoint, path[nextIdx]);
+        const heading = computeHeading(pathPoint, path[nextIdx]);
         return {
             pathIndex,
             panoId: data.location.pano,
@@ -143,22 +144,15 @@ const App: React.FC = () => {
   const activePanoRef = useRef<number>(0); // 0 or 1
   const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0); // Controls Z-Index
 
-  const googleMap = useRef<any>(null);
-  const directionsRenderer = useRef<any>(null);
-  const simulationMarker = useRef<any>(null);
-  const startMarker = useRef<any>(null);
-  const endMarker = useRef<any>(null);
-  const waypointMarkers = useRef<any[]>([]);
-  const tempMarker = useRef<any>(null);
-  const searchMarkerRef = useRef<any>(null); // 검색 결과 지도 마커
-  
-  // We keep a general reference to the *currently active* panorama for non-swapping logic if needed,
-  // but mostly we use panorama1/panorama2 directly.
-  const geocoder = useRef<any>(null);
-  const placesService = useRef<any>(null);
-  const elevationService = useRef<any>(null);
-  const polylineOverlay = useRef<any>(null);
-  const coverageLayer = useRef<any>(null);
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletPolylineRef = useRef<L.Polyline | null>(null);
+  const leafletMarkersRef = useRef<L.Layer[]>([]);
+  const simulationMarker = useRef<L.Marker | null>(null);
+  const startMarker = useRef<L.Marker | null>(null);
+  const endMarker = useRef<L.Marker | null>(null);
+  const waypointMarkers = useRef<L.Marker[]>([]);
+  const tempMarker = useRef<L.Marker | null>(null);
+  const searchMarkerRef = useRef<L.Marker | null>(null);
   const svServiceRef = useRef<any>(null); 
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
@@ -223,9 +217,8 @@ const App: React.FC = () => {
   const [waypoints, setWaypoints] = useState<{name: string, location: any}[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Script Loading State
+  const [isLeafletReady, setIsLeafletReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
-  /** 지도 생성 후 2초간 숨겨 LCP를 껍데기 텍스트로 고정 */
   const [mapRevealed, setMapRevealed] = useState(false);
 
   // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
@@ -442,7 +435,7 @@ const App: React.FC = () => {
               pendingSwapTimeoutRef.current = null;
               activePanoRef.current = nextIdx;
               setVisiblePanoIdx(nextIdx);
-              if (googleMap.current) googleMap.current.setStreetView(nextPano);
+              // Leaflet map: no setStreetView
           };
 
           nextPano.setOptions({
@@ -480,7 +473,7 @@ const App: React.FC = () => {
       pendingSwapTimeoutRef.current = null;
       activePanoRef.current = nextIdx;
       setVisiblePanoIdx(nextIdx);
-      if (googleMap.current) googleMap.current.setStreetView(nextPano);
+      // Leaflet map: no setStreetView
     };
 
     // 같은 파노라마·동일(또는 거의 동일) heading이면 스왑하지 않음 → 같은 이미지 두 번 보이는 부작용 방지
@@ -503,7 +496,7 @@ const App: React.FC = () => {
     if (!svServiceRef.current || !path.length) return [];
     const cumDist: number[] = [0];
     for (let i = 1; i < path.length; i++) {
-      cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
+      cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
     const intervalM = options?.intervalM ?? 10;
@@ -538,7 +531,7 @@ const App: React.FC = () => {
       if (!item) {
         const fallback = await findStreetView(svServiceRef.current, pathPoint, 30);
         if (fallback?.data?.location?.pano) {
-          const heading = google.maps.geometry.spherical.computeHeading(pathPoint, pathNext);
+          const heading = computeHeading(pathPoint, pathNext);
           item = {
             pathIndex,
             panoId: fallback.data.location.pano,
@@ -565,173 +558,68 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
-  // Dynamic Script Loading — 첫 페인트 후 지도 스크립트 로드해 LCP를 앱 껍데기로 유지
+  // Leaflet map init (OSM tiles) — no Google Map
   useEffect(() => {
-    if ((window as any).google?.maps?.Map) {
+    if (!mapRef.current || leafletMapRef.current) return;
+    const map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    leafletMapRef.current = map;
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      nominatim.reverse(lat, lng)
+        .then((res) => {
+          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
+          setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
+        })
+        .catch(() => {
+          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
+          setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
+        });
+    });
+    setIsLeafletReady(true);
+    const t = window.setTimeout(() => setMapRevealed(true), 2000);
+    return () => { clearTimeout(t); map.remove(); leafletMapRef.current = null; };
+  }, []);
+
+  // Google script: Street View only (no Map, no Places, no Geometry, no Elevation)
+  useEffect(() => {
+    if ((window as any).google?.maps?.StreetViewPanorama) {
       setIsMapsApiLoaded(true);
       return;
     }
-
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.error("GOOGLE_MAPS_API_KEY is missing via process.env");
-      return;
-    }
-
-    const loadMaps = () => {
-      const callbackName = '__cycleMapsApiReady';
-      (window as any)[callbackName] = () => {
-        (window as any)[callbackName] = null;
-        setIsMapsApiLoaded(true);
-      };
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,elevation&loading=async&callback=${callbackName}`;
-      script.async = true;
-      script.defer = true;
-      script.onerror = () => {
-        (window as any)[callbackName] = null;
-      };
-      document.head.appendChild(script);
+    if (!apiKey) return;
+    const callbackName = '__cycleSvApiReady';
+    (window as any)[callbackName] = () => {
+      (window as any)[callbackName] = null;
+      setIsMapsApiLoaded(true);
     };
-
-    const afterFirstPaint = typeof requestIdleCallback !== 'undefined'
-      ? (cb: () => void) => requestIdleCallback(cb, { timeout: 500 })
-      : (cb: () => void) => setTimeout(cb, 100);
-    afterFirstPaint(loadMaps);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&callback=${callbackName}`;
+    script.async = true;
+    document.head.appendChild(script);
   }, []);
 
-  // Map Initialization
+  // Street View init (Panorama + Service) when Google loaded and SV divs exist
   useEffect(() => {
-    if (isMapsApiLoaded && mapRef.current && !googleMap.current) {
-        googleMap.current = new google.maps.Map(mapRef.current, {
-            center: { lat: 37.5512, lng: 126.9882 }, // 남산타워(엔서울타워)
-            zoom: 14,
-            mapTypeControl: false, // Disabled default map type control
-            streetViewControl: false,
-            fullscreenControl: false,
-            zoomControl: false,
-            rotateControl: false, // Disabled rotation/compass control
-            scaleControl: true,
-            scaleControlOptions: {
-              position: google.maps.ControlPosition?.BOTTOM_LEFT ?? 7
-            },
-            cameraControl: false, // Disabled the new Camera Control (Tilt/Rotate UI)
-            clickableIcons: false, // Hide the "Camera/Move" (Map Toolbar) in bottom right
-            styles: [
-                { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
-            ]
-        });
-
-        directionsRenderer.current = new google.maps.DirectionsRenderer({
-            map: googleMap.current,
-            suppressMarkers: true,
-            preserveViewport: true,
-            polylineOptions: { 
-                strokeColor: '#3b82f6', 
-                strokeOpacity: 0.6, 
-                strokeWeight: 5,
-                clickable: false // Ensure clicks pass through the route line to the map
-            }
-        });
-
-        geocoder.current = new google.maps.Geocoder();
-        placesService.current = new google.maps.places.PlacesService(googleMap.current);
-        elevationService.current = new google.maps.ElevationService();
-        
-        // Restore Coverage Layer
-        coverageLayer.current = new google.maps.StreetViewCoverageLayer();
-
-        // --- DOUBLE BUFFERING INITIALIZATION ---
-        const svOptions = {
-             visible: true, // Always visible internally, controlled by container
-             enableCloseButton: false,
-             disableDefaultUI: true,
-             clickToGo: false,
-             motionTracking: true, 
-             motionTrackingControl: true
-        };
-
-        panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
-        panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
-        
-        // Initialize with Pano 1 active
-        googleMap.current.setStreetView(panorama1.current);
-        // ---------------------------------------
-
-        svServiceRef.current = new google.maps.StreetViewService();
-
-        // Listeners for Status (Attached to Pano 1 for general status tracking, 
-        // effectively we might need to track both but usually error status matters most)
-        const handleStatus = () => {
-             // We can check status of the active one
-             const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-             if (currentPano) {
-                const status = currentPano.getStatus();
-                setSvStatus(status);
-                if (status === 'OK') setShowSvWarning(false);
-             }
-        };
-
-        panorama1.current.addListener('status_changed', handleStatus);
-        panorama2.current.addListener('status_changed', handleStatus);
-
-        googleMap.current.addListener("click", (e: any) => {
-             e.stop();
-             if (e.placeId) {
-                 placesService.current.getDetails({ placeId: e.placeId }, (place: any, status: any) => {
-                     if (status === 'OK') {
-                         setClickedLocation({
-                             lat: place.geometry.location.lat(),
-                             lng: place.geometry.location.lng(),
-                             name: place.name,
-                             address: place.formatted_address,
-                             elevation: null,
-                             location: place.geometry.location
-                         });
-                     }
-                 });
-             } else {
-                 const lat = e.latLng.lat();
-                 const lng = e.latLng.lng();
-                 nominatim.reverse(lat, lng)
-                   .then((res) => {
-                     setClickedLocation({
-                       lat,
-                       lng,
-                       name: res.formatted_address,
-                       address: res.formatted_address,
-                       elevation: null,
-                       location: e.latLng
-                     });
-                   })
-                   .catch(() => {
-                     geocoder.current.geocode({ location: e.latLng }, (results: any, status: any) => {
-                       if (status === 'OK' && results[0]) {
-                         setClickedLocation({
-                           lat: e.latLng.lat(),
-                           lng: e.latLng.lng(),
-                           name: results[0].formatted_address,
-                           address: results[0].formatted_address,
-                           elevation: null,
-                           location: e.latLng
-                         });
-                       }
-                     });
-                   });
-             }
-        });
-
-        const t = window.setTimeout(() => setMapRevealed(true), 2000);
-        return () => clearTimeout(t);
-    }
+    if (!isMapsApiLoaded || !svRef1.current || !svRef2.current || panorama1.current) return;
+    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: true, motionTrackingControl: true };
+    panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
+    panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
+    svServiceRef.current = new google.maps.StreetViewService();
+    const handleStatus = () => {
+      const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+      if (currentPano) {
+        setSvStatus(currentPano.getStatus());
+        if (currentPano.getStatus() === 'OK') setShowSvWarning(false);
+      }
+    };
+    panorama1.current.addListener('status_changed', handleStatus);
+    panorama2.current.addListener('status_changed', handleStatus);
   }, [isMapsApiLoaded]);
-
-  // Restore Coverage Layer Effect
-  useEffect(() => {
-    if (googleMap.current && coverageLayer.current) {
-      coverageLayer.current.setMap(showCoverage ? googleMap.current : null);
-    }
-  }, [showCoverage]);
 
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
@@ -739,8 +627,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setTimeout(() => {
-      if (googleMap.current) google.maps.event.trigger(googleMap.current, 'resize');
-      // Trigger resize on both panoramas
+      if (leafletMapRef.current) leafletMapRef.current.invalidateSize();
       if (panorama1.current) google.maps.event.trigger(panorama1.current, 'resize');
       if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
@@ -766,7 +653,7 @@ const App: React.FC = () => {
     let timer: number;
     if (simulation.isActive && route) {
       setAppPhase('RUNNING');
-      if (tempMarker.current) { tempMarker.current.setMap(null); }
+      if (tempMarker.current) { leafletMapRef.current?.removeLayer(tempMarker.current); tempMarker.current = null; }
       const currentIdx = simulation.currentIndex;
       if (currentIdx >= route.path.length - 1) {
           setSimulation(prev => ({ ...prev, isActive: false }));
@@ -777,21 +664,20 @@ const App: React.FC = () => {
       const currentPos = route.path[currentIdx];
       
       // Update Simulation Marker
+      const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+      const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
       if (!simulationMarker.current) {
-          simulationMarker.current = new google.maps.Marker({ 
-              position: currentPos, 
-              map: googleMap.current, 
-              icon: { 
-                  path: "M15.5,5.5c1.1,0,2-0.9,2-2s-0.9-2-2-2s-2,0.9-2,2S14.4,5.5,15.5,5.5z M5,12c-2.8,0-5,2.2-5,5s2.2,5,5,5 s5-2.2,5-5S7.8,12,5,12z M5,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S6.7,20,5,20z M19,12c-2.8,0-5,2.2-5,5s2.2,5,5,5s5-2.2,5-5 S21.8,12,19,12z M19,20c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S20.7,20,19,20z M13,7h-2.8l-3.7,6.6C6.3,13.8,6.1,14,5.9,14.1 c-0.1,0-0.3,0-0.4,0l-1-0.2c-0.6-0.2-1.1,0.2-1.3,0.7c-0.2,0.6,0.2,1.1,0.7,1.3l1,0.2c0.7,0.1,1.4-0.1,1.9-0.6l3.3-6l2.1,0l2.3,4.4 c0.3,0.5,0.8,0.8,1.4,0.8h3.3c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2.9L13,7z", 
-                  scale: 1.5, fillColor: '#3b82f6', fillOpacity: 1, strokeWeight: 1, strokeColor: '#ffffff', anchor: new google.maps.Point(12, 12)
-              } 
+          const icon = L.divIcon({
+            className: 'sim-marker',
+            html: '<div style="width:24px;height:24px;border-radius:50%;background:#3b82f6;border:2px solid #fff;"></div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
           });
+          simulationMarker.current = L.marker([lat, lng], { icon }).addTo(leafletMapRef.current!);
       }
       const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
       const targetPosForHeading = route.path[lookAheadIdx];
-      const heading = google.maps.geometry.spherical.computeHeading(currentPos, targetPosForHeading);
-      simulationMarker.current.setPosition(currentPos);
-      simulationMarker.current.setOptions({ rotation: heading });
+      simulationMarker.current.setLatLng([lat, lng]);
 
       // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한. 80 km/h 초과 시 20m 간격 점프로 전환 횟수 감소
       const METERS_PER_PATH_POINT = 2;
@@ -837,7 +723,7 @@ const App: React.FC = () => {
             const path = route.path;
             const cumDist: number[] = [0];
             for (let i = 1; i < path.length; i++) {
-              cumDist[i] = cumDist[i - 1] + google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i]);
+              cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
             }
             const totalM = cumDist[path.length - 1];
             const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
@@ -859,7 +745,7 @@ const App: React.FC = () => {
           const svDisplayPos = route.path[Math.min(svDisplayIdxForPano, route.path.length - 1)];
           const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
           const currentPanoLoc = activePano?.getLocation()?.latLng;
-          const distFromLastPano = currentPanoLoc ? google.maps.geometry.spherical.computeDistanceBetween(svDisplayPos, currentPanoLoc) : Infinity;
+          const distFromLastPano = currentPanoLoc ? computeDistanceBetween(svDisplayPos, currentPanoLoc) : Infinity;
           if (distFromLastPano > 15 || !currentPanoLoc) {
             isSvSearching.current = true;
             (async () => {
@@ -880,7 +766,7 @@ const App: React.FC = () => {
                 const fallback = await findStreetView(svServiceRef.current, svDisplayPos, 100);
                 if (fallback?.data?.location?.pano) {
                   const nextIdx = Math.min(svDisplayIdxForPano + 1, route.path.length - 1);
-                  const finalHeading = google.maps.geometry.spherical.computeHeading(svDisplayPos, route.path[nextIdx]);
+                  const finalHeading = computeHeading(svDisplayPos, route.path[nextIdx]);
                   setIsUserPano(fallback.usedFallback);
                   lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, svDisplayIdxForPano);
                   setPanoramaView(fallback.data.location.latLng, finalHeading);
@@ -896,11 +782,11 @@ const App: React.FC = () => {
             })();
           }
         }
-        if (isSvFullScreen && googleMap.current) {
+        if (isSvFullScreen && leafletMapRef.current) {
           const now = Date.now();
           if (now - lastPanToTime.current > 1000) {
             lastPanToTime.current = now;
-            googleMap.current.panTo(currentPos);
+            leafletMapRef.current.panTo([typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat, typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng]);
           }
         }
       }
@@ -945,7 +831,7 @@ const App: React.FC = () => {
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];
       if (nextPos) {
-          const distMeters = google.maps.geometry.spherical.computeDistanceBetween(currentPos, nextPos);
+          const distMeters = computeDistanceBetween(currentPos, nextPos);
           const speedMetersPerSec = (speedKmH * 1000) / 3600;
           if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
       }
@@ -1039,33 +925,31 @@ const App: React.FC = () => {
     window.speechSynthesis.speak(utterance);
   };
 
-  const createCustomMarker = (latLng: any, label: string, color: string) => {
-    return new google.maps.Marker({
-      position: latLng,
-      map: googleMap.current,
-      label: { text: label, color: 'white', fontWeight: 'bold', fontSize: '14px' },
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 14,
-        fillColor: color,
-        fillOpacity: 1,
-        strokeWeight: 2,
-        strokeColor: '#ffffff'
-      }
+  const createCustomMarker = (latLng: any, label: string, color: string): L.Marker => {
+    const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
+    const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:${color};color:white;font-weight:bold;font-size:14px;border:2px solid #fff;">${label}</span>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
+    const marker = L.marker([lat, lng], { icon }).addTo(leafletMapRef.current!);
+    leafletMarkersRef.current.push(marker);
+    return marker;
   };
 
   const clearMapOverlays = () => {
     setAppPhase('IDLE');
     setPreparingProgress(null);
-    if (directionsRenderer.current) directionsRenderer.current.setDirections({ routes: [] });
-    if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
-    if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
-    if (startMarker.current) { startMarker.current.setMap(null); startMarker.current = null; }
-    if (endMarker.current) { endMarker.current.setMap(null); endMarker.current = null; }
-    if (searchMarkerRef.current) { searchMarkerRef.current.setMap(null); searchMarkerRef.current = null; }
-    waypointMarkers.current.forEach(m => m.setMap(null));
+    if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
+    leafletMarkersRef.current.forEach(m => { leafletMapRef.current?.removeLayer(m); });
+    leafletMarkersRef.current = [];
+    if (simulationMarker.current) { leafletMapRef.current?.removeLayer(simulationMarker.current); simulationMarker.current = null; }
+    startMarker.current = null;
+    endMarker.current = null;
     waypointMarkers.current = [];
+    if (searchMarkerRef.current) { leafletMapRef.current?.removeLayer(searchMarkerRef.current); searchMarkerRef.current = null; }
     setRoute(null);
     lastRouteRequestRef.current = null;
     setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
@@ -1097,7 +981,7 @@ const App: React.FC = () => {
       
       const startPos = route.path[0];
       const nextPos = route.path.length > 1 ? route.path[1] : startPos;
-      const heading = google.maps.geometry.spherical.computeHeading(startPos, nextPos);
+      const heading = computeHeading(startPos, nextPos);
       
       // Update view (Hybrid)
       setPanoramaView(startPos, heading);
@@ -1133,7 +1017,7 @@ const App: React.FC = () => {
             // Restore heading/position
             if (route && route.path[prev.currentIndex]) {
                  const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
-                 const heading = google.maps.geometry.spherical.computeHeading(
+                 const heading = computeHeading(
                      route.path[prev.currentIndex], 
                      route.path[nextIdx]
                  );
@@ -1181,9 +1065,8 @@ const App: React.FC = () => {
     setElapsedTime(0);
     setCoveredDistance(0);
     lastCoachedIndex.current = -1;
-    if (polylineOverlay.current) { polylineOverlay.current.setMap(null); polylineOverlay.current = null; }
-    const ds = new google.maps.DirectionsService();
-    const es = new google.maps.ElevationService();
+    if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
+    // OSRM only (no Google Directions). Geocoding: Nominatim only.
     
     // PRIORITIZE COORDINATE REFS if they are set (and assume they match the current text intent)
     // If calculating from handleSetStart, originLocationRef was just set.
@@ -1192,132 +1075,42 @@ const App: React.FC = () => {
     const useDest = destLocationRef.current || finalDestination;
 
     try {
-      let path: any[] = [];
-      let distText = '', durText = '';
-      try {
-        const result = await new Promise<any>((resolve, reject) => {
-          ds.route({ 
-            origin: useOrigin, 
-            destination: useDest, 
-            waypoints: activeWaypoints.map(wp => ({ location: wp.location, stopover: true })),
-            optimizeWaypoints: true,
-            travelMode: google.maps.TravelMode[activeMode] 
-          }, (result: any, status: any) => {
-            // Handle Directions API response status
-            if (status === 'OK' && result) {
-              resolve(result);
-            } else {
-              // ZERO_RESULTS is not an error - it means no route found, will fallback to OSRM
-              if (status === 'ZERO_RESULTS') {
-                console.info('[DIRECTIONS_API_ZERO_RESULTS]', {
-                  timestamp: new Date().toISOString(),
-                  status: status,
-                  origin: finalOrigin.substring(0, 50),
-                  destination: finalDestination.substring(0, 50),
-                  message: 'No route found in Google Directions API. Falling back to OSRM...'
-                });
-              } else {
-                // Log actual errors (403, etc.)
-                console.error('[DIRECTIONS_API_STATUS_ERROR]', {
-                  timestamp: new Date().toISOString(),
-                  status: status,
-                  origin: finalOrigin.substring(0, 50),
-                  destination: finalDestination.substring(0, 50),
-                  message: status === 'REQUEST_DENIED' 
-                    ? '403 Forbidden - Check API key permissions and restrictions'
-                    : `Directions API returned status: ${status}`
-                });
-              }
-              reject(new Error(`Directions API error: ${status}`));
-            }
-          });
-        });
-        if (result.routes && result.routes[0]) {
-          directionsRenderer.current?.setDirections(result);
+    const getCoord = async (val: any, addr: string) => {
+      if (val && typeof val.lat === 'function') return val;
+      if (val && val.lat != null && val.lng != null) return new google.maps.LatLng(val.lat, val.lng);
+      const res = await nominatim.search(addr);
+      return new google.maps.LatLng(res.lat, res.lng);
+    };
 
-          // Fix: Explicitly fit bounds for Google Routes so the camera moves to the route
-          if (result.routes[0].bounds) {
-             googleMap.current.fitBounds(result.routes[0].bounds);
-          }
-
-          path = result.routes[0].overview_path;
-          let totalMeters = 0;
-          result.routes[0].legs.forEach((leg: any) => { totalMeters += leg.distance.value; });
-          distText = totalMeters >= 1000 ? `${(totalMeters/1000).toFixed(1)} km` : `${totalMeters} m`;
-          let totalSecs = 0;
-          result.routes[0].legs.forEach((leg: any) => { totalSecs += leg.duration.value; });
-          durText = formatDurationSimple(totalSecs);
-          setRouteSource('GOOGLE');
-        }
-      } catch (e) {
-        // Log Directions API error for debugging
-        const errorMessage = e instanceof Error ? e.message : String(e);
-        const isZeroResults = errorMessage.includes('ZERO_RESULTS');
-        
-        if (isZeroResults) {
-          // ZERO_RESULTS is expected - will use OSRM fallback
-          console.info('[DIRECTIONS_API_FALLBACK]', {
-            timestamp: new Date().toISOString(),
-            origin: finalOrigin.substring(0, 50),
-            destination: finalDestination.substring(0, 50),
-            message: 'Google Directions API found no route. Using OSRM fallback...',
-            fallingBackToOSRM: true
-          });
-        } else {
-          // Actual error (403, network error, etc.)
-          console.error('[DIRECTIONS_API_ERROR]', {
-            timestamp: new Date().toISOString(),
-            origin: finalOrigin.substring(0, 50),
-            destination: finalDestination.substring(0, 50),
-            error: errorMessage,
-            fallingBackToOSRM: true
-          });
-        }
-        
-        // Safe geocoding helper: reuse LatLng if available; else Nominatim (fallback Google Geocoder)
-        const getCoord = async (val: any, addr: string) => {
-            if (val && typeof val.lat === 'function') return val; // It's a Google LatLng object
-            if (val && val.lat && val.lng) return new google.maps.LatLng(val.lat, val.lng); // It's a plain coord object
-
-            try {
-                const res = await nominatim.search(addr);
-                return new google.maps.LatLng(res.lat, res.lng);
-            } catch {
-                return new Promise<any>((resolve, reject) => {
-                    geocoder.current.geocode({ address: addr }, (results: any, status: any) => {
-                        if (status === 'OK' && results && results[0]) {
-                            resolve(results[0].geometry.location);
-                        } else {
-                            reject(status);
-                        }
-                    });
-                });
-            }
-        }
-
-        const originLatLng = await getCoord(useOrigin, finalOrigin);
-        const destLatLng = await getCoord(useDest, finalDestination);
-        
-        // Resolve Waypoints (they store location objects already)
-        // const wpLatLngs = await Promise.all(activeWaypoints.map(wp => geocodePromise(wp.name).catch(() => null))); 
-        // Logic changed: waypoints are already objects with location. We can just use them.
-        const wpLatLngs = activeWaypoints.map(wp => wp.location); 
-
-        const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-        
-        const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
-        const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.code === 'Ok') {
-          path = google.maps.geometry.encoding.decodePath(data.routes[0].geometry);
-          distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
-          durText = formatDurationSimple(data.routes[0].duration);
-          setRouteSource('OSRM');
-          const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); googleMap.current.fitBounds(b);
+    let path: any[] = [];
+    let distText = '';
+    let durText = '';
+    try {
+      const originLatLng = await getCoord(useOrigin, finalOrigin);
+      const destLatLng = await getCoord(useDest, finalDestination);
+      const wpLatLngs = activeWaypoints.map(wp => wp.location);
+      const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+      const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.code === 'Ok') {
+        const decoded = decodePath(data.routes[0].geometry);
+        path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+        distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
+        durText = formatDurationSimple(data.routes[0].duration);
+        setRouteSource('OSRM');
+        if (leafletMapRef.current && path.length) {
+          const bounds = L.latLngBounds(path.map((p: any) => [p.lat(), p.lng()]));
+          leafletMapRef.current.fitBounds(bounds);
         }
       }
-      if (path.length > 0) {
+    } catch (e) {
+      console.error('[OSRM_ERROR]', e);
+      setLoading(false);
+      return;
+    }
+    if (path.length > 0) {
         // Log Elevation API call for debugging
         const elevationCallTime = new Date().toISOString();
         const elevationCallInfo = {
@@ -1341,7 +1134,8 @@ const App: React.FC = () => {
             }))
           };
         } catch {
-          elevationRes = await es.getElevationAlongPath({ path, samples: 100 });
+          setLoading(false);
+          return;
         }
 
         // Calculate physiological duration based on slope and user speed
@@ -1350,7 +1144,7 @@ const App: React.FC = () => {
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
             const p2 = points[i + 1];
-            const dist = google.maps.geometry.spherical.computeDistanceBetween(p1.location, p2.location);
+            const dist = computeDistanceBetween(p1.location, p2.location);
             
             if (dist > 0) {
                 const elevationChange = p2.elevation - p1.elevation;
@@ -1380,30 +1174,31 @@ const App: React.FC = () => {
              const p1 = path[i];
              const p2 = path[i + 1];
              densifiedPath.push(p1);
-             const dist = google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+             const dist = computeDistanceBetween(p1, p2);
              if (dist > segmentLength) {
                  const stepCount = Math.floor(dist / segmentLength);
-                 const heading = google.maps.geometry.spherical.computeHeading(p1, p2);
+                 const heading = computeHeading(p1, p2);
                  for (let j = 1; j <= stepCount; j++) {
-                     const nextPt = google.maps.geometry.spherical.computeOffset(p1, j * segmentLength, heading);
-                     densifiedPath.push(nextPt);
+                     const nextPt = computeOffset(p1, j * segmentLength, heading);
+                     densifiedPath.push(new google.maps.LatLng(nextPt.lat, nextPt.lng));
                  }
              }
         }
         densifiedPath.push(path[path.length - 1]);
-        if (startMarker.current) startMarker.current.setMap(null);
-        if (endMarker.current) endMarker.current.setMap(null);
-        waypointMarkers.current.forEach(m => m.setMap(null));
+        const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
+        oldMarkers.forEach(m => leafletMapRef.current?.removeLayer(m));
+        leafletMarkersRef.current = leafletMarkersRef.current.filter(m => !oldMarkers.includes(m));
+        startMarker.current = null;
+        endMarker.current = null;
         waypointMarkers.current = [];
+        if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
         startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
         activeWaypoints.forEach((wp, idx) => {
-            const m = createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b');
-            waypointMarkers.current.push(m);
+            waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
         });
-        polylineOverlay.current = new google.maps.Polyline({ 
-            path: densifiedPath, strokeColor: '#ff3020', strokeWeight: 5, clickable: false, map: googleMap.current 
-        });
+        const latlngs = densifiedPath.map((p: any) => [p.lat(), p.lng()] as [number, number]);
+        leafletPolylineRef.current = L.polyline(latlngs, { color: '#ff3020', weight: 5 }).addTo(leafletMapRef.current!);
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
@@ -1446,7 +1241,7 @@ const App: React.FC = () => {
               if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
               else {
                 const startPos = densifiedPath[0];
-                const heading = google.maps.geometry.spherical.computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
+                const heading = computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
                 setPanoramaView(startPos, heading);
               }
             };
@@ -1496,7 +1291,7 @@ const App: React.FC = () => {
     else {
       const startPos = currentRoute.path[0];
       const heading = pathLen > 1
-        ? google.maps.geometry.spherical.computeHeading(startPos, currentRoute.path[1])
+        ? computeHeading(startPos, currentRoute.path[1])
         : 0;
       setPanoramaView(startPos, heading);
     }
@@ -1508,7 +1303,7 @@ const App: React.FC = () => {
       setOrigin(newOrigin);
       originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
       
-      if (startMarker.current) startMarker.current.setMap(null);
+      if (startMarker.current) { leafletMapRef.current?.removeLayer(startMarker.current); leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== startMarker.current); }
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
 
       setClickedLocation(null);
@@ -1521,7 +1316,7 @@ const App: React.FC = () => {
       setDestination(newDest);
       destLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
 
-      if (endMarker.current) endMarker.current.setMap(null);
+      if (endMarker.current) { leafletMapRef.current?.removeLayer(endMarker.current); leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== endMarker.current); }
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
 
       setClickedLocation(null);
@@ -1563,11 +1358,9 @@ const App: React.FC = () => {
     
     // Immediately remove marker and re-index visual markers
     if (waypointMarkers.current[idx]) {
-        waypointMarkers.current[idx].setMap(null);
+        leafletMapRef.current?.removeLayer(waypointMarkers.current[idx]);
+        leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
         waypointMarkers.current.splice(idx, 1);
-        waypointMarkers.current.forEach((m, i) => {
-            m.setLabel({ text: (i + 1).toString(), color: 'white', fontWeight: 'bold', fontSize: '14px' });
-        });
     }
 
   };
@@ -1576,7 +1369,8 @@ const App: React.FC = () => {
     setOrigin('');
     originLocationRef.current = null;
     if (startMarker.current) {
-      startMarker.current.setMap(null);
+      leafletMapRef.current?.removeLayer(startMarker.current);
+      leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== startMarker.current);
       startMarker.current = null;
     }
   };
@@ -1585,58 +1379,43 @@ const App: React.FC = () => {
     setDestination('');
     destLocationRef.current = null;
     if (endMarker.current) {
-      endMarker.current.setMap(null);
+      leafletMapRef.current?.removeLayer(endMarker.current);
+      leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== endMarker.current);
       endMarker.current = null;
     }
   };
   
-  const handlePlaceSearch = (term?: string) => {
+  const handlePlaceSearch = async (term?: string) => {
       const query = term || searchTerm;
-      if (!query) return;
-
-      if (!placesService.current && googleMap.current) {
-          placesService.current = new google.maps.places.PlacesService(googleMap.current);
-      }
-
-      if (placesService.current) {
-          placesService.current.findPlaceFromQuery({
-              query: query,
-              fields: ['name', 'geometry', 'formatted_address']
-          }, (results: any, status: any) => {
-              if (status === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
-                  const place = results[0];
-                  if (place.geometry && place.geometry.location) {
-                      googleMap.current.setCenter(place.geometry.location);
-                      googleMap.current.setZoom(16);
-                      if (searchMarkerRef.current) {
-                          searchMarkerRef.current.setMap(null);
-                          searchMarkerRef.current = null;
-                      }
-                      searchMarkerRef.current = createCustomMarker(
-                          place.geometry.location,
-                          'P',
-                          '#22c55e'
-                      );
-                      setClickedLocation({
-                          lat: place.geometry.location.lat(),
-                          lng: place.geometry.location.lng(),
-                          name: place.name,
-                          address: place.formatted_address || query,
-                          elevation: null,
-                          location: place.geometry.location
-                      });
-
-                      setRecentPlaceSearches(prev => {
-                          const filtered = prev.filter(item => item !== query);
-                          const updated = [query, ...filtered].slice(0, 5);
-                          localStorage.setItem('recent_places', JSON.stringify(updated));
-                          return updated;
-                      });
-                      setSearchTerm(query);
-                  }
-              }
+      if (!query || !leafletMapRef.current) return;
+      try {
+          const res = await nominatim.search(query);
+          const lat = res.lat;
+          const lng = res.lng;
+          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
+          leafletMapRef.current.setView([lat, lng], 16);
+          if (searchMarkerRef.current) {
+              leafletMapRef.current.removeLayer(searchMarkerRef.current);
+              leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+          }
+          searchMarkerRef.current = L.marker([lat, lng], {
+              icon: L.divIcon({
+                className: 'search-marker',
+                html: '<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#22c55e;color:white;font-weight:bold;font-size:12px;border:2px solid #fff;">P</span>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+              })
+          }).addTo(leafletMapRef.current);
+          leafletMarkersRef.current.push(searchMarkerRef.current);
+          setClickedLocation({ lat, lng, name: query, address: query, elevation: null, location });
+          setRecentPlaceSearches(prev => {
+              const filtered = prev.filter(item => item !== query);
+              const updated = [query, ...filtered].slice(0, 5);
+              localStorage.setItem('recent_places', JSON.stringify(updated));
+              return updated;
           });
-      }
+          setSearchTerm(query);
+      } catch { /* ignore */ }
   };
 
   const handlePlaceHistoryClick = (term: string) => {
@@ -1647,19 +1426,16 @@ const App: React.FC = () => {
   const handleClearSearch = () => {
       setSearchTerm('');
       setClickedLocation(null);
-      if (searchMarkerRef.current) {
-          searchMarkerRef.current.setMap(null);
+      if (searchMarkerRef.current && leafletMapRef.current) {
+          leafletMapRef.current.removeLayer(searchMarkerRef.current);
+          leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== searchMarkerRef.current);
           searchMarkerRef.current = null;
       }
   };
-  
+
   const handleToggleMapType = () => {
-    if (googleMap.current) {
-        const currentType = googleMap.current.getMapTypeId();
-        const newType = currentType === 'roadmap' ? 'hybrid' : 'roadmap';
-        googleMap.current.setMapTypeId(newType);
-        setMapType(newType);
-    }
+    setMapType(prev => prev === 'roadmap' ? 'hybrid' : 'roadmap');
+    // Optional: swap Leaflet tile layer (e.g. OSM vs satellite); keep OSM only for now
   };
 
   const isSaved = isCurrentRouteSaved();
@@ -1667,7 +1443,7 @@ const App: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
       {/* LCP용: 지도 로드 전 껍데기 — 대용량 아이콘 없이 텍스트만 (icon-512는 2048px로 4.5MB 유발) */}
-      {!isMapsApiLoaded && (
+      {!isLeafletReady && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
           <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
         </div>
