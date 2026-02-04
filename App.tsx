@@ -145,7 +145,6 @@ const App: React.FC = () => {
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
   const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
-  const googleTransitLayerRef = useRef<google.maps.TransitLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -666,22 +665,19 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Road layer: Google Maps BicyclingLayer + TransitLayer 켜기/끄기 (OSM 타일 미사용).
+  // Road layer: driving·bicycling·walking 노선 (Google BicyclingLayer만 토글. 자동차 도로는 베이스맵, 대중교통 미포함).
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
     if (showCoverage) {
       if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
       googleBicyclingLayerRef.current.setMap(map);
-      if (!googleTransitLayerRef.current) googleTransitLayerRef.current = new google.maps.TransitLayer();
-      googleTransitLayerRef.current.setMap(map);
       const t = setTimeout(() => {
         if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
       }, 100);
       return () => clearTimeout(t);
     } else {
       if (googleBicyclingLayerRef.current) googleBicyclingLayerRef.current.setMap(null);
-      if (googleTransitLayerRef.current) googleTransitLayerRef.current.setMap(null);
     }
   }, [showCoverage, isMapReady]);
 
@@ -1588,7 +1584,7 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Road layer 끄기" : "Road layer 켜기 (자전거·대중교통 노선)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Road layer 끄기" : "Road layer 켜기 (driving·bicycling·walking 노선)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} aria-label={showCoverage ? "Road layer 끄기" : "Road layer 켜기"} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
