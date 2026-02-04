@@ -585,15 +585,17 @@ const App: React.FC = () => {
         if (!e.latLng) return;
         const lat = e.latLng.lat();
         const lng = e.latLng.lng();
-        nominatim.reverse(lat, lng)
-          .then((res) => {
-            const location = new google.maps.LatLng(lat, lng);
-            setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
-          })
-          .catch(() => {
-            const location = new google.maps.LatLng(lat, lng);
-            setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
-          });
+        const location = new google.maps.LatLng(lat, lng);
+        const setWithElevation = (name: string, address: string, elev: number | null) => {
+          setClickedLocation({ lat, lng, name, address, elevation: elev, location });
+        };
+        Promise.all([
+          nominatim.reverse(lat, lng).catch(() => ({ formatted_address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` })),
+          openElevation.getElevationAlongPath([{ lat, lng }], 1).then(r => r.results[0]?.elevation ?? null).catch(() => null),
+        ]).then(([rev, elevation]) => {
+          const name = (rev as { formatted_address: string }).formatted_address;
+          setWithElevation(name, name, elevation);
+        });
       });
       setIsMapReady(true);
     } catch (err) {
@@ -1791,7 +1793,10 @@ const App: React.FC = () => {
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
             <button onClick={() => setClickedLocation(null)} title="Close" className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
             <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
-            <p className="text-slate-500 text-[10px] mb-2 truncate">{clickedLocation.address}</p>
+            <p className="text-slate-500 text-[10px] mb-2">
+              {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
+              {clickedLocation.elevation != null && ` · 표고 ${Math.round(clickedLocation.elevation)}m`}
+            </p>
             <div className="grid grid-cols-3 gap-1.5 mt-2">
               <button onClick={handleSetStart} title="Set as Start" className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
               <button onClick={handleAddWaypoint} disabled={waypoints.length >= 3} title="Add Waypoint" className={`py-2 rounded-xl text-[9px] font-black tracking-tighter uppercase flex items-center justify-center gap-0.5 ${waypoints.length >= 3 ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-700'}`}>
