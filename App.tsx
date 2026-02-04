@@ -677,24 +677,31 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
-  // Leaflet: 전환 후 invalidateSize + 미니맵일 때 베이스 타일 제거→재부착으로 검은 화면 방지
+  // 주행 시작→미니맵 전환 시 베이스맵이 보이도록: 전환 완료 후 크기 갱신 + 타일 강제 리드로우 (여러 시점에 재시도)
+  const forceMinimapRedraw = useCallback(() => {
+    const map = leafletMapRef.current;
+    const base = leafletBaseLayerRef.current;
+    if (!map || !base || !isSvFullScreen) return;
+    map.invalidateSize();
+    if (map.hasLayer(base)) map.removeLayer(base);
+    map.addLayer(base);
+    map.invalidateSize();
+    const c = map.getCenter();
+    const z = map.getZoom();
+    map.setView(c, z);
+  }, [isSvFullScreen]);
+
   useEffect(() => {
-    if (!leafletMapRef.current) return;
-    const t1 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 500);
-    const t2 = setTimeout(() => {
-      const map = leafletMapRef.current;
-      const base = leafletBaseLayerRef.current;
-      if (map && base && isSvFullScreen) {
-        if (map.hasLayer(base)) map.removeLayer(base);
-        map.addLayer(base);
-        map.invalidateSize();
-      }
-    }, 650);
+    if (!leafletMapRef.current || !isSvFullScreen) return;
+    const t1 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 100);
+    const t2 = setTimeout(() => forceMinimapRedraw(), 600);
+    const t3 = setTimeout(() => forceMinimapRedraw(), 1100);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
     };
-  }, [isSvFullScreen]);
+  }, [isSvFullScreen, forceMinimapRedraw]);
 
 
   // Coverage 버튼: 노선 coverage 레이어(도로/자전거 노선)만 켜고 끔. 탐색된 경로(빨간선)는 항상 표시.
@@ -1575,13 +1582,21 @@ const App: React.FC = () => {
         onTransitionEnd={() => {
           const map = leafletMapRef.current;
           if (!map) return;
-          map.invalidateSize();
-          if (isSvFullScreen && leafletBaseLayerRef.current) {
-            const base = leafletBaseLayerRef.current;
-            if (map.hasLayer(base)) map.removeLayer(base);
-            map.addLayer(base);
+          if (!isSvFullScreen) {
             map.invalidateSize();
+            return;
           }
+          map.invalidateSize();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const base = leafletBaseLayerRef.current;
+              if (!base) return;
+              if (map.hasLayer(base)) map.removeLayer(base);
+              map.addLayer(base);
+              map.invalidateSize();
+              map.setView(map.getCenter(), map.getZoom());
+            });
+          });
         }}
       />
       {simulation.isActive && coachingOn && coachData && (
