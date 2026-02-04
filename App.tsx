@@ -146,6 +146,8 @@ const App: React.FC = () => {
 
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletPolylineRef = useRef<L.Polyline | null>(null);
+  /** 베이스 OSM 타일 레이어: 전면→미니맵 전환 시 제거 후 재부착해 검은 화면 방지 */
+  const leafletBaseLayerRef = useRef<L.TileLayer | null>(null);
   /** 노선 coverage 레이어: 사용자가 경로 선택 대상을 보기 위한 도로/자전거 노선 (Coverage 버튼으로 켜고 끔) */
   const leafletCoverageLayerRef = useRef<L.TileLayer | null>(null);
   const leafletMarkersRef = useRef<L.Layer[]>([]);
@@ -574,11 +576,13 @@ const App: React.FC = () => {
       if (!mapRef.current || leafletMapRef.current) return;
       try {
         map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           maxZoom: 19,
           minZoom: 2,
-        }).addTo(map);
+        });
+        baseLayer.addTo(map);
+        leafletBaseLayerRef.current = baseLayer;
         // 경로 탐색(OSRM)과 동일한 소스: OpenStreetMap. CyclOSM 등 별도 스타일은 주행 가능 노선보다 적게 보여 제거함.
         const coverageLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -615,6 +619,7 @@ const App: React.FC = () => {
         map = null;
       }
       leafletMapRef.current = null;
+      leafletBaseLayerRef.current = null;
       leafletCoverageLayerRef.current = null;
       setIsLeafletReady(false);
     };
@@ -661,13 +666,23 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
-  // Leaflet 공식 패턴: 전환이 끝난 뒤 invalidateSize 1회. (isSvFullScreen 변경 시 보조 1회)
+  // Leaflet: 전환 후 invalidateSize + 미니맵일 때 베이스 타일 제거→재부착으로 검은 화면 방지
   useEffect(() => {
     if (!leafletMapRef.current) return;
-    const t = setTimeout(() => {
-      leafletMapRef.current?.invalidateSize();
-    }, 500);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 500);
+    const t2 = setTimeout(() => {
+      const map = leafletMapRef.current;
+      const base = leafletBaseLayerRef.current;
+      if (map && base && isSvFullScreen) {
+        if (map.hasLayer(base)) map.removeLayer(base);
+        map.addLayer(base);
+        map.invalidateSize();
+      }
+    }, 650);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [isSvFullScreen]);
 
 
@@ -1547,8 +1562,14 @@ const App: React.FC = () => {
           height: (isSvActive && isSvFullScreen) ? 160 : undefined,
         }}
         onTransitionEnd={() => {
-          if (leafletMapRef.current) {
-            leafletMapRef.current.invalidateSize();
+          const map = leafletMapRef.current;
+          if (!map) return;
+          map.invalidateSize();
+          if (isSvFullScreen && leafletBaseLayerRef.current) {
+            const base = leafletBaseLayerRef.current;
+            if (map.hasLayer(base)) map.removeLayer(base);
+            map.addLayer(base);
+            map.invalidateSize();
           }
         }}
       />
