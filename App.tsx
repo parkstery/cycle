@@ -145,6 +145,7 @@ const App: React.FC = () => {
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
   const googleTrafficLayerRef = useRef<google.maps.TrafficLayer | null>(null);
+  const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -576,6 +577,7 @@ const App: React.FC = () => {
         fullscreenControl: false,
         zoomControl: true,
         scaleControl: false,
+        clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
       });
       googleMapRef.current = map;
       map.addListener('click', (e: google.maps.MapMouseEvent) => {
@@ -664,15 +666,27 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Coverage 버튼: Google 교통정보 레이어 켜기/끄기
+  // Coverage 버튼: 교통정보 레이어 + 자전거 노선 레이어 켜기/끄기 (도로·노선 표시)
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
     if (showCoverage) {
       if (!googleTrafficLayerRef.current) googleTrafficLayerRef.current = new google.maps.TrafficLayer();
       googleTrafficLayerRef.current.setMap(map);
+      if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
+      googleBicyclingLayerRef.current.setMap(map);
+      // 레이어 타일이 그려지도록 지도 갱신
+      const t = setTimeout(() => {
+        if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
+      }, 100);
+      return () => clearTimeout(t);
     } else {
-      if (googleTrafficLayerRef.current) googleTrafficLayerRef.current.setMap(null);
+      if (googleTrafficLayerRef.current) {
+        googleTrafficLayerRef.current.setMap(null);
+      }
+      if (googleBicyclingLayerRef.current) {
+        googleBicyclingLayerRef.current.setMap(null);
+      }
     }
   }, [showCoverage, isMapReady]);
 
@@ -1567,7 +1581,7 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "노선 coverage 끄기" : "노선 coverage 켜기 (경로 선택 대상 도로/노선 표시)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "교통·자전거 노선 레이어 끄기" : "교통·자전거 노선 레이어 켜기 (교통 상황 + 자전거 도로/노선 표시)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
