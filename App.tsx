@@ -12,6 +12,9 @@ declare var google: any;
 // 거리뷰 버튼 아이콘 (옵션: streetview-icon-option-a.png | b | c)
 const STREETVIEW_ICON = '/streetview/streetview-icon-option-c.png';
 
+// 주행 현위치 마커: 자전거 아이콘 SVG (Material Design directions_bike 기반). icon 객체는 google 로드 후 생성.
+const BICYCLE_MARKER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6" stroke="#fff" stroke-width="1.2"><path d="M12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-1.74 2.24c-.34.34-.74.5-1.15.5-.41 0-.82-.16-1.15-.5-.67-.67-.67-1.64 0-2.32.34-.34.74-.5 1.15-.5.41 0 .82.16 1.15.5.67.67.67 1.63 0 2.32zm7.5 1.5c-.34.34-.74.5-1.15.5-.41 0-.82-.16-1.15-.5-.67-.67-.67-1.64 0-2.32.34-.34.74-.5 1.15-.5.41 0 .82.16 1.15.5.67.67.67 1.63 0 2.32zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-2.85 8.49l1.72-3.44 1.71 3.41 3.22-1.68-2.99-5.95-4.06 2.08 1.22 2.44-1.93 1.01-.49-.98-2.44-.67z"/></svg>';
+
 const PLAYLIST = [  
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
   "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=hsarn2s1&raw=1",
@@ -731,10 +734,15 @@ const App: React.FC = () => {
       const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
       const map = googleMapRef.current;
       if (!simulationMarker.current && map) {
+          const bicycleIcon = {
+            url: 'data:image/svg+xml,' + encodeURIComponent(BICYCLE_MARKER_SVG),
+            scaledSize: new google.maps.Size(32, 32),
+            anchor: new google.maps.Point(16, 16),
+          };
           simulationMarker.current = new google.maps.Marker({
             position: { lat, lng },
             map,
-            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: '#3b82f6', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+            icon: bicycleIcon,
           });
       }
       const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
