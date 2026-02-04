@@ -25,6 +25,14 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=f4k7d6we&raw=1",
 ];
 
+/** 도로 레이어 OFF 시 적용할 스타일 (Google Maps Styling). 도로만 숨김. */
+const ROAD_HIDE_STYLES: google.maps.MapTypeStyle[] = [
+  { featureType: 'road', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.arterial', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.highway', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.local', elementType: 'all', stylers: [{ visibility: 'off' }] },
+];
+
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
  * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
@@ -144,7 +152,6 @@ const App: React.FC = () => {
 
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -665,19 +672,15 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Road layer: driving·bicycling·walking 노선 (Google BicyclingLayer만 토글. 자동차 도로는 베이스맵, 대중교통 미포함).
+  // 도로 레이어 ON/OFF: Google Maps에는 "도로 레이어" API가 없으므로 Map Styling으로 도로 visibility 제어.
+  // ON = styles null(도로 표시), OFF = ROAD_HIDE_STYLES 적용(도로 숨김).
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
     if (showCoverage) {
-      if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
-      googleBicyclingLayerRef.current.setMap(map);
-      const t = setTimeout(() => {
-        if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
-      }, 100);
-      return () => clearTimeout(t);
+      map.setOptions({ styles: null });
     } else {
-      if (googleBicyclingLayerRef.current) googleBicyclingLayerRef.current.setMap(null);
+      map.setOptions({ styles: ROAD_HIDE_STYLES });
     }
   }, [showCoverage, isMapReady]);
 
@@ -1584,8 +1587,8 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Road layer 끄기" : "Road layer 켜기 (driving·bicycling·walking 노선)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-            <RouteIcon size={24} aria-label={showCoverage ? "Road layer 끄기" : "Road layer 켜기"} />
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "도로 레이어 끄기" : "도로 레이어 켜기 (지도 위 도로 표시)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+            <RouteIcon size={24} aria-label={showCoverage ? "도로 레이어 끄기" : "도로 레이어 켜기"} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
             <img src={STREETVIEW_ICON} alt="Street View" className="w-6 h-6 object-contain" />
