@@ -144,6 +144,7 @@ const App: React.FC = () => {
 
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const streetViewCoverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -671,16 +672,29 @@ const App: React.FC = () => {
     map.setOptions({ styles: null });
   }, [isMapReady]);
 
-  // 노선 레이어 ON일 때 현재 경로(폴리라인)를 굵게 표시해 노선이 항상 보이도록 함
+  // Show Streetview Coverage: 거리뷰 가능한 전체 도로 레이어(Google StreetViewCoverageLayer) 표시/숨김.
+  useEffect(() => {
+    const map = googleMapRef.current;
+    if (!map) {
+      if (streetViewCoverageLayerRef.current) streetViewCoverageLayerRef.current.setMap(null);
+      return;
+    }
+    if (!streetViewCoverageLayerRef.current) {
+      streetViewCoverageLayerRef.current = new google.maps.StreetViewCoverageLayer();
+    }
+    streetViewCoverageLayerRef.current.setMap(showCoverage ? map : null);
+  }, [showCoverage, isMapReady]);
+
+  // 탐색된 경로(폴리라인)는 showCoverage와 무관하게 항상 동일 스타일로 표시.
   useEffect(() => {
     const poly = googlePolylineRef.current;
     if (!poly) return;
     poly.setOptions({
       strokeColor: '#ff3020',
-      strokeWeight: showCoverage ? 10 : 5,
-      strokeOpacity: showCoverage ? 1 : 1,
+      strokeWeight: 5,
+      strokeOpacity: 1,
     });
-  }, [showCoverage, route]);
+  }, [route]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -1252,8 +1266,7 @@ const App: React.FC = () => {
         const gmap = googleMapRef.current;
         if (gmap) {
           const pathForPoly = densifiedPath.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
-          const strokeWeight = showCoverage ? 10 : 5;
-          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight });
+          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5 });
           googlePolylineRef.current.setMap(gmap);
         }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
