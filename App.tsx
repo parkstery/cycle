@@ -33,6 +33,14 @@ const ROAD_HIDE_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: 'road.local', elementType: 'all', stylers: [{ visibility: 'off' }] },
 ];
 
+/** 도로 레이어 OFF 시 적용할 스타일 (Google Maps Styling). 도로만 숨김. */
+const ROAD_HIDE_STYLES: google.maps.MapTypeStyle[] = [
+  { featureType: 'road', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.arterial', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.highway', elementType: 'all', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.local', elementType: 'all', stylers: [{ visibility: 'off' }] },
+];
+
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
  * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
