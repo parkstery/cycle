@@ -730,27 +730,32 @@ const App: React.FC = () => {
       const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
       const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
       const map = googleMapRef.current;
+      // 진행 방향 각도 (이미지 기본 방향=동쪽이므로 rotation = heading - 90). 5° 단위로 캐시해 아이콘 갱신 횟수 감소.
+      let rotationDeg = 0;
+      if (lookAheadIdx > currentIdx) {
+        const heading = computeHeading(currentPos, targetPosForHeading);
+        rotationDeg = Math.round((heading - 90) / 5) * 5;
+      }
+      const cyclingIconUrl = (() => {
+        const angle = rotationDeg;
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="rotate(' + angle + ' 20 20)"><image href="/cycling-position-marker.png" x="0" y="0" width="40" height="40"/></g></svg>';
+        return 'data:image/svg+xml,' + encodeURIComponent(svg);
+      })();
+      const cyclingIcon = {
+        url: cyclingIconUrl,
+        scaledSize: new google.maps.Size(40, 40),
+        anchor: new google.maps.Point(20, 20),
+      };
+
       if (!simulationMarker.current && map) {
-          const cyclingIcon = {
-            url: '/cycling-position-marker.png',
-            scaledSize: new google.maps.Size(40, 40),
-            anchor: new google.maps.Point(20, 20),
-          };
           simulationMarker.current = new google.maps.Marker({
             position: { lat, lng },
             map,
             icon: cyclingIcon,
           });
-      }
-      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
-      const targetPosForHeading = route.path[lookAheadIdx];
-      if (simulationMarker.current) {
+      } else if (simulationMarker.current) {
         simulationMarker.current.setPosition({ lat, lng });
-        // 진행 방향에 따라 마커 회전 (이미지는 오른쪽=동쪽 방향 기준, rotation = heading - 90)
-        if (lookAheadIdx > currentIdx) {
-          const heading = computeHeading(currentPos, targetPosForHeading);
-          simulationMarker.current.setRotation(heading - 90);
-        }
+        simulationMarker.current.setIcon(cyclingIcon);
       }
 
       // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한. 80 km/h 초과 시 20m 간격 점프로 전환 횟수 감소
