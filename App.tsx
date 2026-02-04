@@ -144,8 +144,8 @@ const App: React.FC = () => {
 
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
-  const googleTransitLayerRef = useRef<google.maps.TransitLayer | null>(null);
+  /** Road layer ON 시 OSM 타일 오버레이 (OSRM과 동일 데이터, 대한민국 도로 포함). OFF 시 제거 */
+  const osmOverlayIndexRef = useRef<number | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -666,24 +666,47 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Road layer 버튼: 자전거·대중교통 노선 한 번에 켜기/끄기 (교통 정보 제외).
-  // API: Google Maps JavaScript API 내장 BicyclingLayer, TransitLayer (별도 REST API 없음).
-  // 자동차 도로는 베이스맵에 기본 표시되며, 도보 전용 레이어는 Maps API에서 제공하지 않음.
+  // Road layer: Google 도로 레이어 대신 OSM 타일 사용 (OSRM과 동일 도로 데이터, 대한민국 포함).
+  // API: OpenStreetMap 타일 (https://tile.openstreetmap.org). REST API 없음, 타일 URL 직접 요청.
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
     if (showCoverage) {
-      if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
-      googleBicyclingLayerRef.current.setMap(map);
-      if (!googleTransitLayerRef.current) googleTransitLayerRef.current = new google.maps.TransitLayer();
-      googleTransitLayerRef.current.setMap(map);
+      if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
+        map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
+        osmOverlayIndexRef.current = null;
+      }
+      const scale = (z: number) => Math.pow(2, z);
+      const osmMapType = new google.maps.ImageMapType({
+        getTileUrl: function (coord: { x: number; y: number }, zoom: number) {
+          const s = scale(zoom);
+          const x = ((coord.x % s) + s) % s;
+          const y = coord.y;
+          if (y < 0 || y >= s) return '';
+          return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+        },
+        tileSize: new google.maps.Size(256, 256),
+        name: 'OSM Roads',
+        maxZoom: 19,
+        minZoom: 0,
+      });
+      map.overlayMapTypes.push(osmMapType);
+      osmOverlayIndexRef.current = map.overlayMapTypes.getLength() - 1;
       const t = setTimeout(() => {
         if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
       }, 100);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t);
+        if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
+          map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
+          osmOverlayIndexRef.current = null;
+        }
+      };
     } else {
-      if (googleBicyclingLayerRef.current) googleBicyclingLayerRef.current.setMap(null);
-      if (googleTransitLayerRef.current) googleTransitLayerRef.current.setMap(null);
+      if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
+        map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
+        osmOverlayIndexRef.current = null;
+      }
     }
   }, [showCoverage, isMapReady]);
 
