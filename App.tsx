@@ -9,8 +9,8 @@ import * as openElevation from './services/openElevation';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 // 자동배포문제..
-// 거리뷰 버튼 아이콘 (옵션: streetview-icon-option-a.png | b | c)
-const STREETVIEW_ICON = '/streetview/streetview-icon-option-c.png';
+// 거리뷰 버튼 아이콘 (Show Streetview Coverage)
+const STREETVIEW_ICON = '/cycle-road.png';
 
 const PLAYLIST = [  
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
@@ -747,16 +747,17 @@ const App: React.FC = () => {
       const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
       const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
       const map = googleMapRef.current;
-      // 진행 방향 각도 (이미지 기본 방향=동쪽이므로 rotation = heading - 90). 5° 단위로 캐시해 아이콘 갱신 횟수 감소.
-      let rotationDeg = 0;
+      // 주행 방향: 좌우(수평)만 반전. 상하 회전 없음. 기본 아이콘=동쪽(오른쪽), 서쪽(왼쪽)일 때 수평 반전.
+      let flipHorizontal = false;
       if (lookAheadIdx > currentIdx) {
         const heading = computeHeading(currentPos, targetPosForHeading);
-        rotationDeg = Math.round((heading - 90) / 5) * 5;
+        flipHorizontal = heading > 180; // 180~360° = 서쪽 방향 → 좌우 반전
       }
       const dataUrl = cyclingMarkerDataUrlRef.current;
       const cyclingIcon = (() => {
         if (dataUrl) {
-          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="rotate(' + rotationDeg + ' 20 20)"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40"/></g></svg>';
+          const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></svg>';
           return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
         }
         return { url: '/cycling-position-marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
