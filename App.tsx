@@ -1,7 +1,5 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 const ElevationChartView = lazy(() => import('./ElevationChartView'));
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
@@ -144,19 +142,16 @@ const App: React.FC = () => {
   const activePanoRef = useRef<number>(0); // 0 or 1
   const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0); // Controls Z-Index
 
-  const leafletMapRef = useRef<L.Map | null>(null);
-  const leafletPolylineRef = useRef<L.Polyline | null>(null);
-  /** 베이스 OSM 타일 레이어: 전면→미니맵 전환 시 제거 후 재부착해 검은 화면 방지 */
-  const leafletBaseLayerRef = useRef<L.TileLayer | null>(null);
-  /** 노선 coverage 레이어: 사용자가 경로 선택 대상을 보기 위한 도로/자전거 노선 (Coverage 버튼으로 켜고 끔) */
-  const leafletCoverageLayerRef = useRef<L.TileLayer | null>(null);
-  const leafletMarkersRef = useRef<L.Layer[]>([]);
-  const simulationMarker = useRef<L.Marker | null>(null);
-  const startMarker = useRef<L.Marker | null>(null);
-  const endMarker = useRef<L.Marker | null>(null);
-  const waypointMarkers = useRef<L.Marker[]>([]);
-  const tempMarker = useRef<L.Marker | null>(null);
-  const searchMarkerRef = useRef<L.Marker | null>(null);
+  const googleMapRef = useRef<google.maps.Map | null>(null);
+  const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const googleTrafficLayerRef = useRef<google.maps.TrafficLayer | null>(null);
+  const googleMarkersRef = useRef<google.maps.Marker[]>([]);
+  const simulationMarker = useRef<google.maps.Marker | null>(null);
+  const startMarker = useRef<google.maps.Marker | null>(null);
+  const endMarker = useRef<google.maps.Marker | null>(null);
+  const waypointMarkers = useRef<google.maps.Marker[]>([]);
+  const tempMarker = useRef<google.maps.Marker | null>(null);
+  const searchMarkerRef = useRef<google.maps.Marker | null>(null);
   const svServiceRef = useRef<any>(null); 
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
@@ -221,7 +216,7 @@ const App: React.FC = () => {
   const [waypoints, setWaypoints] = useState<{name: string, location: any}[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [isLeafletReady, setIsLeafletReady] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   const [mapRevealed, setMapRevealed] = useState(false);
 
@@ -439,7 +434,7 @@ const App: React.FC = () => {
               pendingSwapTimeoutRef.current = null;
               activePanoRef.current = nextIdx;
               setVisiblePanoIdx(nextIdx);
-              // Leaflet map: no setStreetView
+              // Map is separate from Street View
           };
 
           nextPano.setOptions({
@@ -477,7 +472,7 @@ const App: React.FC = () => {
       pendingSwapTimeoutRef.current = null;
       activePanoRef.current = nextIdx;
       setVisiblePanoIdx(nextIdx);
-      // Leaflet map: no setStreetView
+      // Map is separate from Street View
     };
 
     // 같은 파노라마·동일(또는 거의 동일) heading이면 스왑하지 않음 → 같은 이미지 두 번 보이는 부작용 방지
@@ -568,77 +563,60 @@ const App: React.FC = () => {
     return () => clearTimeout(t);
   }, []);
 
-  // Leaflet 맵 생성: mapRevealed가 true가 된 뒤(컨테이너가 보일 때) 한 번만 생성
+  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
   useEffect(() => {
-    if (!mapRevealed || !mapRef.current || leafletMapRef.current) return;
-    let map: L.Map | null = null;
-    const rafId = requestAnimationFrame(() => {
-      if (!mapRef.current || leafletMapRef.current) return;
-      try {
-        map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
-        const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-          minZoom: 2,
-        });
-        baseLayer.addTo(map);
-        leafletBaseLayerRef.current = baseLayer;
-        // 경로 탐색(OSRM)과 동일한 소스: OpenStreetMap. CyclOSM 등 별도 스타일은 주행 가능 노선보다 적게 보여 제거함.
-        const coverageLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-          minZoom: 2,
-          opacity: 0.45,
-        });
-        leafletCoverageLayerRef.current = coverageLayer;
-        if (showCoverage) coverageLayer.addTo(map);
-        leafletMapRef.current = map;
-        map.on('click', (e: L.LeafletMouseEvent) => {
-          const lat = e.latlng.lat;
-          const lng = e.latlng.lng;
-          nominatim.reverse(lat, lng)
-            .then((res) => {
-              const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
-              setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
-            })
-            .catch(() => {
-              const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
-              setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
-            });
-        });
-        setIsLeafletReady(true);
-      } catch (err) {
-        console.error('[Leaflet init]', err);
-        setIsLeafletReady(true);
-      }
-    });
+    if (!isMapsApiLoaded || !mapRevealed || !mapRef.current || googleMapRef.current) return;
+    try {
+      const map = new google.maps.Map(mapRef.current, {
+        center: { lat: 37.5512, lng: 126.9882 },
+        zoom: 14,
+        mapTypeId: mapType,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        scaleControl: false,
+      });
+      googleMapRef.current = map;
+      map.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return;
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        nominatim.reverse(lat, lng)
+          .then((res) => {
+            const location = new google.maps.LatLng(lat, lng);
+            setClickedLocation({ lat, lng, name: res.formatted_address, address: res.formatted_address, elevation: null, location });
+          })
+          .catch(() => {
+            const location = new google.maps.LatLng(lat, lng);
+            setClickedLocation({ lat, lng, name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, elevation: null, location });
+          });
+      });
+      setIsMapReady(true);
+    } catch (err) {
+      console.error('[Google Map init]', err);
+      setIsMapReady(true);
+    }
     return () => {
-      cancelAnimationFrame(rafId);
-      if (map) {
-        map.remove();
-        map = null;
-      }
-      leafletMapRef.current = null;
-      leafletBaseLayerRef.current = null;
-      leafletCoverageLayerRef.current = null;
-      setIsLeafletReady(false);
+      googleMapRef.current = null;
+      setIsMapReady(false);
     };
-  }, [mapRevealed]);
+  }, [mapRevealed, isMapsApiLoaded]);
 
-  // 맵 컨테이너 리사이즈 시(상/하 전환·창 크기 변경) Leaflet 크기 갱신 → 경로가 잘리거나 사라지는 현상 방지
+  // 맵 컨테이너 리사이즈 시(상/하 전환·미니맵) Google Map resize 이벤트
   useEffect(() => {
     const el = mapRef.current;
-    if (!el || !leafletMapRef.current) return;
+    if (!el || !googleMapRef.current) return;
     const ro = new ResizeObserver(() => {
-      leafletMapRef.current?.invalidateSize();
+      google.maps.event.trigger(googleMapRef.current!, 'resize');
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mapRevealed, isLeafletReady]);
+  }, [mapRevealed, isMapReady]);
 
-  // Google script: Street View only (no Map, no Places, no Geometry, no Elevation)
+  // Google Maps API: Map(베이스맵) + Street View
   useEffect(() => {
-    if ((window as any).google?.maps?.StreetViewPanorama) {
+    if ((window as any).google?.maps?.Map) {
       setIsMapsApiLoaded(true);
       return;
     }
@@ -677,45 +655,26 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
-  // 주행 시작→미니맵 전환 시 베이스맵이 보이도록: 전환 완료 후 크기 갱신 + 타일 강제 리드로우 (여러 시점에 재시도)
-  const forceMinimapRedraw = useCallback(() => {
-    const map = leafletMapRef.current;
-    const base = leafletBaseLayerRef.current;
-    if (!map || !base || !isSvFullScreen) return;
-    map.invalidateSize();
-    if (map.hasLayer(base)) map.removeLayer(base);
-    map.addLayer(base);
-    map.invalidateSize();
-    const c = map.getCenter();
-    const z = map.getZoom();
-    map.setView(c, z);
+  // 주행 시작→미니맵 전환 시 Google Map 크기 갱신
+  useEffect(() => {
+    const map = googleMapRef.current;
+    if (!map || !isSvFullScreen) return;
+    const t1 = setTimeout(() => google.maps.event.trigger(map, 'resize'), 100);
+    const t2 = setTimeout(() => google.maps.event.trigger(map, 'resize'), 600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
+  // Coverage 버튼: Google 교통정보 레이어 켜기/끄기
   useEffect(() => {
-    if (!leafletMapRef.current || !isSvFullScreen) return;
-    const t1 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 100);
-    const t2 = setTimeout(() => forceMinimapRedraw(), 600);
-    const t3 = setTimeout(() => forceMinimapRedraw(), 1100);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [isSvFullScreen, forceMinimapRedraw]);
-
-
-  // Coverage 버튼: 노선 coverage 레이어(도로/자전거 노선)만 켜고 끔. 탐색된 경로(빨간선)는 항상 표시.
-  useEffect(() => {
-    const map = leafletMapRef.current;
-    const coverageLayer = leafletCoverageLayerRef.current;
-    if (!map || !coverageLayer) return;
+    const map = googleMapRef.current;
+    if (!map) return;
     if (showCoverage) {
-      if (!map.hasLayer(coverageLayer)) map.addLayer(coverageLayer);
-      map.invalidateSize();
+      if (!googleTrafficLayerRef.current) googleTrafficLayerRef.current = new google.maps.TrafficLayer();
+      googleTrafficLayerRef.current.setMap(map);
     } else {
-      if (map.hasLayer(coverageLayer)) map.removeLayer(coverageLayer);
+      if (googleTrafficLayerRef.current) googleTrafficLayerRef.current.setMap(null);
     }
-  }, [showCoverage]);
+  }, [showCoverage, isMapReady]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -737,7 +696,7 @@ const App: React.FC = () => {
     let timer: number;
     if (simulation.isActive && route) {
       setAppPhase('RUNNING');
-      if (tempMarker.current) { leafletMapRef.current?.removeLayer(tempMarker.current); tempMarker.current = null; }
+      if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
       const currentIdx = simulation.currentIndex;
       if (currentIdx >= route.path.length - 1) {
           setSimulation(prev => ({ ...prev, isActive: false }));
@@ -750,18 +709,17 @@ const App: React.FC = () => {
       // Update Simulation Marker
       const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
       const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-      if (!simulationMarker.current) {
-          const icon = L.divIcon({
-            className: 'sim-marker',
-            html: '<div style="width:24px;height:24px;border-radius:50%;background:#3b82f6;border:2px solid #fff;"></div>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+      const map = googleMapRef.current;
+      if (!simulationMarker.current && map) {
+          simulationMarker.current = new google.maps.Marker({
+            position: { lat, lng },
+            map,
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: '#3b82f6', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
           });
-          simulationMarker.current = L.marker([lat, lng], { icon }).addTo(leafletMapRef.current!);
       }
       const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
       const targetPosForHeading = route.path[lookAheadIdx];
-      simulationMarker.current.setLatLng([lat, lng]);
+      if (simulationMarker.current) simulationMarker.current.setPosition({ lat, lng });
 
       // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한. 80 km/h 초과 시 20m 간격 점프로 전환 횟수 감소
       const METERS_PER_PATH_POINT = 2;
@@ -866,11 +824,13 @@ const App: React.FC = () => {
             })();
           }
         }
-        if (isSvFullScreen && leafletMapRef.current) {
+        if (isSvFullScreen && googleMapRef.current) {
           const now = Date.now();
           if (now - lastPanToTime.current > 1000) {
             lastPanToTime.current = now;
-            leafletMapRef.current.panTo([typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat, typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng]);
+            const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+            const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+            googleMapRef.current.panTo({ lat: plat, lng: plng });
           }
         }
       }
@@ -1009,31 +969,32 @@ const App: React.FC = () => {
     window.speechSynthesis.speak(utterance);
   };
 
-  const createCustomMarker = (latLng: any, label: string, color: string): L.Marker => {
+  const createCustomMarker = (latLng: any, label: string, color: string): google.maps.Marker => {
     const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
     const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
-    const icon = L.divIcon({
-      className: 'custom-marker',
-      html: `<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:${color};color:white;font-weight:bold;font-size:14px;border:2px solid #fff;">${label}</span>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
+    const map = googleMapRef.current;
+    if (!map) throw new Error('Map not ready');
+    const marker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      label: { text: label, color: 'white', fontWeight: 'bold', fontSize: '14px' },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
     });
-    const marker = L.marker([lat, lng], { icon }).addTo(leafletMapRef.current!);
-    leafletMarkersRef.current.push(marker);
+    googleMarkersRef.current.push(marker);
     return marker;
   };
 
   const clearMapOverlays = () => {
     setAppPhase('IDLE');
     setPreparingProgress(null);
-    if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
-    leafletMarkersRef.current.forEach(m => { leafletMapRef.current?.removeLayer(m); });
-    leafletMarkersRef.current = [];
-    if (simulationMarker.current) { leafletMapRef.current?.removeLayer(simulationMarker.current); simulationMarker.current = null; }
+    if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
+    googleMarkersRef.current.forEach(m => m.setMap(null));
+    googleMarkersRef.current = [];
+    if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
     startMarker.current = null;
     endMarker.current = null;
     waypointMarkers.current = [];
-    if (searchMarkerRef.current) { leafletMapRef.current?.removeLayer(searchMarkerRef.current); searchMarkerRef.current = null; }
+    if (searchMarkerRef.current) { searchMarkerRef.current.setMap(null); searchMarkerRef.current = null; }
     setRoute(null);
     lastRouteRequestRef.current = null;
     setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
@@ -1149,7 +1110,7 @@ const App: React.FC = () => {
     setElapsedTime(0);
     setCoveredDistance(0);
     lastCoachedIndex.current = -1;
-    if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
+    if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
     // OSRM only (no Google Directions). Geocoding: Nominatim only.
     
     // PRIORITIZE COORDINATE REFS if they are set (and assume they match the current text intent)
@@ -1184,9 +1145,10 @@ const App: React.FC = () => {
         distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
         durText = formatDurationSimple(data.routes[0].duration);
         setRouteSource('OSRM');
-        if (leafletMapRef.current && path.length) {
-          const bounds = L.latLngBounds(path.map((p: any) => [p.lat(), p.lng()]));
-          leafletMapRef.current.fitBounds(bounds);
+        if (googleMapRef.current && path.length) {
+          const bounds = new google.maps.LatLngBounds();
+          path.forEach((p: any) => bounds.extend(p));
+          googleMapRef.current.fitBounds(bounds);
         }
       }
     } catch (e) {
@@ -1270,20 +1232,23 @@ const App: React.FC = () => {
         }
         densifiedPath.push(path[path.length - 1]);
         const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
-        oldMarkers.forEach(m => leafletMapRef.current?.removeLayer(m));
-        leafletMarkersRef.current = leafletMarkersRef.current.filter(m => !oldMarkers.includes(m));
+        oldMarkers.forEach(m => m.setMap(null));
+        googleMarkersRef.current = googleMarkersRef.current.filter(m => !oldMarkers.includes(m));
         startMarker.current = null;
         endMarker.current = null;
         waypointMarkers.current = [];
-        if (leafletPolylineRef.current) { leafletMapRef.current?.removeLayer(leafletPolylineRef.current); leafletPolylineRef.current = null; }
+        if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
         startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
         activeWaypoints.forEach((wp, idx) => {
             waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
         });
-        const latlngs = densifiedPath.map((p: any) => [p.lat(), p.lng()] as [number, number]);
-        leafletPolylineRef.current = L.polyline(latlngs, { color: '#ff3020', weight: 5 });
-        if (leafletMapRef.current) leafletPolylineRef.current.addTo(leafletMapRef.current);
+        const gmap = googleMapRef.current;
+        if (gmap) {
+          const pathForPoly = densifiedPath.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
+          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5 });
+          googlePolylineRef.current.setMap(gmap);
+        }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
@@ -1388,7 +1353,7 @@ const App: React.FC = () => {
       setOrigin(newOrigin);
       originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
       
-      if (startMarker.current) { leafletMapRef.current?.removeLayer(startMarker.current); leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== startMarker.current); }
+      if (startMarker.current) { startMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current); }
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
 
       setClickedLocation(null);
@@ -1401,7 +1366,7 @@ const App: React.FC = () => {
       setDestination(newDest);
       destLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
 
-      if (endMarker.current) { leafletMapRef.current?.removeLayer(endMarker.current); leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== endMarker.current); }
+      if (endMarker.current) { endMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current); }
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
 
       setClickedLocation(null);
@@ -1443,8 +1408,8 @@ const App: React.FC = () => {
     
     // Immediately remove marker and re-index visual markers
     if (waypointMarkers.current[idx]) {
-        leafletMapRef.current?.removeLayer(waypointMarkers.current[idx]);
-        leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
+        waypointMarkers.current[idx].setMap(null);
+        googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
         waypointMarkers.current.splice(idx, 1);
     }
 
@@ -1454,8 +1419,8 @@ const App: React.FC = () => {
     setOrigin('');
     originLocationRef.current = null;
     if (startMarker.current) {
-      leafletMapRef.current?.removeLayer(startMarker.current);
-      leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== startMarker.current);
+      startMarker.current?.setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current);
       startMarker.current = null;
     }
   };
@@ -1464,34 +1429,34 @@ const App: React.FC = () => {
     setDestination('');
     destLocationRef.current = null;
     if (endMarker.current) {
-      leafletMapRef.current?.removeLayer(endMarker.current);
-      leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== endMarker.current);
+      endMarker.current?.setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current);
       endMarker.current = null;
     }
   };
   
   const handlePlaceSearch = async (term?: string) => {
       const query = term || searchTerm;
-      if (!query || !leafletMapRef.current) return;
+      if (!query || !googleMapRef.current) return;
       try {
           const res = await nominatim.search(query);
           const lat = res.lat;
           const lng = res.lng;
-          const location = typeof google !== 'undefined' && google.maps ? new google.maps.LatLng(lat, lng) : { lat: () => lat, lng: () => lng };
-          leafletMapRef.current.setView([lat, lng], 16);
+          const location = new google.maps.LatLng(lat, lng);
+          const map = googleMapRef.current;
+          map.setCenter({ lat, lng });
+          map.setZoom(16);
           if (searchMarkerRef.current) {
-              leafletMapRef.current.removeLayer(searchMarkerRef.current);
-              leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+              searchMarkerRef.current.setMap(null);
+              googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
           }
-          searchMarkerRef.current = L.marker([lat, lng], {
-              icon: L.divIcon({
-                className: 'search-marker',
-                html: '<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#22c55e;color:white;font-weight:bold;font-size:12px;border:2px solid #fff;">P</span>',
-                iconSize: [28, 28],
-                iconAnchor: [14, 14]
-              })
-          }).addTo(leafletMapRef.current);
-          leafletMarkersRef.current.push(searchMarkerRef.current);
+          searchMarkerRef.current = new google.maps.Marker({
+            position: { lat, lng },
+            map,
+            label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+          });
+          googleMarkersRef.current.push(searchMarkerRef.current);
           setClickedLocation({ lat, lng, name: query, address: query, elevation: null, location });
           setRecentPlaceSearches(prev => {
               const filtered = prev.filter(item => item !== query);
@@ -1511,16 +1476,17 @@ const App: React.FC = () => {
   const handleClearSearch = () => {
       setSearchTerm('');
       setClickedLocation(null);
-      if (searchMarkerRef.current && leafletMapRef.current) {
-          leafletMapRef.current.removeLayer(searchMarkerRef.current);
-          leafletMarkersRef.current = leafletMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+      if (searchMarkerRef.current) {
+          searchMarkerRef.current.setMap(null);
+          googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
           searchMarkerRef.current = null;
       }
   };
 
   const handleToggleMapType = () => {
-    setMapType(prev => prev === 'roadmap' ? 'hybrid' : 'roadmap');
-    // Optional: swap Leaflet tile layer (e.g. OSM vs satellite); keep OSM only for now
+    const next = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
+    setMapType(next);
+    if (googleMapRef.current) googleMapRef.current.setMapTypeId(next);
   };
 
   const isSaved = isCurrentRouteSaved();
@@ -1528,7 +1494,7 @@ const App: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
       {/* LCP용: 지도 로드 전 껍데기 — 대용량 아이콘 없이 텍스트만 (icon-512는 2048px로 4.5MB 유발) */}
-      {!isLeafletReady && (
+      {!isMapReady && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
           <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
         </div>
@@ -1580,23 +1546,8 @@ const App: React.FC = () => {
           height: (isSvActive && isSvFullScreen) ? 160 : undefined,
         }}
         onTransitionEnd={() => {
-          const map = leafletMapRef.current;
-          if (!map) return;
-          if (!isSvFullScreen) {
-            map.invalidateSize();
-            return;
-          }
-          map.invalidateSize();
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const base = leafletBaseLayerRef.current;
-              if (!base) return;
-              if (map.hasLayer(base)) map.removeLayer(base);
-              map.addLayer(base);
-              map.invalidateSize();
-              map.setView(map.getCenter(), map.getZoom());
-            });
-          });
+          const map = googleMapRef.current;
+          if (map) google.maps.event.trigger(map, 'resize');
         }}
       />
       {simulation.isActive && coachingOn && coachData && (
