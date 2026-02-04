@@ -579,11 +579,12 @@ const App: React.FC = () => {
           maxZoom: 19,
           minZoom: 2,
         }).addTo(map);
-        const coverageLayer = L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &amp; <a href="https://github.com/cyclosm/cyclosm-cartocss-style">CyclOSM</a>',
+        // 경로 탐색(OSRM)과 동일한 소스: OpenStreetMap. CyclOSM 등 별도 스타일은 주행 가능 노선보다 적게 보여 제거함.
+        const coverageLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           maxZoom: 19,
           minZoom: 2,
-          opacity: 0.65,
+          opacity: 0.45,
         });
         leafletCoverageLayerRef.current = coverageLayer;
         if (showCoverage) coverageLayer.addTo(map);
