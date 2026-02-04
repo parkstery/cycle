@@ -144,8 +144,8 @@ const App: React.FC = () => {
 
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
-  /** Road layer ON 시 OSM 타일 오버레이 (OSRM과 동일 데이터, 대한민국 도로 포함). OFF 시 제거 */
-  const osmOverlayIndexRef = useRef<number | null>(null);
+  const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
+  const googleTransitLayerRef = useRef<google.maps.TransitLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -666,48 +666,22 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Road layer: 베이스맵은 Google 유지. ON 시 OSM 도로 타일만 반투명 오버레이로 표시(도로 레이어만 켜기/끄기).
-  // API: OpenStreetMap 타일 (https://tile.openstreetmap.org). opacity로 Google 위에 도로 레이어만 겹침.
+  // Road layer: Google Maps BicyclingLayer + TransitLayer 켜기/끄기 (OSM 타일 미사용).
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
     if (showCoverage) {
-      if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
-        map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
-        osmOverlayIndexRef.current = null;
-      }
-      const scale = (z: number) => Math.pow(2, z);
-      const osmMapType = new google.maps.ImageMapType({
-        getTileUrl: function (coord: { x: number; y: number }, zoom: number) {
-          const s = scale(zoom);
-          const x = ((coord.x % s) + s) % s;
-          const y = coord.y;
-          if (y < 0 || y >= s) return '';
-          return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-        },
-        tileSize: new google.maps.Size(256, 256),
-        name: 'OSM Roads',
-        maxZoom: 19,
-        minZoom: 0,
-        opacity: 0.6, // 반투명: 베이스맵(Google)은 그대로 보이고 도로 레이어만 위에 겹침
-      } as google.maps.ImageMapTypeOptions);
-      map.overlayMapTypes.push(osmMapType);
-      osmOverlayIndexRef.current = map.overlayMapTypes.getLength() - 1;
+      if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
+      googleBicyclingLayerRef.current.setMap(map);
+      if (!googleTransitLayerRef.current) googleTransitLayerRef.current = new google.maps.TransitLayer();
+      googleTransitLayerRef.current.setMap(map);
       const t = setTimeout(() => {
         if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
       }, 100);
-      return () => {
-        clearTimeout(t);
-        if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
-          map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
-          osmOverlayIndexRef.current = null;
-        }
-      };
+      return () => clearTimeout(t);
     } else {
-      if (osmOverlayIndexRef.current !== null && map.overlayMapTypes.getLength() > osmOverlayIndexRef.current) {
-        map.overlayMapTypes.removeAt(osmOverlayIndexRef.current);
-        osmOverlayIndexRef.current = null;
-      }
+      if (googleBicyclingLayerRef.current) googleBicyclingLayerRef.current.setMap(null);
+      if (googleTransitLayerRef.current) googleTransitLayerRef.current.setMap(null);
     }
   }, [showCoverage, isMapReady]);
 
