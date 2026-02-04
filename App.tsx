@@ -175,6 +175,8 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<number | null>(null);
   const simulationActiveRef = useRef(false);
+  /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
+  const cyclingMarkerDataUrlRef = useRef<string | null>(null);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
@@ -634,6 +636,19 @@ const App: React.FC = () => {
     document.head.appendChild(script);
   }, []);
 
+  // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
+  useEffect(() => {
+    if (cyclingMarkerDataUrlRef.current) return;
+    fetch('/cycling-position-marker.png')
+      .then((r) => r.blob())
+      .then((blob) => {
+        const reader = new FileReader();
+        reader.onloadend = () => { cyclingMarkerDataUrlRef.current = reader.result as string; };
+        reader.readAsDataURL(blob);
+      })
+      .catch(() => {});
+  }, []);
+
   // Street View init (Panorama + Service) when Google loaded and SV divs exist
   useEffect(() => {
     if (!isMapsApiLoaded || !svRef1.current || !svRef2.current || panorama1.current) return;
@@ -738,16 +753,14 @@ const App: React.FC = () => {
         const heading = computeHeading(currentPos, targetPosForHeading);
         rotationDeg = Math.round((heading - 90) / 5) * 5;
       }
-      const cyclingIconUrl = (() => {
-        const angle = rotationDeg;
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="rotate(' + angle + ' 20 20)"><image href="/cycling-position-marker.png" x="0" y="0" width="40" height="40"/></g></svg>';
-        return 'data:image/svg+xml,' + encodeURIComponent(svg);
+      const dataUrl = cyclingMarkerDataUrlRef.current;
+      const cyclingIcon = (() => {
+        if (dataUrl) {
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="rotate(' + rotationDeg + ' 20 20)"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40"/></g></svg>';
+          return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+        }
+        return { url: '/cycling-position-marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
       })();
-      const cyclingIcon = {
-        url: cyclingIconUrl,
-        scaledSize: new google.maps.Size(40, 40),
-        anchor: new google.maps.Point(20, 20),
-      };
 
       if (!simulationMarker.current && map) {
           simulationMarker.current = new google.maps.Marker({
