@@ -146,6 +146,8 @@ const App: React.FC = () => {
 
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletPolylineRef = useRef<L.Polyline | null>(null);
+  /** 노선 coverage 레이어: 사용자가 경로 선택 대상을 보기 위한 도로/자전거 노선 (Coverage 버튼으로 켜고 끔) */
+  const leafletCoverageLayerRef = useRef<L.TileLayer | null>(null);
   const leafletMarkersRef = useRef<L.Layer[]>([]);
   const simulationMarker = useRef<L.Marker | null>(null);
   const startMarker = useRef<L.Marker | null>(null);
@@ -577,6 +579,14 @@ const App: React.FC = () => {
           maxZoom: 19,
           minZoom: 2,
         }).addTo(map);
+        const coverageLayer = L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &amp; <a href="https://github.com/cyclosm/cyclosm-cartocss-style">CyclOSM</a>',
+          maxZoom: 19,
+          minZoom: 2,
+          opacity: 0.65,
+        });
+        leafletCoverageLayerRef.current = coverageLayer;
+        if (showCoverage) coverageLayer.addTo(map);
         leafletMapRef.current = map;
         map.on('click', (e: L.LeafletMouseEvent) => {
           const lat = e.latlng.lat;
@@ -604,6 +614,7 @@ const App: React.FC = () => {
         map = null;
       }
       leafletMapRef.current = null;
+      leafletCoverageLayerRef.current = null;
       setIsLeafletReady(false);
     };
   }, [mapRevealed]);
@@ -705,16 +716,16 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvActive]);
 
-  // Coverage Layer(노선) 버튼: showCoverage에 따라 경로 폴리라인 표시/숨김 + 토글 후 맵 갱신
+  // Coverage 버튼: 노선 coverage 레이어(도로/자전거 노선)만 켜고 끔. 탐색된 경로(빨간선)는 항상 표시.
   useEffect(() => {
     const map = leafletMapRef.current;
-    const poly = leafletPolylineRef.current;
-    if (!map || !poly) return;
+    const coverageLayer = leafletCoverageLayerRef.current;
+    if (!map || !coverageLayer) return;
     if (showCoverage) {
-      if (!map.hasLayer(poly)) map.addLayer(poly);
+      if (!map.hasLayer(coverageLayer)) map.addLayer(coverageLayer);
       map.invalidateSize();
     } else {
-      if (map.hasLayer(poly)) map.removeLayer(poly);
+      if (map.hasLayer(coverageLayer)) map.removeLayer(coverageLayer);
     }
   }, [showCoverage]);
 
@@ -1284,7 +1295,7 @@ const App: React.FC = () => {
         });
         const latlngs = densifiedPath.map((p: any) => [p.lat(), p.lng()] as [number, number]);
         leafletPolylineRef.current = L.polyline(latlngs, { color: '#ff3020', weight: 5 });
-        if (showCoverage && leafletMapRef.current) leafletPolylineRef.current.addTo(leafletMapRef.current);
+        if (leafletMapRef.current) leafletPolylineRef.current.addTo(leafletMapRef.current);
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
@@ -1573,14 +1584,24 @@ const App: React.FC = () => {
       )}
       <div
         ref={mapRef}
-        className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-[25]" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-        style={isSvFullScreen ? { width: 160, height: 160 } : undefined}
+        className={`duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-[25]" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        style={{
+          transitionProperty: isSvFullScreen ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
+          width: isSvFullScreen ? 160 : undefined,
+          height: isSvFullScreen ? 160 : undefined,
+        }}
         onTransitionEnd={() => {
           const m = leafletMapRef.current;
           if (m) {
             m.invalidateSize();
             const c = m.getCenter();
             m.setView([c.lat, c.lng], m.getZoom());
+            requestAnimationFrame(() => {
+              m.invalidateSize();
+              m.setView([m.getCenter().lat, m.getCenter().lng], m.getZoom());
+            });
+            setTimeout(() => { m.invalidateSize(); }, 50);
+            setTimeout(() => { m.invalidateSize(); }, 200);
           }
         }}
       />
@@ -1601,7 +1622,7 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Coverage Layer" : "Show Coverage Layer"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "노선 coverage 끄기" : "노선 coverage 켜기 (경로 선택 대상 도로/노선 표시)"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
             <RouteIcon size={24} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
