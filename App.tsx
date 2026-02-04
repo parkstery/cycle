@@ -725,7 +725,9 @@ const App: React.FC = () => {
           return;
       }
       const currentPos = route.path[currentIdx];
-      
+      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
+      const targetPosForHeading = route.path[lookAheadIdx];
+
       // Update Simulation Marker
       const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
       const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
