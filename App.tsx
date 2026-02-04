@@ -625,6 +625,17 @@ const App: React.FC = () => {
     };
   }, [mapRevealed]);
 
+  // 맵 컨테이너 리사이즈 시(상/하 전환·창 크기 변경) Leaflet 크기 갱신 → 경로가 잘리거나 사라지는 현상 방지
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!el || !leafletMapRef.current) return;
+    const ro = new ResizeObserver(() => {
+      leafletMapRef.current?.invalidateSize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mapRevealed, isLeafletReady]);
+
   // Google script: Street View only (no Map, no Places, no Geometry, no Elevation)
   useEffect(() => {
     if ((window as any).google?.maps?.StreetViewPanorama) {
@@ -1552,10 +1563,10 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 맵: transition 끝난 뒤 invalidateSize 1회만 호출 (Leaflet 공식 패턴). */}
+      {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25]"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 160 : undefined,
