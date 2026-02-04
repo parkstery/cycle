@@ -666,8 +666,8 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Road layer: Google 도로 레이어 대신 OSM 타일 사용 (OSRM과 동일 도로 데이터, 대한민국 포함).
-  // API: OpenStreetMap 타일 (https://tile.openstreetmap.org). REST API 없음, 타일 URL 직접 요청.
+  // Road layer: 베이스맵은 Google 유지. ON 시 OSM 도로 타일만 반투명 오버레이로 표시(도로 레이어만 켜기/끄기).
+  // API: OpenStreetMap 타일 (https://tile.openstreetmap.org). opacity로 Google 위에 도로 레이어만 겹침.
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
@@ -689,7 +689,8 @@ const App: React.FC = () => {
         name: 'OSM Roads',
         maxZoom: 19,
         minZoom: 0,
-      });
+        opacity: 0.6, // 반투명: 베이스맵(Google)은 그대로 보이고 도로 레이어만 위에 겹침
+      } as google.maps.ImageMapTypeOptions);
       map.overlayMapTypes.push(osmMapType);
       osmOverlayIndexRef.current = map.overlayMapTypes.getLength() - 1;
       const t = setTimeout(() => {
