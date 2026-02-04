@@ -146,6 +146,8 @@ const App: React.FC = () => {
 
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletPolylineRef = useRef<L.Polyline | null>(null);
+  /** 베이스 타일 레이어: 화면 전환 후 검은 화면 방지를 위해 제거 후 재부착 시 사용 */
+  const leafletBaseLayerRef = useRef<L.TileLayer | null>(null);
   /** 노선 coverage 레이어: 사용자가 경로 선택 대상을 보기 위한 도로/자전거 노선 (Coverage 버튼으로 켜고 끔) */
   const leafletCoverageLayerRef = useRef<L.TileLayer | null>(null);
   const leafletMarkersRef = useRef<L.Layer[]>([]);
@@ -574,11 +576,13 @@ const App: React.FC = () => {
       if (!mapRef.current || leafletMapRef.current) return;
       try {
         map = L.map(mapRef.current).setView([37.5512, 126.9882], 14);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const baseLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
           maxZoom: 19,
           minZoom: 2,
-        }).addTo(map);
+        });
+        baseLayer.addTo(map);
+        leafletBaseLayerRef.current = baseLayer;
         // 경로 탐색(OSRM)과 동일한 소스: OpenStreetMap. CyclOSM 등 별도 스타일은 주행 가능 노선보다 적게 보여 제거함.
         const coverageLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -615,6 +619,7 @@ const App: React.FC = () => {
         map = null;
       }
       leafletMapRef.current = null;
+      leafletBaseLayerRef.current = null;
       leafletCoverageLayerRef.current = null;
       setIsLeafletReady(false);
     };
@@ -661,28 +666,38 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
-  // 주행 풀스크린 시 맵이 작은 미니맵으로 줄어들 때 Leaflet 타일이 검게 보이지 않도록 여러 번 갱신
+  // 주행 풀스크린 시 맵이 작은 미니맵으로 줄어들 때 Leaflet 타일이 검게 보이지 않도록 갱신 + 베이스 타일 레이어 재부착
   useEffect(() => {
     const t1 = setTimeout(() => {
-      const m = leafletMapRef.current;
-      if (m) {
-        m.invalidateSize();
-        const c = m.getCenter();
-        m.setView([c.lat, c.lng], m.getZoom());
+      const map = leafletMapRef.current;
+      if (map) {
+        map.invalidateSize();
+        const c = map.getCenter();
+        map.setView([c.lat, c.lng], map.getZoom());
       }
       if (panorama1.current) google.maps.event.trigger(panorama1.current, 'resize');
       if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
     const t2 = setTimeout(() => {
-      const m = leafletMapRef.current;
-      if (m) {
-        m.invalidateSize();
-        const c = m.getCenter();
-        m.setView([c.lat, c.lng], m.getZoom());
+      const map = leafletMapRef.current;
+      if (map) {
+        map.invalidateSize();
+        const c = map.getCenter();
+        map.setView([c.lat, c.lng], map.getZoom());
       }
     }, 850);
     const t3 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 1200);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    // 화면 전환 후 타일 검은 화면 방지: 베이스 타일 레이어 제거 후 재부착으로 강제 리드로우
+    const t4 = setTimeout(() => {
+      const map = leafletMapRef.current;
+      const baseLayer = leafletBaseLayerRef.current;
+      if (map && baseLayer && map.hasLayer(baseLayer)) {
+        map.removeLayer(baseLayer);
+        map.addLayer(baseLayer);
+        map.invalidateSize();
+      }
+    }, 650);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [isSvFullScreen]);
 
   // 맵이 보이기 시작할 때·영역 크기 변경 시 타일 재계산 (검은 화면 방지)
@@ -1610,6 +1625,7 @@ const App: React.FC = () => {
         }}
         onTransitionEnd={() => {
           const m = leafletMapRef.current;
+          const base = leafletBaseLayerRef.current;
           if (m) {
             m.invalidateSize();
             const c = m.getCenter();
@@ -1620,6 +1636,16 @@ const App: React.FC = () => {
             });
             setTimeout(() => { m.invalidateSize(); }, 50);
             setTimeout(() => { m.invalidateSize(); }, 200);
+            // 카운트다운 후 전면→미니맵 전환 시 타일이 검게 남는 문제: 베이스 타일 레이어 제거 후 재부착으로 강제 리드로우
+            if (base && (isSvActive && svStatus === 'OK' && isSvFullScreen)) {
+              setTimeout(() => {
+                if (m && leafletBaseLayerRef.current && m.hasLayer(leafletBaseLayerRef.current)) {
+                  m.removeLayer(leafletBaseLayerRef.current);
+                  m.addLayer(leafletBaseLayerRef.current);
+                  m.invalidateSize();
+                }
+              }, 100);
+            }
           }
         }}
       />
