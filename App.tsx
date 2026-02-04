@@ -146,6 +146,7 @@ const App: React.FC = () => {
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
   const googleTrafficLayerRef = useRef<google.maps.TrafficLayer | null>(null);
   const googleBicyclingLayerRef = useRef<google.maps.BicyclingLayer | null>(null);
+  const googleTransitLayerRef = useRef<google.maps.TransitLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -666,7 +667,7 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvFullScreen]);
 
-  // Coverage 버튼: 교통정보 레이어 + 자전거 노선 레이어 켜기/끄기 (도로·노선 표시)
+  // Coverage 버튼: 교통·자전거·대중교통 레이어 + 경로 노선 굵게 표시
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map) return;
@@ -675,20 +676,29 @@ const App: React.FC = () => {
       googleTrafficLayerRef.current.setMap(map);
       if (!googleBicyclingLayerRef.current) googleBicyclingLayerRef.current = new google.maps.BicyclingLayer();
       googleBicyclingLayerRef.current.setMap(map);
-      // 레이어 타일이 그려지도록 지도 갱신
+      if (!googleTransitLayerRef.current) googleTransitLayerRef.current = new google.maps.TransitLayer();
+      googleTransitLayerRef.current.setMap(map);
       const t = setTimeout(() => {
         if (googleMapRef.current) google.maps.event.trigger(googleMapRef.current, 'resize');
       }, 100);
       return () => clearTimeout(t);
     } else {
-      if (googleTrafficLayerRef.current) {
-        googleTrafficLayerRef.current.setMap(null);
-      }
-      if (googleBicyclingLayerRef.current) {
-        googleBicyclingLayerRef.current.setMap(null);
-      }
+      if (googleTrafficLayerRef.current) googleTrafficLayerRef.current.setMap(null);
+      if (googleBicyclingLayerRef.current) googleBicyclingLayerRef.current.setMap(null);
+      if (googleTransitLayerRef.current) googleTransitLayerRef.current.setMap(null);
     }
   }, [showCoverage, isMapReady]);
+
+  // 노선 레이어 ON일 때 현재 경로(폴리라인)를 굵게 표시해 노선이 항상 보이도록 함
+  useEffect(() => {
+    const poly = googlePolylineRef.current;
+    if (!poly) return;
+    poly.setOptions({
+      strokeColor: '#ff3020',
+      strokeWeight: showCoverage ? 10 : 5,
+      strokeOpacity: showCoverage ? 1 : 1,
+    });
+  }, [showCoverage, route]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -1260,7 +1270,8 @@ const App: React.FC = () => {
         const gmap = googleMapRef.current;
         if (gmap) {
           const pathForPoly = densifiedPath.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
-          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5 });
+          const strokeWeight = showCoverage ? 10 : 5;
+          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight });
           googlePolylineRef.current.setMap(gmap);
         }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
