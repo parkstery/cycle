@@ -90,7 +90,7 @@ const findStreetViewInDirection = (
     pathIndex: number,
     path: any[],
     radius: number,
-    maxAngleDeg: number = 90
+    maxAngleDeg: number = 110
 ): Promise<PanoDataItem | null> => {
     return getPanoramaWithFallback(service, {
         location: pathPoint,
@@ -177,6 +177,8 @@ const App: React.FC = () => {
   const simulationActiveRef = useRef(false);
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
+  /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
+  const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => {});
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
@@ -477,11 +479,14 @@ const App: React.FC = () => {
       // Map is separate from Street View
     };
 
-    // 같은 파노라마·동일(또는 거의 동일) heading이면 스왑하지 않음 → 같은 이미지 두 번 보이는 부작용 방지
+    // 같은 파노라마: heading 차이 1.5° 미만이면 무시, 1.5° 이상이면 POV만 갱신(스왑 없이) → 멈춤 감소
     if (currentPanoId === panoId) {
       const currentPov = currentPano.getPov?.();
       const curH = currentPov?.heading ?? 0;
-      if (Math.abs(normalizeAngleDiff(curH - heading)) < 3) return;
+      const diff = Math.abs(normalizeAngleDiff(curH - heading));
+      if (diff < 1.5) return;
+      currentPano.setPov({ heading, pitch: 0 });
+      return;
     }
 
     nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
@@ -500,7 +505,7 @@ const App: React.FC = () => {
       cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = options?.intervalM ?? 10;
+    const intervalM = options?.intervalM ?? 7;
     const fromDistanceM = options?.fromDistanceM ?? 0;
     const maxDistanceM = options?.maxDistanceM ?? totalM;
     const samples: number[] = [];
@@ -524,13 +529,13 @@ const App: React.FC = () => {
           pathIndex,
           path,
           r,
-          90
+          110
         );
         if (item) break;
       }
       // 연속 디스플레이 우선: 방향 필터 실패 시에도 해당 구간에 pano가 있으면 추가 (생략 방지)
       if (!item) {
-        const fallback = await findStreetView(svServiceRef.current, pathPoint, 30);
+        const fallback = await findStreetView(svServiceRef.current, pathPoint, 50);
         if (fallback?.data?.location?.pano) {
           const heading = computeHeading(pathPoint, pathNext);
           item = {
@@ -582,20 +587,7 @@ const App: React.FC = () => {
       });
       googleMapRef.current = map;
       map.addListener('click', (e: google.maps.MapMouseEvent) => {
-        if (!e.latLng) return;
-        const lat = e.latLng.lat();
-        const lng = e.latLng.lng();
-        const location = new google.maps.LatLng(lat, lng);
-        const setWithElevation = (name: string, address: string, elev: number | null) => {
-          setClickedLocation({ lat, lng, name, address, elevation: elev, location });
-        };
-        Promise.all([
-          nominatim.reverse(lat, lng).catch(() => ({ formatted_address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` })),
-          openElevation.getElevationAlongPath([{ lat, lng }], 1).then(r => r.results[0]?.elevation ?? null).catch(() => null),
-        ]).then(([rev, elevation]) => {
-          const name = (rev as { formatted_address: string }).formatted_address;
-          setWithElevation(name, name, elevation);
-        });
+        if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
       });
       setIsMapReady(true);
     } catch (err) {
@@ -618,6 +610,25 @@ const App: React.FC = () => {
     ro.observe(el);
     return () => ro.disconnect();
   }, [mapRevealed, isMapReady]);
+
+  // 클릭한 위치(맵/경로) → 주소·표고 조회 후 인포윈도우 표시. ref에 담아 맵 초기화·폴리라인 클릭에서 공통 사용
+  useEffect(() => {
+    if (typeof (window as any).google === 'undefined' || !(window as any).google.maps?.LatLng) return;
+    const g = (window as any).google;
+    handleLocationClickRef.current = (lat: number, lng: number) => {
+      const location = new g.maps.LatLng(lat, lng);
+      const setWithElevation = (name: string, address: string, elev: number | null) => {
+        setClickedLocation({ lat, lng, name, address, elevation: elev, location });
+      };
+      Promise.all([
+        nominatim.reverse(lat, lng).catch(() => ({ formatted_address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` })),
+        openElevation.getElevationAlongPath([{ lat, lng }], 1).then(r => r.results[0]?.elevation ?? null).catch(() => null),
+      ]).then(([rev, elevation]) => {
+        const name = (rev as { formatted_address: string }).formatted_address;
+        setWithElevation(name, name, elevation);
+      });
+    };
+  }, [isMapsApiLoaded]);
 
   // Google Maps API: Map(베이스맵) + Street View
   useEffect(() => {
@@ -827,7 +838,7 @@ const App: React.FC = () => {
             const fromM = distAtLast + 10;
             const toM = Math.min(distAtLast + 200, totalM);
             if (fromM < toM) {
-              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
+              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 7 })
                 .then((nextPanos) => {
                   if (nextPanos.length) {
                     setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
@@ -848,14 +859,14 @@ const App: React.FC = () => {
             (async () => {
               const pathNext = route.path[Math.min(svDisplayIdxForPano + 10, route.path.length - 1)];
               let item: PanoDataItem | null = await findStreetViewInDirection(
-                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, 30, 90
+                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, 30, 110
               );
               if (!item) {
                 for (let i = 1; i <= 5; i++) {
                   const targetIdx = Math.min(svDisplayIdxForPano + i, route.path.length - 1);
                   const pt = route.path[targetIdx];
                   const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
-                  item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, 30, 90);
+                  item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, 30, 110);
                   if (item) break;
                 }
               }
@@ -1301,8 +1312,11 @@ const App: React.FC = () => {
         const gmap = googleMapRef.current;
         if (gmap) {
           const pathForPoly = densifiedPath.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
-          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5 });
+          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5, clickable: true });
           googlePolylineRef.current.setMap(gmap);
+          googlePolylineRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+            if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
+          });
         }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
@@ -1314,7 +1328,7 @@ const App: React.FC = () => {
           const panoData = await preFetchStreetViewData(
             densifiedPath,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: 200, intervalM: 10 }
+            { maxDistanceM: 200, intervalM: 7 }
           );
           setPreparingProgress(null);
           setRoute((prev) => (prev ? { ...prev, panoData } : null));
@@ -1795,7 +1809,7 @@ const App: React.FC = () => {
             <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
             <p className="text-slate-500 text-[10px] mb-2">
               {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
-              {clickedLocation.elevation != null && ` · 표고 ${Math.round(clickedLocation.elevation)}m`}
+              {clickedLocation.elevation != null && ` · Elevation ${Math.round(clickedLocation.elevation)}m`}
             </p>
             <div className="grid grid-cols-3 gap-1.5 mt-2">
               <button onClick={handleSetStart} title="Set as Start" className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
