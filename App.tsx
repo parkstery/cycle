@@ -649,12 +649,28 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
+  // 주행 풀스크린 시 맵이 작은 미니맵으로 줄어들 때 Leaflet 타일이 검게 보이지 않도록 여러 번 갱신
   useEffect(() => {
-    setTimeout(() => {
-      if (leafletMapRef.current) leafletMapRef.current.invalidateSize();
+    const t1 = setTimeout(() => {
+      const m = leafletMapRef.current;
+      if (m) {
+        m.invalidateSize();
+        const c = m.getCenter();
+        m.setView([c.lat, c.lng], m.getZoom());
+      }
       if (panorama1.current) google.maps.event.trigger(panorama1.current, 'resize');
       if (panorama2.current) google.maps.event.trigger(panorama2.current, 'resize');
     }, 550);
+    const t2 = setTimeout(() => {
+      const m = leafletMapRef.current;
+      if (m) {
+        m.invalidateSize();
+        const c = m.getCenter();
+        m.setView([c.lat, c.lng], m.getZoom());
+      }
+    }, 850);
+    const t3 = setTimeout(() => leafletMapRef.current?.invalidateSize(), 1200);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [isSvFullScreen]);
 
   // 맵이 보이기 시작할 때·영역 크기 변경 시 타일 재계산 (검은 화면 방지)
@@ -689,13 +705,14 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvActive]);
 
-  // Coverage Layer(노선) 버튼: showCoverage에 따라 경로 폴리라인 표시/숨김
+  // Coverage Layer(노선) 버튼: showCoverage에 따라 경로 폴리라인 표시/숨김 + 토글 후 맵 갱신
   useEffect(() => {
     const map = leafletMapRef.current;
     const poly = leafletPolylineRef.current;
     if (!map || !poly) return;
     if (showCoverage) {
       if (!map.hasLayer(poly)) map.addLayer(poly);
+      map.invalidateSize();
     } else {
       if (map.hasLayer(poly)) map.removeLayer(poly);
     }
@@ -1159,7 +1176,7 @@ const App: React.FC = () => {
       const wpLatLngs = activeWaypoints.map(wp => wp.location);
       const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
       const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
+      const url = `/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`;
       const resp = await fetch(url);
       const data = await resp.json();
       if (data.code === 'Ok') {
@@ -1557,7 +1574,15 @@ const App: React.FC = () => {
       <div
         ref={mapRef}
         className={`transition-all duration-500 ease-in-out ${isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : (isSvActive ? "absolute bottom-0 left-0 right-0 h-[50%] z-[25]" : "absolute inset-0 z-10")} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-        onTransitionEnd={() => { leafletMapRef.current?.invalidateSize(); }}
+        style={isSvFullScreen ? { width: 160, height: 160 } : undefined}
+        onTransitionEnd={() => {
+          const m = leafletMapRef.current;
+          if (m) {
+            m.invalidateSize();
+            const c = m.getCenter();
+            m.setView([c.lat, c.lng], m.getZoom());
+          }
+        }}
       />
       {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">

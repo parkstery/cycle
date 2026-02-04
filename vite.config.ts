@@ -10,6 +10,44 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    server: {
+      proxy: {
+        '/api/nominatim-search': {
+          target: 'https://nominatim.openstreetmap.org',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/nominatim-search/, '/search'),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (req) => {
+              req.setHeader('User-Agent', 'FitnessProCycleSimulator/1.0 (https://github.com/your-org/cycle)');
+            });
+          },
+        },
+        '/api/nominatim-reverse': {
+          target: 'https://nominatim.openstreetmap.org',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/nominatim-reverse/, '/reverse'),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (req) => {
+              req.setHeader('User-Agent', 'FitnessProCycleSimulator/1.0 (https://github.com/your-org/cycle)');
+            });
+          },
+        },
+        '/api/osrm-route': {
+          target: 'https://router.project-osrm.org',
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              const url = req.url || '';
+              const q = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
+              const params = new URLSearchParams(q);
+              const profile = params.get('profile') || 'cycling';
+              const coords = params.get('coords') || '';
+              proxyReq.path = `/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
+            });
+          },
+        },
+      },
+    },
     build: {
       outDir: 'dist',
       rollupOptions: {

@@ -7,7 +7,8 @@
 
 import * as plusCode from './plusCode';
 
-const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
+/** 브라우저 CORS 회피: 같은 출처의 /api 프록시 사용 (Vercel serverless 또는 Vite proxy) */
+const USE_PROXY = typeof window !== 'undefined';
 const USER_AGENT = 'FitnessProCycleSimulator/1.0 (https://github.com/your-org/cycle)';
 const MIN_INTERVAL_MS = 1100;
 
@@ -42,8 +43,10 @@ export async function reverse(
   if (cached) return cached;
 
   await throttle();
-  const url = `${NOMINATIM_BASE}/reverse?lat=${lat}&lon=${lon}&format=json`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  const url = USE_PROXY
+    ? `/api/nominatim-reverse?lat=${lat}&lon=${lon}&format=json`
+    : `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+  const res = await fetch(url, { headers: USE_PROXY ? {} : { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`Nominatim reverse ${res.status}`);
   const data = (await res.json()) as { display_name?: string };
   const result = {
@@ -63,8 +66,10 @@ export async function search(address: string): Promise<{ lat: number; lng: numbe
   if (cached) return cached;
 
   await throttle();
-  const url = `${NOMINATIM_BASE}/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  const url = USE_PROXY
+    ? `/api/nominatim-search?q=${encodeURIComponent(address)}&format=json&limit=1`
+    : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+  const res = await fetch(url, { headers: USE_PROXY ? {} : { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`Nominatim search ${res.status}`);
   const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
   if (!Array.isArray(arr) || arr.length === 0) throw new Error('Nominatim no results');
