@@ -732,21 +732,6 @@ const App: React.FC = () => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [isSvActive]);
 
-  // Street View 미로드(svStatus !== 'OK') 시 맵이 전면으로 확장되므로 크기 재계산
-  useEffect(() => {
-    if (!leafletMapRef.current || !isSvActive) return;
-    if (svStatus === 'OK') return;
-    const t1 = window.setTimeout(() => leafletMapRef.current?.invalidateSize(), 100);
-    const t2 = window.setTimeout(() => {
-      const m = leafletMapRef.current;
-      if (m) {
-        m.invalidateSize();
-        const c = m.getCenter();
-        m.setView([c.lat, c.lng], m.getZoom());
-      }
-    }, 400);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [isSvActive, svStatus]);
 
   // Coverage 버튼: 노선 coverage 레이어(도로/자전거 노선)만 켜고 끔. 탐색된 경로(빨간선)는 항상 표시.
   useEffect(() => {
@@ -1586,8 +1571,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Street View Container — 파노라마 미로드 시(svStatus !== 'OK') 검은 화면 대신 맵이 보이도록, 컨테이너는 유지(로딩 계속) */}
-      <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40' : 'absolute top-0 left-0 right-0 h-[50%] z-20 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'} ${isSvActive && svStatus !== 'OK' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
+      <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}>
          <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
          <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
       </div>
@@ -1614,14 +1599,14 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 주행 중 Street View 미로드(svStatus !== 'OK')일 때는 맵을 전면에 표시해 검은 화면 방지 */}
+      {/* 맵: 주행 시 항상 화면 전환(거리뷰 전면 + 미니맵) 유지. 전환 후 미니맵 타일 검은 화면은 타일 재부착으로 해결. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out ${!isSvActive || svStatus !== 'OK' ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25]"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25]"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
-          transitionProperty: (isSvActive && svStatus === 'OK' && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
-          width: (isSvActive && svStatus === 'OK' && isSvFullScreen) ? 160 : undefined,
-          height: (isSvActive && svStatus === 'OK' && isSvFullScreen) ? 160 : undefined,
+          transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
+          width: (isSvActive && isSvFullScreen) ? 160 : undefined,
+          height: (isSvActive && isSvFullScreen) ? 160 : undefined,
         }}
         onTransitionEnd={() => {
           const m = leafletMapRef.current;
@@ -1636,8 +1621,7 @@ const App: React.FC = () => {
             });
             setTimeout(() => { m.invalidateSize(); }, 50);
             setTimeout(() => { m.invalidateSize(); }, 200);
-            // 카운트다운 후 전면→미니맵 전환 시 타일이 검게 남는 문제: 베이스 타일 레이어 제거 후 재부착으로 강제 리드로우
-            if (base && (isSvActive && svStatus === 'OK' && isSvFullScreen)) {
+            if (base && isSvActive && isSvFullScreen) {
               setTimeout(() => {
                 if (m && leafletBaseLayerRef.current && m.hasLayer(leafletBaseLayerRef.current)) {
                   m.removeLayer(leafletBaseLayerRef.current);
