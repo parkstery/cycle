@@ -25,9 +25,13 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=f4k7d6we&raw=1",
 ];
 
+/** ZERO_RESULTS, OVER_QUERY_LIMIT 시 DEFAULT 재시도 없이 즉시 중단 (비용·무한 폴백 방지) */
+const UNRECOVERABLE_STATUS = ['ZERO_RESULTS', 'OVER_QUERY_LIMIT'];
+
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
  * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
+ * ZERO_RESULTS / OVER_QUERY_LIMIT 시 DEFAULT 호출하지 않고 null 반환.
  */
 const getPanoramaWithFallback = (
     service: any,
@@ -42,6 +46,10 @@ const getPanoramaWithFallback = (
         }, (data: any, status: string) => {
             if (status === 'OK' && data?.location?.pano) {
                 resolve({ data, usedFallback: false });
+                return;
+            }
+            if (UNRECOVERABLE_STATUS.includes(status)) {
+                resolve({ data: null, usedFallback: false });
                 return;
             }
             service.getPanorama({
@@ -114,6 +122,13 @@ const findStreetViewInDirection = (
         };
     });
 };
+
+/** 거리뷰 탐색: 초기 1회만 넓은 반경 사용 (있는데도 못 찾는 문제·비용 폭증 방지, 자문단 권고) */
+const STREETVIEW_SEARCH_RADIUS_M = 200;
+/** 샘플당 최대 시도 횟수 (반경 1회 + 방향 무시 폴백 1회). 무한 재시도 차단. */
+const MAX_FALLBACK_PER_SAMPLE = 2;
+/** 실시간(캐시 없을 때) 거리뷰 검색 최대 시도 횟수. 초과 시 '거리뷰 없음' 표시 후 중단. */
+const MAX_REALTIME_SV_ATTEMPTS = 3;
 
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
@@ -489,7 +504,7 @@ const App: React.FC = () => {
     scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
   }, [scheduleSwapAfterOk]);
 
-  /** Pre-fetch Street View along path with driving-direction filter. fromDistanceM/maxDistanceM = segment (e.g. initial 0–150m). */
+  /** Pre-fetch Street View: 넓은 반경 1회 + 폴백 1회만 (자문단: 있음에도 안 보임·비용 폭증 보완) */
   const preFetchStreetViewData = useCallback(async (
     path: any[],
     onProgress: (k: number, n: number) => void,
@@ -512,26 +527,27 @@ const App: React.FC = () => {
     }
     const panoData: PanoDataItem[] = [];
     const n = samples.length;
+    const radius = STREETVIEW_SEARCH_RADIUS_M;
     for (let k = 0; k < n; k++) {
       const pathIndex = samples[k];
       const pathPoint = path[pathIndex];
       const pathNext = path[Math.min(pathIndex + 10, path.length - 1)];
       let item: PanoDataItem | null = null;
-      for (const r of [30, 20, 15]) {
+      let attempts = 0;
+      if (attempts < MAX_FALLBACK_PER_SAMPLE) {
         item = await findStreetViewInDirection(
           svServiceRef.current,
           pathPoint,
           pathNext,
           pathIndex,
           path,
-          r,
+          radius,
           110
         );
-        if (item) break;
+        attempts++;
       }
-      // 연속 디스플레이 우선: 방향 필터 실패 시에도 해당 구간에 pano가 있으면 추가 (생략 방지)
-      if (!item) {
-        const fallback = await findStreetView(svServiceRef.current, pathPoint, 50);
+      if (!item && attempts < MAX_FALLBACK_PER_SAMPLE) {
+        const fallback = await findStreetView(svServiceRef.current, pathPoint, radius);
         if (fallback?.data?.location?.pano) {
           const heading = computeHeading(pathPoint, pathNext);
           item = {
@@ -542,6 +558,7 @@ const App: React.FC = () => {
             isUserPhoto: fallback.usedFallback
           };
         }
+        attempts++;
       }
       if (item) panoData.push(item);
       onProgress(k + 1, n);
@@ -854,20 +871,16 @@ const App: React.FC = () => {
             isSvSearching.current = true;
             (async () => {
               const pathNext = route.path[Math.min(svDisplayIdxForPano + 10, route.path.length - 1)];
-              let item: PanoDataItem | null = await findStreetViewInDirection(
-                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, 30, 110
+              const radius = STREETVIEW_SEARCH_RADIUS_M;
+              let item: PanoDataItem | null = null;
+              let attempts = 0;
+              item = await findStreetViewInDirection(
+                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, radius, 110
               );
-              if (!item) {
-                for (let i = 1; i <= 5; i++) {
-                  const targetIdx = Math.min(svDisplayIdxForPano + i, route.path.length - 1);
-                  const pt = route.path[targetIdx];
-                  const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
-                  item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, 30, 110);
-                  if (item) break;
-                }
-              }
-              if (!item) {
-                const fallback = await findStreetView(svServiceRef.current, svDisplayPos, 100);
+              attempts++;
+              if (!item && attempts < MAX_REALTIME_SV_ATTEMPTS) {
+                const fallback = await findStreetView(svServiceRef.current, svDisplayPos, radius);
+                attempts++;
                 if (fallback?.data?.location?.pano) {
                   const nextIdx = Math.min(svDisplayIdxForPano + 1, route.path.length - 1);
                   const finalHeading = computeHeading(svDisplayPos, route.path[nextIdx]);
@@ -875,12 +888,24 @@ const App: React.FC = () => {
                   lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, svDisplayIdxForPano);
                   setPanoramaView(fallback.data.location.latLng, finalHeading);
                   setShowSvWarning(false);
-                } else if (svErrorCount.current++ > 5) setShowSvWarning(true);
-              } else {
+                  isSvSearching.current = false;
+                  return;
+                }
+              }
+              if (!item && attempts < MAX_REALTIME_SV_ATTEMPTS) {
+                const targetIdx = Math.min(svDisplayIdxForPano + 5, route.path.length - 1);
+                const pt = route.path[targetIdx];
+                const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
+                item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, radius, 110);
+                attempts++;
+              }
+              if (item) {
                 setRoute((prev) => prev ? { ...prev, panoData: [item!] } : null);
                 lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, item!.pathIndex);
                 setPanoramaViewByPanoId(item.panoId, item.heading, item.isUserPhoto);
                 setShowSvWarning(false);
+              } else {
+                if (svErrorCount.current++ > 2) setShowSvWarning(true);
               }
               isSvSearching.current = false;
             })();
@@ -1478,14 +1503,16 @@ const App: React.FC = () => {
   const handleRemoveWaypoint = (idx: number) => {
     const newWaypoints = waypoints.filter((_, i) => i !== idx);
     setWaypoints(newWaypoints);
-    
-    // Immediately remove marker and re-index visual markers
-    if (waypointMarkers.current[idx]) {
-        waypointMarkers.current[idx].setMap(null);
-        googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
-        waypointMarkers.current.splice(idx, 1);
-    }
 
+    if (waypointMarkers.current[idx]) {
+      waypointMarkers.current[idx].setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
+      waypointMarkers.current.splice(idx, 1);
+      // 남은 웨이포인트 마커 라벨을 1, 2, … 로 재정렬
+      waypointMarkers.current.forEach((m, i) => {
+        m.setOptions({ label: { text: (i + 1).toString(), color: 'white', fontWeight: 'bold', fontSize: '14px' } });
+      });
+    }
   };
 
   const handleRemoveStart = () => {
