@@ -9,8 +9,8 @@ import * as openElevation from './services/openElevation';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 // 자동배포문제..
-// 거리뷰 버튼 아이콘 (Show Streetview Coverage)
-const STREETVIEW_ICON = '/cycle-road.png';
+// 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
+const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
 const PLAYLIST = [  
   "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",

@@ -16,3 +16,7 @@ html,
 .gm-svpc {
   display: none !important;
 }
+/* 마름모 형태 풀스크린 버튼 숨김 */
+.gm-fullscreen-control {
+  display: none !important;
+}
