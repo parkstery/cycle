@@ -831,7 +831,7 @@ const App: React.FC = () => {
         simulationMarker.current.setIcon(cyclingIcon);
       }
 
-      // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한. 80 km/h 초과 시 20m 간격 점프로 전환 횟수 감소
+      // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한 (주행 스피드 10~70과 독립)
       const METERS_PER_PATH_POINT = 2;
       const MAX_SV_SPEED_M_PER_SEC = (60 * 1000) / 3600;
       if (currentIdx === 0) {
@@ -848,11 +848,7 @@ const App: React.FC = () => {
         }
       }
       const svDisplayIdx = svDisplayPathIndexRef.current;
-      // 80 km/h 초과 시 20m(≈10 path points) 단위로만 파노 전환 — 같은 파노를 더 오래 보여 멈춤 감소
-      const JUMP_POINTS_20M = 10;
-      const svDisplayIdxForPano = speedKmH > 80
-        ? Math.floor(svDisplayIdx / JUMP_POINTS_20M) * JUMP_POINTS_20M
-        : svDisplayIdx;
+      const svDisplayIdxForPano = svDisplayIdx;
 
       // ---- STREET VIEW: 캐시만 사용 (주행 중 API 0). 없으면 끄기/안내. [Phase 1] ----
       if (isSvActive) {
@@ -1733,8 +1729,8 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-1 w-full px-0.5">
                          <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
-                         <input type="number" min="10" max="100" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
-                         <input type="range" min="10" max="100" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                         <input type="number" min="10" max="70" value={speedKmH} onChange={(e) => setSpeedKmH(Math.min(70, Math.max(10, Number(e.target.value))))} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
+                         <input type="range" min="10" max="70" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                          <div className="flex items-center gap-1 ml-auto shrink-0">
                              <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
                              
