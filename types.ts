@@ -6,6 +6,8 @@ export interface PanoDataItem {
   heading: number;
   /** true when panorama is user-contributed (fallback when no Google official imagery) */
   isUserPhoto?: boolean;
+  /** [Phase 4] API 제공 시 실내/상가 필터용 (StreetViewLocation.description) */
+  description?: string;
 }
 
 /** Coaching valid until this path index (predictive coaching) */
@@ -25,6 +27,9 @@ export interface RouteInfo {
   cumulativeDistances?: number[];
   /** Pre-fetched Street View metadata (30m intervals); used in RUNNING without API */
   panoData?: PanoDataItem[];
+  /** [Phase 5] coverage = panoCount / sampleCount. 70% 미만 시 안내 표시 */
+  streetViewCoverage?: number;
+  streetViewDisabled?: boolean;
   /** Predictive coaching segments; used in RUNNING without API */
   cachedCoaching?: CachedCoachingItem[];
 }

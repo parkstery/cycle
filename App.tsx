@@ -118,16 +118,26 @@ const findStreetViewInDirection = (
             panoId: data.location.pano,
             location: data.location.latLng,
             heading,
-            isUserPhoto: usedFallback
+            isUserPhoto: usedFallback,
+            description: data.location?.description ?? undefined
         };
     });
 };
 
-/** 거리뷰 탐색: 초기 1회만 넓은 반경 사용 (있는데도 못 찾는 문제·비용 폭증 방지, 자문단 권고) */
-const STREETVIEW_SEARCH_RADIUS_M = 200;
-/** 샘플당 최대 시도 횟수 (반경 1회 + 방향 무시 폴백 1회). 무한 재시도 차단. */
-const MAX_FALLBACK_PER_SAMPLE = 2;
-/** 실시간(캐시 없을 때) 거리뷰 검색 최대 시도 횟수. 초과 시 '거리뷰 없음' 표시 후 중단. */
+/** [Phase 2] Multi-pass 1단계: 반경(m), 주행 방향 ±각도(°). 시니어 권고 50m ±40° */
+const SV_PASS1_RADIUS_M = 50;
+const SV_PASS1_MAX_ANGLE_DEG = 40;
+/** [Phase 2] Multi-pass 2단계: 반경(m), 방향 제한 없음. 시니어 권고 120m */
+const SV_PASS2_RADIUS_M = 120;
+/** [Phase 2] 점수 가중치: 거리 60%, 방향 40%. score = 0.6*(1-d/maxD) + 0.4*(1-diff/90) */
+const SV_SCORE_DIST_WEIGHT = 0.6;
+const SV_SCORE_ANGLE_WEIGHT = 0.4;
+const SV_SCORE_ANGLE_DENOM_DEG = 90;
+/** [Phase 4] 실내/상가 파노 제외용. description에 포함 시 후보에서 제외 (tilt는 getPanorama 응답에 없음) */
+const SV_INDOOR_KEYWORDS = /Shop|Indoor|Business/i;
+/** [Phase 5] coverage 미만이면 거리뷰 부족 안내 (Street View 비활성 또는 배지) */
+const COVERAGE_MIN = 0.7;
+/** [Phase 1 이후 미사용] 주행 중 실시간 검색 제거로 사용 안 함. */
 const MAX_REALTIME_SV_ATTEMPTS = 3;
 
 /** True when current inputs match the last successful route request (for Go reuse). */
@@ -504,19 +514,19 @@ const App: React.FC = () => {
     scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
   }, [scheduleSwapAfterOk]);
 
-  /** Pre-fetch Street View: 넓은 반경 1회 + 폴백 1회만 (자문단: 있음에도 안 보임·비용 폭증 보완) */
+  /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 120m 제한없음) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
   const preFetchStreetViewData = useCallback(async (
     path: any[],
     onProgress: (k: number, n: number) => void,
     options?: { fromDistanceM?: number; maxDistanceM?: number; intervalM?: number }
-  ): Promise<PanoDataItem[]> => {
+  ): Promise<{ panoData: PanoDataItem[]; sampleCount: number }> => {
     if (!svServiceRef.current || !path.length) return [];
     const cumDist: number[] = [0];
     for (let i = 1; i < path.length; i++) {
       cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = options?.intervalM ?? 7;
+    const intervalM = options?.intervalM ?? 10;
     const fromDistanceM = options?.fromDistanceM ?? 0;
     const maxDistanceM = options?.maxDistanceM ?? totalM;
     const samples: number[] = [];
@@ -527,44 +537,65 @@ const App: React.FC = () => {
     }
     const panoData: PanoDataItem[] = [];
     const n = samples.length;
-    const radius = STREETVIEW_SEARCH_RADIUS_M;
     for (let k = 0; k < n; k++) {
       const pathIndex = samples[k];
       const pathPoint = path[pathIndex];
       const pathNext = path[Math.min(pathIndex + 10, path.length - 1)];
-      let item: PanoDataItem | null = null;
-      let attempts = 0;
-      if (attempts < MAX_FALLBACK_PER_SAMPLE) {
-        item = await findStreetViewInDirection(
-          svServiceRef.current,
-          pathPoint,
-          pathNext,
-          pathIndex,
-          path,
-          radius,
-          110
-        );
-        attempts++;
-      }
-      if (!item && attempts < MAX_FALLBACK_PER_SAMPLE) {
-        const fallback = await findStreetView(svServiceRef.current, pathPoint, radius);
-        if (fallback?.data?.location?.pano) {
-          const heading = computeHeading(pathPoint, pathNext);
-          item = {
-            pathIndex,
-            panoId: fallback.data.location.pano,
-            location: fallback.data.location.latLng,
-            heading,
-            isUserPhoto: fallback.usedFallback
-          };
+      const driveHeading = computeHeading(pathPoint, pathNext);
+      const candidates: { item: PanoDataItem; maxD: number }[] = [];
+
+      const pass1 = await findStreetViewInDirection(
+        svServiceRef.current,
+        pathPoint,
+        pathNext,
+        pathIndex,
+        path,
+        SV_PASS1_RADIUS_M,
+        SV_PASS1_MAX_ANGLE_DEG
+      );
+      if (pass1) candidates.push({ item: pass1, maxD: SV_PASS1_RADIUS_M });
+
+      if (candidates.length === 0) {
+        const pass2 = await findStreetView(svServiceRef.current, pathPoint, SV_PASS2_RADIUS_M);
+        if (pass2?.data?.location?.pano) {
+          const desc = pass2.data.location?.description ?? '';
+          if (!SV_INDOOR_KEYWORDS.test(desc)) {
+            const heading = computeHeading(pathPoint, pathNext);
+            candidates.push({
+              item: {
+                pathIndex,
+                panoId: pass2.data.location.pano,
+                location: pass2.data.location.latLng,
+                heading,
+                isUserPhoto: pass2.usedFallback,
+                description: desc || undefined
+              },
+              maxD: SV_PASS2_RADIUS_M
+            });
+          }
         }
-        attempts++;
       }
-      if (item) panoData.push(item);
+
+      const filtered = candidates.filter(c => !c.item.description || !SV_INDOOR_KEYWORDS.test(c.item.description));
+      let best: PanoDataItem | null = null;
+      let bestScore = -1;
+      for (const { item, maxD } of filtered) {
+        const d = computeDistanceBetween(pathPoint, item.location);
+        const bearingToPano = computeHeading(pathPoint, item.location);
+        const diff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
+        const score =
+          SV_SCORE_DIST_WEIGHT * (1 - Math.min(d, maxD) / maxD) +
+          SV_SCORE_ANGLE_WEIGHT * (1 - Math.min(diff, SV_SCORE_ANGLE_DENOM_DEG) / SV_SCORE_ANGLE_DENOM_DEG);
+        if (score > bestScore) {
+          bestScore = score;
+          best = item;
+        }
+      }
+      if (best) panoData.push(best);
       onProgress(k + 1, n);
       if (k < n - 1) await new Promise(r => setTimeout(r, 80));
     }
-    return panoData;
+    return { panoData, sampleCount: n };
   }, []);
 
   // Find panoData item with largest pathIndex <= current path index
@@ -823,17 +854,20 @@ const App: React.FC = () => {
         ? Math.floor(svDisplayIdx / JUMP_POINTS_20M) * JUMP_POINTS_20M
         : svDisplayIdx;
 
-      // ---- STREET VIEW: Progressive (panoData cache + on-demand segment fetch) or fallback (real-time API) ----
+      // ---- STREET VIEW: 캐시만 사용 (주행 중 API 0). 없으면 끄기/안내. [Phase 1] ----
       if (isSvActive) {
         if (route.panoData?.length) {
           const panoItem = getPanoDataForIndex(route.panoData, svDisplayIdxForPano);
-          // 전진만 허용: 이전보다 작은 pathIndex로 갱신하면 후진처럼 보이므로 생략
-          if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
+          const lastPano = route.panoData[route.panoData.length - 1];
+          const inGap = lastPano && svDisplayIdxForPano > lastPano.pathIndex + 30;
+          if (inGap) {
+            setShowSvWarning(true);
+          } else if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
             lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
             setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+            setShowSvWarning(false);
           }
-          // On-demand: fetch next segment when approaching end of cached panoData (throttle via isSegmentFetchingRef)
-          const lastPano = route.panoData[route.panoData.length - 1];
+          // 슬라이딩 prefetch: 캐시 끝 근처에서 다음 구간만 prefetch (주행 중 API는 prefetch에만 사용)
           if (
             lastPano &&
             currentIdx >= lastPano.pathIndex - 150 &&
@@ -849,10 +883,10 @@ const App: React.FC = () => {
             const totalM = cumDist[path.length - 1];
             const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
             const fromM = distAtLast + 10;
-            const toM = Math.min(distAtLast + 200, totalM);
+            const toM = Math.min(distAtLast + 400, totalM);
             if (fromM < toM) {
-              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 7 })
-                .then((nextPanos) => {
+              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
+                .then(({ panoData: nextPanos }) => {
                   if (nextPanos.length) {
                     setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
                   }
@@ -862,54 +896,8 @@ const App: React.FC = () => {
               isSegmentFetchingRef.current = false;
             }
           }
-        } else if (svServiceRef.current && !isSvSearching.current) {
-          const svDisplayPos = route.path[Math.min(svDisplayIdxForPano, route.path.length - 1)];
-          const activePano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-          const currentPanoLoc = activePano?.getLocation()?.latLng;
-          const distFromLastPano = currentPanoLoc ? computeDistanceBetween(svDisplayPos, currentPanoLoc) : Infinity;
-          if (distFromLastPano > 15 || !currentPanoLoc) {
-            isSvSearching.current = true;
-            (async () => {
-              const pathNext = route.path[Math.min(svDisplayIdxForPano + 10, route.path.length - 1)];
-              const radius = STREETVIEW_SEARCH_RADIUS_M;
-              let item: PanoDataItem | null = null;
-              let attempts = 0;
-              item = await findStreetViewInDirection(
-                svServiceRef.current, svDisplayPos, pathNext, svDisplayIdxForPano, route.path, radius, 110
-              );
-              attempts++;
-              if (!item && attempts < MAX_REALTIME_SV_ATTEMPTS) {
-                const fallback = await findStreetView(svServiceRef.current, svDisplayPos, radius);
-                attempts++;
-                if (fallback?.data?.location?.pano) {
-                  const nextIdx = Math.min(svDisplayIdxForPano + 1, route.path.length - 1);
-                  const finalHeading = computeHeading(svDisplayPos, route.path[nextIdx]);
-                  setIsUserPano(fallback.usedFallback);
-                  lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, svDisplayIdxForPano);
-                  setPanoramaView(fallback.data.location.latLng, finalHeading);
-                  setShowSvWarning(false);
-                  isSvSearching.current = false;
-                  return;
-                }
-              }
-              if (!item && attempts < MAX_REALTIME_SV_ATTEMPTS) {
-                const targetIdx = Math.min(svDisplayIdxForPano + 5, route.path.length - 1);
-                const pt = route.path[targetIdx];
-                const pn = route.path[Math.min(targetIdx + 10, route.path.length - 1)];
-                item = await findStreetViewInDirection(svServiceRef.current, pt, pn, targetIdx, route.path, radius, 110);
-                attempts++;
-              }
-              if (item) {
-                setRoute((prev) => prev ? { ...prev, panoData: [item!] } : null);
-                lastDisplayedPanoPathIndexRef.current = Math.max(lastDisplayedPanoPathIndexRef.current, item!.pathIndex);
-                setPanoramaViewByPanoId(item.panoId, item.heading, item.isUserPhoto);
-                setShowSvWarning(false);
-              } else {
-                if (svErrorCount.current++ > 2) setShowSvWarning(true);
-              }
-              isSvSearching.current = false;
-            })();
-          }
+        } else {
+          setShowSvWarning(true);
         }
         if (isSvFullScreen && googleMapRef.current) {
           const now = Date.now();
@@ -1310,7 +1298,7 @@ const App: React.FC = () => {
         durText = formatDurationSimple(calculatedSeconds);
 
         const densifiedPath = [];
-        const segmentLength = 2;
+        const segmentLength = 10;
         for (let i = 0; i < path.length - 1; i++) {
              const p1 = path[i];
              const p2 = path[i + 1];
@@ -1354,13 +1342,14 @@ const App: React.FC = () => {
         (async () => {
           setAppPhase('PREPARING');
           setPreparingProgress({ k: 0, n: 1 });
-          const panoData = await preFetchStreetViewData(
+          const { panoData, sampleCount } = await preFetchStreetViewData(
             densifiedPath,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: 200, intervalM: 7 }
+            { maxDistanceM: 300, intervalM: 10 }
           );
           setPreparingProgress(null);
-          setRoute((prev) => (prev ? { ...prev, panoData } : null));
+          const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
+          setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
           setAppPhase('IDLE');
 
           if (autoStart) {
@@ -1626,6 +1615,13 @@ const App: React.FC = () => {
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
              <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
              <span className="text-white font-bold text-xs">No Street View available for this section.</span>
+          </div>
+        </div>
+      )}
+      {route?.streetViewDisabled && (
+        <div className="absolute left-4 bottom-28 z-[45] pointer-events-none">
+          <div className="bg-slate-800/90 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl shadow-xl">
+             <span className="text-white font-bold text-xs">이 구간은 거리뷰가 부족합니다.</span>
           </div>
         </div>
       )}
