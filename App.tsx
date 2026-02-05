@@ -366,16 +366,11 @@ const App: React.FC = () => {
     setDestination(saved.destination);
     originLocationRef.current = null;
     destLocationRef.current = null;
-
     const restoredWaypoints = saved.waypoints.map(wp => ({
       name: wp.name,
-      location: new google.maps.LatLng(wp.lat, wp.lng),
+      location: { lat: wp.lat, lng: wp.lng },
     }));
     setWaypoints(restoredWaypoints);
-    // 불러온 경로로 경로 탐색 실행 (state 반영 후 실행되어 경로가 확실히 표시됨)
-    setTimeout(() => {
-      calculateRoute(mode, false, saved.origin, saved.destination, restoredWaypoints);
-    }, 0);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
