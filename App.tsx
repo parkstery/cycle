@@ -372,8 +372,10 @@ const App: React.FC = () => {
       location: new google.maps.LatLng(wp.lat, wp.lng),
     }));
     setWaypoints(restoredWaypoints);
-    // 불러온 경로로 즉시 경로 탐색 실행 (Search Route 자동 수행)
-    calculateRoute(mode, false, saved.origin, saved.destination, restoredWaypoints);
+    // 불러온 경로로 경로 탐색 실행 (state 반영 후 실행되어 경로가 확실히 표시됨)
+    setTimeout(() => {
+      calculateRoute(mode, false, saved.origin, saved.destination, restoredWaypoints);
+    }, 0);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
@@ -1191,6 +1193,14 @@ const App: React.FC = () => {
       const res = await nominatim.addressToCoord(addr);
       return new google.maps.LatLng(res.lat, res.lng);
     };
+    const toLatLng = (p: any) => {
+      if (!p) return null;
+      if (typeof p.lat === 'function' && typeof p.lng === 'function') return p;
+      const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
+      const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
+      if (lat != null && lng != null && typeof google !== 'undefined' && google.maps?.LatLng) return new google.maps.LatLng(lat, lng);
+      return null;
+    };
 
     let path: any[] = [];
     let distText = '';
@@ -1198,7 +1208,7 @@ const App: React.FC = () => {
     try {
       const originLatLng = await getCoord(useOrigin, finalOrigin);
       const destLatLng = await getCoord(useDest, finalDestination);
-      const wpLatLngs = activeWaypoints.map(wp => wp.location);
+      const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
       const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
       const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
       const url = `/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`;
