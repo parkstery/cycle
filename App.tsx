@@ -188,7 +188,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
   const [isSvFullScreen, setIsSvFullScreen] = useState(false);
-  const [showCoverage, setShowCoverage] = useState(true);
+  const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [svStatus, setSvStatus] = useState<string>('');
   const [showSvWarning, setShowSvWarning] = useState(false);
@@ -1727,7 +1727,7 @@ const App: React.FC = () => {
                         <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
                             <Search size={14} />
                         </button>
-                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                     </div>
                 </div>
                 
