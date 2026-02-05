@@ -625,7 +625,7 @@ const App: React.FC = () => {
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        zoomControl: true,
+        zoomControl: false,
         scaleControl: false,
         clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
       });
