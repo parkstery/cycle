@@ -47,22 +47,34 @@ export default async function handler(req, res) {
     }
 
     const osrmProfile = toOsrmProfile(profile);
+    const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
 
-    // 2단계: Snap each coordinate to road via nearest API
+    const fetchRoute = (coordsStr) =>
+      fetch(`${OSRM}/route/v1/${osrmProfile}/${coordsStr}?${baseParams}`);
+
+    // 1) nearest로 스냅 후 route 시도
     const snappedList = await Promise.all(
       coordList.map((coord) => snapCoord(osrmProfile, coord))
     );
-    const snappedCoords = snappedList.join(';');
-    const radiuses = snappedList.map(() => SNAP_RADIUS_M).join(';');
+    let r = await fetchRoute(snappedList.join(';'));
+    let body = await r.text();
 
-    // 4단계: overview=full, alternatives=false, steps=false (radiuses는 넉넉히 50m)
-    const routeUrl = `${OSRM}/route/v1/${osrmProfile}/${snappedCoords}?overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${radiuses}`;
-    const r = await fetch(routeUrl);
+    // 2) 400이면 스냅 없이 원본 좌표로 재시도 (공개 서버 NoRoute 등 대응)
+    if (!r.ok && r.status === 400 && coordList.length >= 2) {
+      r = await fetchRoute(coordList.join(';'));
+      body = await r.text();
+    }
+
     if (!r.ok) {
-      res.status(r.status).json(await r.text());
+      try {
+        const errJson = JSON.parse(body);
+        res.status(r.status).json({ error: errJson.message || body, code: errJson.code });
+      } catch {
+        res.status(r.status).json({ error: body });
+      }
       return;
     }
-    const data = await r.json();
+    const data = JSON.parse(body);
     res.status(200).json(data);
   } catch (e) {
     res.status(502).json({ error: String(e.message) });
