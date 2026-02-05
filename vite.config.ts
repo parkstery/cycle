@@ -40,9 +40,18 @@ export default defineConfig(({ mode }) => {
               const url = req.url || '';
               const q = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
               const params = new URLSearchParams(q);
-              const profile = params.get('profile') || 'cycling';
+              const profile = params.get('profile') || 'driving';
               const coords = params.get('coords') || '';
-              proxyReq.path = `/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
+              const n = coords.split(';').filter(Boolean).length;
+              const radiuses = n > 0 ? Array(n).fill(20).join(';') : '';
+              const query = new URLSearchParams({
+                overview: 'full',
+                geometries: 'polyline',
+                alternatives: 'false',
+                steps: 'false',
+                ...(radiuses && { radiuses }),
+              });
+              proxyReq.path = `/route/v1/${profile}/${coords}?${query.toString()}`;
             });
           },
         },

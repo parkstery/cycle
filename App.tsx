@@ -184,7 +184,7 @@ const App: React.FC = () => {
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
   const [speedKmH, setSpeedKmH] = useState(20); 
-  const [mode, setMode] = useState<TravelMode>(TravelMode.BICYCLING);
+  const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
   const [isSvFullScreen, setIsSvFullScreen] = useState(false);
@@ -1200,7 +1200,7 @@ const App: React.FC = () => {
       const originLatLng = await getCoord(useOrigin, finalOrigin);
       const destLatLng = await getCoord(useDest, finalDestination);
       const wpLatLngs = activeWaypoints.map(wp => wp.location);
-      const profile = activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+      const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
       const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
       const url = `/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`;
       const resp = await fetch(url);

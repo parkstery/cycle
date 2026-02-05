@@ -1,4 +1,25 @@
 const OSRM = 'https://router.project-osrm.org';
+const SNAP_RADIUS_M = 20;
+
+/**
+ * Snap a single coordinate to the road network via OSRM nearest.
+ * @param {string} profile - OSRM profile: driving, cycling, foot
+ * @param {string} coord - "lng,lat"
+ * @returns {Promise<string>} "lng,lat" snapped, or original on failure
+ */
+async function snapCoord(profile, coord) {
+  const trimmed = coord.trim();
+  if (!trimmed) return trimmed;
+  const nearestUrl = `${OSRM}/nearest/v1/${profile}/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
+  const r = await fetch(nearestUrl);
+  if (!r.ok) return trimmed;
+  const data = await r.json();
+  if (data.code === 'Ok' && data.waypoints && data.waypoints[0] && data.waypoints[0].location) {
+    const [lng, lat] = data.waypoints[0].location;
+    return `${lng},${lat}`;
+  }
+  return trimmed;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,13 +28,27 @@ export default async function handler(req, res) {
   }
   res.setHeader('Access-Control-Allow-Origin', '*');
   try {
-    const { profile = 'cycling', coords } = req.query;
+    const { profile = 'driving', coords } = req.query;
     if (!coords) {
       res.status(400).json({ error: 'Missing coords' });
       return;
     }
-    const url = `${OSRM}/route/v1/${profile}/${coords}?overview=full&geometries=polyline`;
-    const r = await fetch(url);
+    const coordList = coords.split(';').map((c) => c.trim()).filter(Boolean);
+    if (coordList.length === 0) {
+      res.status(400).json({ error: 'Empty coords' });
+      return;
+    }
+
+    // 2단계: Snap each coordinate to road via nearest API
+    const snappedList = await Promise.all(
+      coordList.map((coord) => snapCoord(profile, coord))
+    );
+    const snappedCoords = snappedList.join(';');
+    const radiuses = snappedList.map(() => SNAP_RADIUS_M).join(';');
+
+    // 4단계: overview=full, alternatives=false, steps=false, radiuses 제한
+    const routeUrl = `${OSRM}/route/v1/${profile}/${snappedCoords}?overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${radiuses}`;
+    const r = await fetch(routeUrl);
     if (!r.ok) {
       res.status(r.status).json(await r.text());
       return;
