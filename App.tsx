@@ -364,17 +364,16 @@ const App: React.FC = () => {
   const handleLoadFavorite = (saved: SavedRoute) => {
     setOrigin(saved.origin);
     setDestination(saved.destination);
-    
-    // Clear precise location refs when loading from favorites (fallback to address string)
     originLocationRef.current = null;
     destLocationRef.current = null;
 
-    // Deserialize waypoints
     const restoredWaypoints = saved.waypoints.map(wp => ({
-        name: wp.name,
-        location: new google.maps.LatLng(wp.lat, wp.lng)
+      name: wp.name,
+      location: new google.maps.LatLng(wp.lat, wp.lng),
     }));
     setWaypoints(restoredWaypoints);
+    // 불러온 경로로 즉시 경로 탐색 실행 (Search Route 자동 수행)
+    calculateRoute(mode, false, saved.origin, saved.destination, restoredWaypoints);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
