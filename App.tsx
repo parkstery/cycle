@@ -265,23 +265,16 @@ const App: React.FC = () => {
     // Default Routes if nothing saved
     return [
       {
+        id: "def-roma1",
+        origin: "Jaeger-LeCoultre, 92, Piazza di Spagna, Campo Marzio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00187, Italia",
+        destination: "Piazza del Colosseo, Celio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00184, Italia",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
         id: "def-seoul",
-        origin: "대한민국 서울특별시 강남구 압구정동 384-2",
-        destination: "대한민국 서울특별시 용산구 한남동 784-1",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-switz",
-        origin: "HXJQ+M5 스위스 그린델발트",
-        destination: "H2R4+H7 스위스 그린델발트",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-florence",
-        origin: "Borgo S. Lorenzo, 5 R, 50123 Firenze FI, 이탈리아",
-        destination: "Piazza di Santa Croce, 21, 50122 Firenze FI, 이탈리아",
+        origin: "고덕로, 암사2동, 강동구, 서울특별시, 05241, 대한민국",
+        destination: "올림픽대로, 본동, 노량진1동, 동작구, 서울특별시, 06904, 대한민국",
         waypoints: [],
         timestamp: Date.now()
       },
@@ -293,9 +286,9 @@ const App: React.FC = () => {
         timestamp: Date.now()
       },
       {
-        id: "def-egypt",
-        origin: "X4FC+7H Al Haram, 이집트",
-        destination: "X4HM+V4 Al Haram, 이집트",
+        id: "def-roma2",
+        origin: "Via Claudia, Celio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00184, Italia",
+        destination: "10, Piazza Pio Dodicesimo, Borgo, Municipio Roma I, Roma, Roma Capitale, Lazio, 00193, Italia",
         waypoints: [],
         timestamp: Date.now()
       }
@@ -467,7 +460,7 @@ const App: React.FC = () => {
 
               nextPano.setOptions({
                   pano: newPanoId,
-                  pov: { heading, pitch: 0 },
+                  pov: { heading, pitch: 0, zoom: 0 },
                   visible: true
               });
 
@@ -511,12 +504,12 @@ const App: React.FC = () => {
         const curH = currentPov?.heading ?? 0;
         const diff = Math.abs(normalizeAngleDiff(curH - heading));
         if (diff < 1.5) { resolve(); return; }
-        currentPano.setPov({ heading, pitch: 0 });
+        currentPano.setPov({ heading, pitch: 0, zoom: 0 });
         resolve();
         return;
       }
 
-      nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+      nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
       scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
     });
   }, [scheduleSwapAfterOk]);
@@ -763,7 +756,7 @@ const App: React.FC = () => {
   // Street View init (Panorama + Service) when Google loaded and SV divs exist
   useEffect(() => {
     if (!isMapsApiLoaded || !svRef1.current || !svRef2.current || panorama1.current) return;
-    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: true, motionTrackingControl: true };
+    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: true, motionTrackingControl: true, pov: { heading: 0, pitch: 0, zoom: 0 } };
     panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
     panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
     svServiceRef.current = new google.maps.StreetViewService();
