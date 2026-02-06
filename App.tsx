@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
-const ElevationChartView = lazy(() => import('./ElevationChartView'));
+import ElevationChartView from './ElevationChartView';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
@@ -12,26 +12,25 @@ declare var google: any;
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
-const PLAYLIST = [  
-  "https://www.dropbox.com/scl/fi/oq5lnyyc41rxso4kgm6en/1.mp3?rlkey=1j6uj6kxtu833jrljqz5qa0wx&st=ig1goyal&raw=1",
-  "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=hsarn2s1&raw=1",
-  "https://www.dropbox.com/scl/fi/8fbdd1t6v18z2m17ecidt/1.mp3?rlkey=sm15ow3aun8az4z6y2vseefy0&st=kbmlsn1m&raw=1",
-  "https://www.dropbox.com/scl/fi/bvtw5s1pimhv42k3bgdxh/.mp3?rlkey=6ujd668vw7kzioe277gkqvsq7&st=cq1x65f8&raw=1",
-  "https://www.dropbox.com/scl/fi/j1hzv2yx22uc0xl9redbj/1.mp3?rlkey=vjay2iyw06u84gygzxcoatz9w&st=9so3eh5n&raw=1",
-  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=h4pfgwtr&raw=1",
-  "https://www.dropbox.com/scl/fi/gcdfjs66qadt5jinkmou4/EG.mp3?rlkey=sb88y1sinjseqslsdqb385jod&st=vn1vnzqb&raw=1",
-  "https://www.dropbox.com/scl/fi/s6fqpav6yuy8jt7i5kz9d/.mp3?rlkey=gtvqcypwwmltf1wfk6m5nwfht&st=kea9s4nx&raw=1",
-  "https://www.dropbox.com/scl/fi/5rlpfefbfqz94zhqcahgn/1.mp3?rlkey=v393xy7ky2xq26ilyq37z7bks&st=5wol32h6&raw=1",
-  "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=f4k7d6we&raw=1",
+const PLAYLIST = [
+  "https://www.dropbox.com/scl/fi/nos19xptw7q0382wcnriw/1.mp3?rlkey=sp99hg4ts7ua84sx7pvhccdry&st=doi4yle7&raw=1",
+  "https://www.dropbox.com/scl/fi/q3igovjmmbqbyiel5fokw/.mp3?rlkey=oq6rkatit6tkb3ytqj0ms741c&st=qosipdkd&raw=1",
+  "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=0yoqhu3j&raw=1",
+  "https://www.dropbox.com/scl/fi/n5e0qtpcvjld4wrzxc36d/.mp3?rlkey=phd4mfmn96cmuj3wpcfz1a335&st=n0b0ry7i&raw=1",
+  "https://www.dropbox.com/scl/fi/s6fqpav6yuy8jt7i5kz9d/.mp3?rlkey=gtvqcypwwmltf1wfk6m5nwfht&st=frbfcugt&raw=1",
+  "https://www.dropbox.com/scl/fi/j1hzv2yx22uc0xl9redbj/1.mp3?rlkey=vjay2iyw06u84gygzxcoatz9w&st=mwjojmqh&raw=1",
+  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=e7jcjswl&raw=1",
+  "https://www.dropbox.com/scl/fi/5rlpfefbfqz94zhqcahgn/1.mp3?rlkey=v393xy7ky2xq26ilyq37z7bks&st=cnbklsql&raw=1",
+  "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=c11jnyod&raw=1",
 ];
 
-/** ZERO_RESULTS, OVER_QUERY_LIMIT 시 DEFAULT 재시도 없이 즉시 중단 (비용·무한 폴백 방지) */
-const UNRECOVERABLE_STATUS = ['ZERO_RESULTS', 'OVER_QUERY_LIMIT'];
+/** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
+const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
 
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
  * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
- * ZERO_RESULTS / OVER_QUERY_LIMIT 시 DEFAULT 호출하지 않고 null 반환.
+ * OVER_QUERY_LIMIT 시에만 DEFAULT 호출 생략. ZERO_RESULTS(구글 공식 없음)일 때는 DEFAULT(사용자 제작) 폴백 시도.
  */
 const getPanoramaWithFallback = (
     service: any,
@@ -1690,13 +1689,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {route?.streetViewDisabled && (
-        <div className="absolute left-4 bottom-28 z-[45] pointer-events-none">
-          <div className="bg-slate-800/90 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl shadow-xl">
-             <span className="text-white font-bold text-xs">이 구간은 거리뷰가 부족합니다.</span>
-          </div>
-        </div>
-      )}
       {isSvActive && isUserPano && (
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
@@ -1891,9 +1883,7 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   <div className="flex-1 min-w-0 bg-slate-900 rounded-xl p-1 relative overflow-hidden">
-                    <Suspense fallback={<div className="h-full w-full bg-slate-800 rounded animate-pulse" />}>
-                      <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
-                    </Suspense>
+                    <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
                   </div>
                 </div>
               </div>
