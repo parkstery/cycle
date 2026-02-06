@@ -654,6 +654,29 @@ const App: React.FC = () => {
     };
   }, [mapRevealed, isMapsApiLoaded]);
 
+  // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
+  useEffect(() => {
+    const container = mapRef.current;
+    if (!container || !isMapReady) return;
+    const disableGoogleMapsLink = () => {
+      const anchors = container.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="google.com/maps"], a[href*="maps.google.com"], a[title*="이 지역 열기"], a[title*="Open this area"]'
+      );
+      anchors.forEach((a: HTMLAnchorElement) => {
+        a.addEventListener('click', (e: MouseEvent) => e.preventDefault(), { capture: true });
+        a.style.pointerEvents = 'none';
+        a.style.cursor = 'default';
+      });
+    };
+    disableGoogleMapsLink();
+    const t1 = window.setTimeout(disableGoogleMapsLink, 500);
+    const t2 = window.setTimeout(disableGoogleMapsLink, 1500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isMapReady]);
+
   // 맵 컨테이너 리사이즈 시(상/하 전환·미니맵) Google Map resize 이벤트
   useEffect(() => {
     const el = mapRef.current;

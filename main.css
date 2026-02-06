@@ -27,6 +27,13 @@ html,
   display: none !important;
 }
 
+/* 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않음) */
+.gm-style-cc a,
+.gm-style-pbc a {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
 /* 경로 탐색 중 메시지 깜빡임 */
 @keyframes route-search-blink {
   0%, 100% { opacity: 1; }
