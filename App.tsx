@@ -657,22 +657,44 @@ const App: React.FC = () => {
     return () => ro.disconnect();
   }, [mapRevealed, isMapReady]);
 
-  // 클릭한 위치(맵/경로) → 주소·표고 조회 후 인포윈도우 표시. ref에 담아 맵 초기화·폴리라인 클릭에서 공통 사용
+  // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)
   useEffect(() => {
     if (typeof (window as any).google === 'undefined' || !(window as any).google.maps?.LatLng) return;
     const g = (window as any).google;
     handleLocationClickRef.current = (lat: number, lng: number) => {
       const location = new g.maps.LatLng(lat, lng);
-      const setWithElevation = (name: string, address: string, elev: number | null) => {
-        setClickedLocation({ lat, lng, name, address, elevation: elev, location });
-      };
-      Promise.all([
-        nominatim.reverse(lat, lng).catch(() => ({ formatted_address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` })),
-        openElevation.getElevationAlongPath([{ lat, lng }], 1).then(r => r.results[0]?.elevation ?? null).catch(() => null),
-      ]).then(([rev, elevation]) => {
-        const name = (rev as { formatted_address: string }).formatted_address;
-        setWithElevation(name, name, elevation);
+      const fallbackLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      // 1) 즉시 팝업 표시 (체감 지연 제거)
+      setClickedLocation({
+        lat,
+        lng,
+        name: 'Loading...',
+        address: fallbackLabel,
+        elevation: null,
+        location,
       });
+      // 2) 주소 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
+      nominatim
+        .reverse(lat, lng)
+        .catch(() => ({ formatted_address: fallbackLabel }))
+        .then((rev) => {
+          const name = rev.formatted_address;
+          setClickedLocation((prev) => {
+            if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+            return { ...prev, name, address: name };
+          });
+        });
+      // 3) 표고 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
+      openElevation
+        .getElevationAlongPath([{ lat, lng }], 1)
+        .then((r) => r.results[0]?.elevation ?? null)
+        .catch(() => null)
+        .then((elevation) => {
+          setClickedLocation((prev) => {
+            if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+            return { ...prev, elevation };
+          });
+        });
     };
   }, [isMapsApiLoaded]);
 
@@ -1834,7 +1856,9 @@ const App: React.FC = () => {
             <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
             <p className="text-slate-500 text-[10px] mb-2">
               {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
-              {clickedLocation.elevation != null && ` · Elevation ${Math.round(clickedLocation.elevation)}m`}
+              {clickedLocation.elevation != null
+                ? ` · Elevation ${Math.round(clickedLocation.elevation)}m`
+                : ' · Elevation —'}
             </p>
             <div className="grid grid-cols-3 gap-1.5 mt-2">
               <button onClick={handleSetStart} title="Set as Start" className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
