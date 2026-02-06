@@ -405,15 +405,19 @@ const App: React.FC = () => {
     localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
   };
 
-  // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지)
-  const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void) => {
+  // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지). onSwapDone 호출 시 스왑 완료(첫 거리뷰 디스플레이 보장용).
+  const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void, onSwapDone?: () => void) => {
+    const runSwap = () => {
+      doSwap();
+      onSwapDone?.();
+    };
     if (pendingSwapFallbackRef.current) {
       clearTimeout(pendingSwapFallbackRef.current);
       pendingSwapFallbackRef.current = null;
     }
     const doSwapWithDelay = () => {
       pendingSwapTimeoutRef.current = null;
-      doSwap();
+      runSwap();
     };
     const FALLBACK_MS = 1500;
     const DELAY_AFTER_OK_MS = 150;
@@ -421,7 +425,7 @@ const App: React.FC = () => {
     pendingSwapFallbackRef.current = setTimeout(() => {
       pendingSwapFallbackRef.current = null;
       if (listener) google.maps.event.removeListener(listener);
-      doSwap();
+      runSwap();
     }, FALLBACK_MS);
     listener = nextPano.addListener('status_changed', () => {
       if (nextPano.getStatus() !== 'OK') return;
@@ -431,87 +435,91 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // Helper function to update panorama atomically (Hybrid Double Buffer)
-  const setPanoramaView = useCallback((location: any, heading: number) => {
-      if (!svServiceRef.current) return;
-      if (pendingSwapTimeoutRef.current) {
-          clearTimeout(pendingSwapTimeoutRef.current);
-          pendingSwapTimeoutRef.current = null;
-      }
-      if (pendingSwapFallbackRef.current) {
-          clearTimeout(pendingSwapFallbackRef.current);
-          pendingSwapFallbackRef.current = null;
-      }
-      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
-          if (!data?.location) return;
-          setIsUserPano(usedFallback);
-          const currentIdx = activePanoRef.current;
-          const nextIdx = currentIdx === 0 ? 1 : 0;
-          const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-          const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
-
-          if (!currentPano || !nextPano) return;
-
-          const newPanoId = data.location.pano;
-          const currentPanoId = currentPano.getPano();
-
-          const doSwap = () => {
+  // Helper function to update panorama atomically (Hybrid Double Buffer). 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
+  const setPanoramaView = useCallback((location: any, heading: number): Promise<void> => {
+      return new Promise((resolve) => {
+          if (!svServiceRef.current) { resolve(); return; }
+          if (pendingSwapTimeoutRef.current) {
+              clearTimeout(pendingSwapTimeoutRef.current);
               pendingSwapTimeoutRef.current = null;
-              activePanoRef.current = nextIdx;
-              setVisiblePanoIdx(nextIdx);
-              // Map is separate from Street View
-          };
+          }
+          if (pendingSwapFallbackRef.current) {
+              clearTimeout(pendingSwapFallbackRef.current);
+              pendingSwapFallbackRef.current = null;
+          }
+          getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
+              if (!data?.location) { resolve(); return; }
+              setIsUserPano(usedFallback);
+              const currentIdx = activePanoRef.current;
+              const nextIdx = currentIdx === 0 ? 1 : 0;
+              const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+              const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
 
-          nextPano.setOptions({
-              pano: newPanoId,
-              pov: { heading, pitch: 0 },
-              visible: true
-          });
+              if (!currentPano || !nextPano) { resolve(); return; }
 
-          scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
+              const newPanoId = data.location.pano;
+              const currentPanoId = currentPano.getPano();
+
+              const doSwap = () => {
+                  pendingSwapTimeoutRef.current = null;
+                  activePanoRef.current = nextIdx;
+                  setVisiblePanoIdx(nextIdx);
+              };
+
+              nextPano.setOptions({
+                  pano: newPanoId,
+                  pov: { heading, pitch: 0 },
+                  visible: true
+              });
+
+              scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
+          }).catch(() => resolve());
       });
   }, [scheduleSwapAfterOk]);
 
   /**
    * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
    * isUserPhoto: 사용자 제작 이미지 여부(배지 표시용).
+   * 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
    */
-  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number, isUserPhoto?: boolean) => {
-    setIsUserPano(!!isUserPhoto);
-    if (pendingSwapTimeoutRef.current) {
-      clearTimeout(pendingSwapTimeoutRef.current);
-      pendingSwapTimeoutRef.current = null;
-    }
-    if (pendingSwapFallbackRef.current) {
-      clearTimeout(pendingSwapFallbackRef.current);
-      pendingSwapFallbackRef.current = null;
-    }
-    const currentIdx = activePanoRef.current;
-    const nextIdx = currentIdx === 0 ? 1 : 0;
-    const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-    const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
-    if (!currentPano || !nextPano) return;
-    const currentPanoId = currentPano.getPano();
+  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number, isUserPhoto?: boolean): Promise<void> => {
+    return new Promise((resolve) => {
+      setIsUserPano(!!isUserPhoto);
+      if (pendingSwapTimeoutRef.current) {
+        clearTimeout(pendingSwapTimeoutRef.current);
+        pendingSwapTimeoutRef.current = null;
+      }
+      if (pendingSwapFallbackRef.current) {
+        clearTimeout(pendingSwapFallbackRef.current);
+        pendingSwapFallbackRef.current = null;
+      }
+      const currentIdx = activePanoRef.current;
+      const nextIdx = currentIdx === 0 ? 1 : 0;
+      const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+      const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+      if (!currentPano || !nextPano) { resolve(); return; }
+      const currentPanoId = currentPano.getPano();
 
-    const doSwap = () => {
-      pendingSwapTimeoutRef.current = null;
-      activePanoRef.current = nextIdx;
-      setVisiblePanoIdx(nextIdx);
-      // Map is separate from Street View
-    };
+      const doSwap = () => {
+        pendingSwapTimeoutRef.current = null;
+        activePanoRef.current = nextIdx;
+        setVisiblePanoIdx(nextIdx);
+      };
 
-    // 같은 파노라마: heading 차이 1.5° 미만이면 무시, 1.5° 이상이면 POV만 갱신(스왑 없이) → 멈춤 감소
-    if (currentPanoId === panoId) {
-      const currentPov = currentPano.getPov?.();
-      const curH = currentPov?.heading ?? 0;
-      const diff = Math.abs(normalizeAngleDiff(curH - heading));
-      if (diff < 1.5) return;
-      currentPano.setPov({ heading, pitch: 0 });
-      return;
-    }
+      // 같은 파노라마: heading 차이 1.5° 미만이면 무시, 1.5° 이상이면 POV만 갱신(스왑 없이) → 멈춤 감소
+      if (currentPanoId === panoId) {
+        const currentPov = currentPano.getPov?.();
+        const curH = currentPov?.heading ?? 0;
+        const diff = Math.abs(normalizeAngleDiff(curH - heading));
+        if (diff < 1.5) { resolve(); return; }
+        currentPano.setPov({ heading, pitch: 0 });
+        resolve();
+        return;
+      }
 
-    nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
-    scheduleSwapAfterOk(nextPano, nextIdx, doSwap);
+      nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0 }, visible: true });
+      scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
+    });
   }, [scheduleSwapAfterOk]);
 
   /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 120m 제한없음) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
@@ -1388,6 +1396,14 @@ const App: React.FC = () => {
 
           if (autoStart) {
             countdownDoneRef.current = async () => {
+              // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작
+              const firstPano = panoData.length > 0 ? panoData[0] : null;
+              if (firstPano) await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
+              else {
+                const startPos = densifiedPath[0];
+                const heading = computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
+                await setPanoramaView(startPos, heading);
+              }
               setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
               setAppPhase('RUNNING');
               setIsSvFullScreen(true);
@@ -1408,13 +1424,6 @@ const App: React.FC = () => {
                 }
               }
               lastCoachedIndex.current = 0;
-              const firstPano = panoData.length > 0 ? panoData[0] : null;
-              if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-              else {
-                const startPos = densifiedPath[0];
-                const heading = computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
-                setPanoramaView(startPos, heading);
-              }
             };
             setCountdown(3);
           }
@@ -1437,11 +1446,19 @@ const App: React.FC = () => {
     setElapsedTime(0);
     setCoveredDistance(0);
     lastCoachedIndex.current = -1;
+    const pathLen = currentRoute.path.length;
+    // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작
+    const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
+    if (firstPano) await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
+    else if (pathLen > 0) {
+      const startPos = currentRoute.path[0];
+      const heading = pathLen > 1 ? computeHeading(startPos, currentRoute.path[1]) : 0;
+      await setPanoramaView(startPos, heading);
+    }
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
     setIsSvFullScreen(true);
     setIsSvActive(true);
-    const pathLen = currentRoute.path.length;
     const elevLen = currentRoute.elevation.length;
     const segmentSize = Math.min(20, elevLen);
     const upcomingSlice = currentRoute.elevation.slice(0, segmentSize);
@@ -1457,15 +1474,6 @@ const App: React.FC = () => {
       }
     }
     lastCoachedIndex.current = 0;
-    const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
-    if (firstPano) setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-    else {
-      const startPos = currentRoute.path[0];
-      const heading = pathLen > 1
-        ? computeHeading(startPos, currentRoute.path[1])
-        : 0;
-      setPanoramaView(startPos, heading);
-    }
   }, [speedKmH, setPanoramaView, setPanoramaViewByPanoId]);
 
   const handleSetStart = () => {
