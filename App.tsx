@@ -1358,6 +1358,20 @@ const App: React.FC = () => {
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
+        // [경로 전환 시 거리뷰 멈춤 방지] 새 path 설정 직후 시뮬레이션·거리뷰 ref 리셋 (방안 1·3)
+        setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
+        setAppPhase('IDLE');
+        svDisplayPathIndexRef.current = 0;
+        lastDisplayedPanoPathIndexRef.current = -1;
+        lastSvDisplayUpdateRef.current = 0;
+        lastCoachedIndex.current = -1;
+        // (방안 2) 새 경로 시작점으로 거리뷰 즉시 이동 — 이전 경로 화면에 멈춰 보이는 시간 제거
+        if (densifiedPath.length > 0) {
+          const startPos = densifiedPath[0];
+          const heading = densifiedPath.length > 1 ? computeHeading(startPos, densifiedPath[1]) : 0;
+          setPanoramaView(startPos, heading);
+        }
+
         // Progressive loading: pre-fetch first 200m (10m interval) for continuous display; rest loaded on-demand
         (async () => {
           setAppPhase('PREPARING');
