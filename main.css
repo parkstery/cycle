@@ -20,3 +20,9 @@ html,
 .gm-fullscreen-control {
   display: none !important;
 }
+/* 지도 카메라 컨트롤(회전/기울기) 숨김 */
+.gm-compass,
+.gm-rotate-control,
+[title="지도 카메라 컨트롤"] {
+  display: none !important;
+}

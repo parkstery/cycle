@@ -627,6 +627,8 @@ const App: React.FC = () => {
         fullscreenControl: false,
         zoomControl: false,
         scaleControl: false,
+        rotateControl: false,
+        tiltControl: false,
         clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
       });
       googleMapRef.current = map;
