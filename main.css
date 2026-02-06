@@ -26,3 +26,12 @@ html,
 [title="지도 카메라 컨트롤"] {
   display: none !important;
 }
+
+/* 경로 탐색 중 메시지 깜빡임 */
+@keyframes route-search-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.route-search-blink {
+  animation: route-search-blink 1s ease-in-out infinite;
+}

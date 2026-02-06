@@ -1637,6 +1637,13 @@ const App: React.FC = () => {
          <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
       </div>
 
+      {loading && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] pointer-events-none">
+          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
+            <span className="route-search-blink text-white font-bold text-sm">Searching for route...</span>
+          </div>
+        </div>
+      )}
       {appPhase === 'PREPARING' && preparingProgress && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] pointer-events-none">
           <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
