@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
+import About from './About';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
@@ -219,6 +220,7 @@ const App: React.FC = () => {
   const [isUserPano, setIsUserPano] = useState(false); // true when showing user-contributed panorama (fallback)
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
+  const [showAbout, setShowAbout] = useState(false);
   
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -1641,8 +1643,11 @@ const App: React.FC = () => {
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
       {/* LCP용: 지도 로드 전 껍데기 — 대용량 아이콘 없이 텍스트만 (icon-512는 2048px로 4.5MB 유발) */}
       {!isMapReady && (
-        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-slate-900" aria-hidden="true">
+        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
           <p className="text-slate-400 text-2xl font-semibold">Cycle Simulator</p>
+          <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+            Map data © OpenStreetMap contributors
+          </p>
         </div>
       )}
       {/* Go 버튼 클릭 시 4초 카운트다운 오버레이 */}
@@ -1711,6 +1716,31 @@ const App: React.FC = () => {
         </div>
       )}
       
+      {/* Info Button - Top Right Corner */}
+      <button
+        onClick={() => setShowAbout(true)}
+        title="About"
+        className="fixed z-[90] flex items-center justify-center text-white bg-slate-800/80 backdrop-blur-sm hover:bg-slate-700/80 transition-colors touch-manipulation"
+        style={{ 
+          top: 'env(safe-area-inset-top, 0px)',
+          right: 'env(safe-area-inset-right, 0px)',
+          fontSize: '11px',
+          width: '24px',
+          height: '24px',
+          padding: 0,
+          margin: 0,
+          border: 'none',
+          cursor: 'pointer',
+          lineHeight: '1',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        aria-label="About"
+      >
+        ⓘ
+      </button>
+
       {/* Map Style Button - Moved Left */}
       <div className="absolute right-20 top-4 z-50">
         <button onClick={handleToggleMapType} title="Change Map Style" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
@@ -1905,6 +1935,9 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* About Page */}
+      {showAbout && <About onClose={() => setShowAbout(false)} />}
     </div>
   );
 };
