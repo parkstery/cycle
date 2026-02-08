@@ -1716,31 +1716,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Info Button - Top Right Corner */}
-      <button
-        onClick={() => setShowAbout(true)}
-        title="About"
-        className="fixed z-[200] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold"
-        style={{
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '56px',
-          height: '56px',
-          padding: 0,
-          margin: 0,
-          border: '4px solid white',
-          cursor: 'pointer',
-          borderRadius: '50%',
-          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-        aria-label="About"
-      >
-        <Info size={32} strokeWidth={2.5} />
-      </button>
+
 
       {/* Map Style Button - Moved Left */}
       <div className="absolute right-20 top-4 z-50">
@@ -1939,6 +1915,33 @@ const App: React.FC = () => {
 
       {/* About Page */}
       {showAbout && <About onClose={() => setShowAbout(false)} />}
+      {/* Info Button - Top Right Corner - Moved to end for Z-Index Safety */}
+      <button
+        type="button"
+        onClick={() => setShowAbout(true)}
+        title="About"
+        className="fixed z-[999] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold"
+        style={{
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '64px',
+          height: '64px',
+          padding: 0,
+          margin: 0,
+          border: '4px solid white',
+          cursor: 'pointer',
+          borderRadius: '50%',
+          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        aria-label="About"
+      >
+        <Info size={36} strokeWidth={3} />
+      </button>
+
     </div>
   );
 };
