@@ -1720,7 +1720,7 @@ const App: React.FC = () => {
       <button
         onClick={() => setShowAbout(true)}
         title="About"
-        className="fixed z-[90] flex items-center justify-center text-white hover:bg-slate-700/30 transition-colors touch-manipulation"
+        className="fixed z-[90] flex items-center justify-center text-blue hover:bg-slate-700/30 transition-colors touch-manipulation"
         style={{ 
           top: 'env(safe-area-inset-top, 0px)',
           right: 'env(safe-area-inset-right, 0px)',

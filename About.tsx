@@ -6,17 +6,32 @@ interface AboutProps {
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900 overflow-y-auto" style={{ paddingTop: 'env(safe-area-inset-top)', paddingRight: 'env(safe-area-inset-right)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)' }}>
+    <div
+      className="fixed inset-0 z-[100] bg-[#0f172a] overflow-y-auto"
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingRight: 'env(safe-area-inset-right)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+      }}
+    >
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-slate-900/95 backdrop-blur-md border-b border-white/10 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      <header
+        className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-[#0f172a]/95 backdrop-blur-md border-b border-white/10 z-10"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+        }}
+      >
         <button
           onClick={onClose}
-          className="bg-transparent border-none text-white text-xl p-0 px-4 cursor-pointer hover:opacity-70 transition-opacity"
+          className="bg-transparent border-none text-white text-[20px] px-4 cursor-pointer hover:opacity-70 transition-opacity"
           aria-label="Back"
         >
           ←
         </button>
-        <div className="text-base font-semibold text-white">About</div>
+        <div className="text-[16px] font-semibold text-white">About</div>
       </header>
 
       {/* Main */}
@@ -31,7 +46,9 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
 
         {/* Credits */}
         <section className="mb-5">
-          <h2 className="text-lg mt-8 mb-3 border-b border-white/15 pb-1 text-white font-semibold">Data & Credits</h2>
+          <h2 className="text-[18px] mt-8 mb-3 border-b border-white/15 pb-1 text-white font-semibold">
+            Data & Credits
+          </h2>
 
           <div className="mb-2.5">
             <div className="font-semibold text-white">Maps & Street View</div>
@@ -56,11 +73,17 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
 
         {/* Legal */}
         <section className="mb-5">
-          <h2 className="text-lg mt-8 mb-3 border-b border-white/15 pb-1 text-white font-semibold">Legal</h2>
+          <h2 className="text-[18px] mt-8 mb-3 border-b border-white/15 pb-1 text-white font-semibold">
+            Legal
+          </h2>
 
           <p className="my-1.5 text-slate-200">
             This application uses third-party services and map data.
             All rights belong to their respective owners.
+          </p>
+
+          <p className="my-1.5 text-slate-200">
+            Map data © OpenStreetMap contributors.
           </p>
         </section>
 
