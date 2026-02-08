@@ -1729,12 +1729,13 @@ const App: React.FC = () => {
           height: '24px',
           padding: 0,
           margin: 0,
-          border: '2px solid #2563eb',
+          border: 'none',
           cursor: 'pointer',
           lineHeight: '1',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
+          fontWeight: '700', // ← 여기 추가
         }}
         aria-label="About"
       >
