@@ -34,57 +34,57 @@ const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
  * OVER_QUERY_LIMIT 시에만 DEFAULT 호출 생략. ZERO_RESULTS(구글 공식 없음)일 때는 DEFAULT(사용자 제작) 폴백 시도.
  */
 const getPanoramaWithFallback = (
-    service: any,
-    opts: { location: any; radius: number; preference?: any }
+  service: any,
+  opts: { location: any; radius: number; preference?: any }
 ): Promise<{ data: any; usedFallback: boolean }> => {
-    return new Promise((resolve) => {
-        service.getPanorama({
-            location: opts.location,
-            radius: opts.radius,
-            source: google.maps.StreetViewSource.GOOGLE,
-            preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
-        }, (data: any, status: string) => {
-            if (status === 'OK' && data?.location?.pano) {
-                resolve({ data, usedFallback: false });
-                return;
-            }
-            if (UNRECOVERABLE_STATUS.includes(status)) {
-                resolve({ data: null, usedFallback: false });
-                return;
-            }
-            service.getPanorama({
-                location: opts.location,
-                radius: opts.radius,
-                source: google.maps.StreetViewSource.DEFAULT,
-                preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
-            }, (fallbackData: any, fallbackStatus: string) => {
-                if (fallbackStatus === 'OK' && fallbackData?.location?.pano) {
-                    resolve({ data: fallbackData, usedFallback: true });
-                } else {
-                    resolve({ data: null, usedFallback: false });
-                }
-            });
-        });
+  return new Promise((resolve) => {
+    service.getPanorama({
+      location: opts.location,
+      radius: opts.radius,
+      source: google.maps.StreetViewSource.GOOGLE,
+      preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
+    }, (data: any, status: string) => {
+      if (status === 'OK' && data?.location?.pano) {
+        resolve({ data, usedFallback: false });
+        return;
+      }
+      if (UNRECOVERABLE_STATUS.includes(status)) {
+        resolve({ data: null, usedFallback: false });
+        return;
+      }
+      service.getPanorama({
+        location: opts.location,
+        radius: opts.radius,
+        source: google.maps.StreetViewSource.DEFAULT,
+        preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
+      }, (fallbackData: any, fallbackStatus: string) => {
+        if (fallbackStatus === 'OK' && fallbackData?.location?.pano) {
+          resolve({ data: fallbackData, usedFallback: true });
+        } else {
+          resolve({ data: null, usedFallback: false });
+        }
+      });
     });
+  });
 };
 
 // Helper to wrap getPanorama in a Promise (no direction filter); uses GOOGLE then DEFAULT fallback
 const findStreetView = (
-    service: any,
-    location: any,
-    radius: number
+  service: any,
+  location: any,
+  radius: number
 ): Promise<{ data: any; usedFallback: boolean } | null> => {
-    return getPanoramaWithFallback(service, { location, radius }).then(({ data, usedFallback }) => {
-        if (data) return { data, usedFallback };
-        return null;
-    });
+  return getPanoramaWithFallback(service, { location, radius }).then(({ data, usedFallback }) => {
+    if (data) return { data, usedFallback };
+    return null;
+  });
 };
 
 /** Normalize angle difference to [-180, 180] */
 function normalizeAngleDiff(deg: number): number {
-    while (deg > 180) deg -= 360;
-    while (deg < -180) deg += 360;
-    return deg;
+  while (deg > 180) deg -= 360;
+  while (deg < -180) deg += 360;
+  return deg;
 }
 
 /**
@@ -92,36 +92,36 @@ function normalizeAngleDiff(deg: number): number {
  * GOOGLE 먼저 시도, 없으면 DEFAULT(사용자 파노라마 포함) 폴백.
  */
 const findStreetViewInDirection = (
-    service: any,
-    pathPoint: any,
-    pathNext: any,
-    pathIndex: number,
-    path: any[],
-    radius: number,
-    maxAngleDeg: number = 110
+  service: any,
+  pathPoint: any,
+  pathNext: any,
+  pathIndex: number,
+  path: any[],
+  radius: number,
+  maxAngleDeg: number = 110
 ): Promise<PanoDataItem | null> => {
-    return getPanoramaWithFallback(service, {
-        location: pathPoint,
-        radius,
-        preference: google.maps.StreetViewPreference.NEAREST
-    }).then(({ data, usedFallback }) => {
-        if (!data?.location?.pano) return null;
-        const driveHeading = computeHeading(pathPoint, pathNext);
-        const panoLatLng = data.location.latLng;
-        const bearingToPano = computeHeading(pathPoint, panoLatLng);
-        const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
-        if (angleDiff > maxAngleDeg) return null;
-        const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-        const heading = computeHeading(pathPoint, path[nextIdx]);
-        return {
-            pathIndex,
-            panoId: data.location.pano,
-            location: data.location.latLng,
-            heading,
-            isUserPhoto: usedFallback,
-            description: data.location?.description ?? undefined
-        };
-    });
+  return getPanoramaWithFallback(service, {
+    location: pathPoint,
+    radius,
+    preference: google.maps.StreetViewPreference.NEAREST
+  }).then(({ data, usedFallback }) => {
+    if (!data?.location?.pano) return null;
+    const driveHeading = computeHeading(pathPoint, pathNext);
+    const panoLatLng = data.location.latLng;
+    const bearingToPano = computeHeading(pathPoint, panoLatLng);
+    const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
+    if (angleDiff > maxAngleDeg) return null;
+    const nextIdx = Math.min(pathIndex + 10, path.length - 1);
+    const heading = computeHeading(pathPoint, path[nextIdx]);
+    return {
+      pathIndex,
+      panoId: data.location.pano,
+      location: data.location.latLng,
+      heading,
+      isUserPhoto: usedFallback,
+      description: data.location?.description ?? undefined
+    };
+  });
 };
 
 /** [Phase 2] Multi-pass 1단계: 반경(m), 주행 방향 ±각도(°). 시니어 권고 50m ±40° */
@@ -157,7 +157,7 @@ function inputsMatch(
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
-  
+
   // Double Buffering Refs
   const svContainerRef = useRef<HTMLDivElement>(null);
   const svRef1 = useRef<HTMLDivElement>(null);
@@ -177,7 +177,7 @@ const App: React.FC = () => {
   const waypointMarkers = useRef<google.maps.Marker[]>([]);
   const tempMarker = useRef<google.maps.Marker | null>(null);
   const searchMarkerRef = useRef<google.maps.Marker | null>(null);
-  const svServiceRef = useRef<any>(null); 
+  const svServiceRef = useRef<any>(null);
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
   const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
@@ -203,12 +203,12 @@ const App: React.FC = () => {
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
-  const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => {});
+  const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => { });
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
-  const [speedKmH, setSpeedKmH] = useState(20); 
+  const [speedKmH, setSpeedKmH] = useState(20);
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -221,7 +221,7 @@ const App: React.FC = () => {
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
   const [showAbout, setShowAbout] = useState(false);
-  
+
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
   const [coveredDistance, setCoveredDistance] = useState(0);
@@ -243,9 +243,9 @@ const App: React.FC = () => {
   // Input States
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [waypoints, setWaypoints] = useState<{name: string, location: any}[]>([]);
+  const [waypoints, setWaypoints] = useState<{ name: string, location: any }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   const [mapRevealed, setMapRevealed] = useState(false);
@@ -263,7 +263,7 @@ const App: React.FC = () => {
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
     if (saved) return JSON.parse(saved);
-    
+
     // Default Routes if nothing saved
     return [
       {
@@ -303,14 +303,14 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any} | null>(null);
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any } | null>(null);
 
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
-    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   /** 주행 시간 표시용 단순 형식 (예: 1:25) */
@@ -324,59 +324,59 @@ const App: React.FC = () => {
   // Helper to check if current route is saved
   const isCurrentRouteSaved = useCallback(() => {
     if (!origin || !destination) return false;
-    return favoriteRoutes.some(saved => 
-        saved.origin === origin && 
-        saved.destination === destination && 
-        saved.waypoints.length === waypoints.length &&
-        saved.waypoints.every((wp, i) => wp.name === waypoints[i].name)
+    return favoriteRoutes.some(saved =>
+      saved.origin === origin &&
+      saved.destination === destination &&
+      saved.waypoints.length === waypoints.length &&
+      saved.waypoints.every((wp, i) => wp.name === waypoints[i].name)
     );
   }, [origin, destination, waypoints, favoriteRoutes]);
 
   const handleToggleFavorite = () => {
     if (!origin || !destination) return;
-    
+
     const isSaved = isCurrentRouteSaved();
-    
+
     if (isSaved) {
-        // Remove
-        const newFavorites = favoriteRoutes.filter(saved => !(
-            saved.origin === origin && 
-            saved.destination === destination && 
-            saved.waypoints.length === waypoints.length &&
-            saved.waypoints.every((wp, i) => wp.name === waypoints[i].name)
-        ));
-        setFavoriteRoutes(newFavorites);
-        localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
+      // Remove
+      const newFavorites = favoriteRoutes.filter(saved => !(
+        saved.origin === origin &&
+        saved.destination === destination &&
+        saved.waypoints.length === waypoints.length &&
+        saved.waypoints.every((wp, i) => wp.name === waypoints[i].name)
+      ));
+      setFavoriteRoutes(newFavorites);
+      localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
     } else {
-        // Add
-        if (favoriteRoutes.length >= 5) {
-            alert("Maximum 5 routes can be saved. Please remove a route to save a new one.");
-            return;
-        }
-        
-        // Serialize waypoints
-        const newWaypoints = waypoints.map(wp => {
-            // Check if location is a Google LatLng object (has methods) or plain object
-            const lat = typeof wp.location.lat === 'function' ? wp.location.lat() : wp.location.lat;
-            const lng = typeof wp.location.lng === 'function' ? wp.location.lng() : wp.location.lng;
-            return {
-                name: wp.name,
-                lat: lat,
-                lng: lng
-            };
-        });
+      // Add
+      if (favoriteRoutes.length >= 5) {
+        alert("Maximum 5 routes can be saved. Please remove a route to save a new one.");
+        return;
+      }
 
-        const newRoute: SavedRoute = {
-            id: Date.now().toString(),
-            origin,
-            destination,
-            waypoints: newWaypoints,
-            timestamp: Date.now()
+      // Serialize waypoints
+      const newWaypoints = waypoints.map(wp => {
+        // Check if location is a Google LatLng object (has methods) or plain object
+        const lat = typeof wp.location.lat === 'function' ? wp.location.lat() : wp.location.lat;
+        const lng = typeof wp.location.lng === 'function' ? wp.location.lng() : wp.location.lng;
+        return {
+          name: wp.name,
+          lat: lat,
+          lng: lng
         };
+      });
 
-        const newFavorites = [newRoute, ...favoriteRoutes];
-        setFavoriteRoutes(newFavorites);
-        localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
+      const newRoute: SavedRoute = {
+        id: Date.now().toString(),
+        origin,
+        destination,
+        waypoints: newWaypoints,
+        timestamp: Date.now()
+      };
+
+      const newFavorites = [newRoute, ...favoriteRoutes];
+      setFavoriteRoutes(newFavorites);
+      localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
     }
   };
 
@@ -431,44 +431,44 @@ const App: React.FC = () => {
 
   // Helper function to update panorama atomically (Hybrid Double Buffer). 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
   const setPanoramaView = useCallback((location: any, heading: number): Promise<void> => {
-      return new Promise((resolve) => {
-          if (!svServiceRef.current) { resolve(); return; }
-          if (pendingSwapTimeoutRef.current) {
-              clearTimeout(pendingSwapTimeoutRef.current);
-              pendingSwapTimeoutRef.current = null;
-          }
-          if (pendingSwapFallbackRef.current) {
-              clearTimeout(pendingSwapFallbackRef.current);
-              pendingSwapFallbackRef.current = null;
-          }
-          getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
-              if (!data?.location) { resolve(); return; }
-              setIsUserPano(usedFallback);
-              const currentIdx = activePanoRef.current;
-              const nextIdx = currentIdx === 0 ? 1 : 0;
-              const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-              const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
+    return new Promise((resolve) => {
+      if (!svServiceRef.current) { resolve(); return; }
+      if (pendingSwapTimeoutRef.current) {
+        clearTimeout(pendingSwapTimeoutRef.current);
+        pendingSwapTimeoutRef.current = null;
+      }
+      if (pendingSwapFallbackRef.current) {
+        clearTimeout(pendingSwapFallbackRef.current);
+        pendingSwapFallbackRef.current = null;
+      }
+      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
+        if (!data?.location) { resolve(); return; }
+        setIsUserPano(usedFallback);
+        const currentIdx = activePanoRef.current;
+        const nextIdx = currentIdx === 0 ? 1 : 0;
+        const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
+        const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
 
-              if (!currentPano || !nextPano) { resolve(); return; }
+        if (!currentPano || !nextPano) { resolve(); return; }
 
-              const newPanoId = data.location.pano;
-              const currentPanoId = currentPano.getPano();
+        const newPanoId = data.location.pano;
+        const currentPanoId = currentPano.getPano();
 
-              const doSwap = () => {
-                  pendingSwapTimeoutRef.current = null;
-                  activePanoRef.current = nextIdx;
-                  setVisiblePanoIdx(nextIdx);
-              };
+        const doSwap = () => {
+          pendingSwapTimeoutRef.current = null;
+          activePanoRef.current = nextIdx;
+          setVisiblePanoIdx(nextIdx);
+        };
 
-              nextPano.setOptions({
-                  pano: newPanoId,
-                  pov: { heading, pitch: 0, zoom: 0 },
-                  visible: true
-              });
+        nextPano.setOptions({
+          pano: newPanoId,
+          pov: { heading, pitch: 0, zoom: 0 },
+          visible: true
+        });
 
-              scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
-          }).catch(() => resolve());
-      });
+        scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
+      }).catch(() => resolve());
+    });
   }, [scheduleSwapAfterOk]);
 
   /**
@@ -752,7 +752,7 @@ const App: React.FC = () => {
         reader.onloadend = () => { cyclingMarkerDataUrlRef.current = reader.result as string; };
         reader.readAsDataURL(blob);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Street View init (Panorama + Service) when Google loaded and SV divs exist
@@ -840,10 +840,10 @@ const App: React.FC = () => {
       if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
       const currentIdx = simulation.currentIndex;
       if (currentIdx >= route.path.length - 1) {
-          setSimulation(prev => ({ ...prev, isActive: false }));
-          setAppPhase('IDLE');
-          getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
-          return;
+        setSimulation(prev => ({ ...prev, isActive: false }));
+        setAppPhase('IDLE');
+        getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
+        return;
       }
       const currentPos = route.path[currentIdx];
       const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
@@ -870,11 +870,11 @@ const App: React.FC = () => {
       })();
 
       if (!simulationMarker.current && map) {
-          simulationMarker.current = new google.maps.Marker({
-            position: { lat, lng },
-            map,
-            icon: cyclingIcon,
-          });
+        simulationMarker.current = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: cyclingIcon,
+        });
       } else if (simulationMarker.current) {
         simulationMarker.current.setPosition({ lat, lng });
         simulationMarker.current.setIcon(cyclingIcon);
@@ -930,7 +930,7 @@ const App: React.FC = () => {
             const fromM = distAtLast + 10;
             const toM = Math.min(distAtLast + 400, totalM);
             if (fromM < toM) {
-              preFetchStreetViewData(path, () => {}, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
+              preFetchStreetViewData(path, () => { }, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
                 .then(({ panoData: nextPanos }) => {
                   if (nextPanos.length) {
                     setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
@@ -995,15 +995,15 @@ const App: React.FC = () => {
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];
       if (nextPos) {
-          const distMeters = computeDistanceBetween(currentPos, nextPos);
-          const speedMetersPerSec = (speedKmH * 1000) / 3600;
-          if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
+        const distMeters = computeDistanceBetween(currentPos, nextPos);
+        const speedMetersPerSec = (speedKmH * 1000) / 3600;
+        if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
       }
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
     }
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen, isSvActive]); 
+  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen, isSvActive]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -1049,26 +1049,26 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!audioRef.current) {
-        audioRef.current = new Audio();
-        audioRef.current.addEventListener('ended', () => {
-            if (simulationActiveRef.current) {
-                playRandomMusic();
-            }
-        });
+      audioRef.current = new Audio();
+      audioRef.current.addEventListener('ended', () => {
+        if (simulationActiveRef.current) {
+          playRandomMusic();
+        }
+      });
     }
     return () => {
-        if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
     };
   }, []);
 
   useEffect(() => {
     if (simulation.isActive && musicOn) {
-        if (audioRef.current && audioRef.current.paused) { playRandomMusic(); }
+      if (audioRef.current && audioRef.current.paused) { playRandomMusic(); }
     } else {
-        if (audioRef.current && !audioRef.current.paused) {
-            fadeAudio(0, 2000, () => { audioRef.current?.pause(); });
-        }
+      if (audioRef.current && !audioRef.current.paused) {
+        fadeAudio(0, 2000, () => { audioRef.current?.pause(); });
+      }
     }
   }, [simulation.isActive, musicOn]);
 
@@ -1076,10 +1076,10 @@ const App: React.FC = () => {
     if (!coachingOn || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US'; 
+    utterance.lang = 'en-US';
     const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice => 
-      voice.lang.startsWith('en') && 
+    const preferredVoice = voices.find(voice =>
+      voice.lang.startsWith('en') &&
       (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
     );
     if (preferredVoice) utterance.voice = preferredVoice;
@@ -1121,11 +1121,11 @@ const App: React.FC = () => {
     setCoachData(null);
     setRouteSource(null);
     setWaypoints([]);
-    
+
     // Explicitly clear start and end inputs
     setOrigin('');
     setDestination('');
-    
+
     // Clear Coordinate Refs
     originLocationRef.current = null;
     destLocationRef.current = null;
@@ -1143,11 +1143,11 @@ const App: React.FC = () => {
       lastCoachedIndex.current = -1;
       setElapsedTime(0);
       setCoveredDistance(0);
-      
+
       const startPos = route.path[0];
       const nextPos = route.path.length > 1 ? route.path[1] : startPos;
       const heading = computeHeading(startPos, nextPos);
-      
+
       // Update view (Hybrid)
       setPanoramaView(startPos, heading);
 
@@ -1169,7 +1169,7 @@ const App: React.FC = () => {
     // We should probably hide the SV container when stopped?
     // No, maybe user wants to see it? Let's leave isSvActive state as is, 
     // but the simulation effect won't run.
-    
+
     setIsCoachThinking(false);
     setCoachData(null);
     window.speechSynthesis.cancel();
@@ -1177,30 +1177,30 @@ const App: React.FC = () => {
 
   const handleToggleSimulation = () => {
     setSimulation(prev => {
-        const isActive = !prev.isActive;
-        if (isActive) {
-            // Restore heading/position
-            if (route && route.path[prev.currentIndex]) {
-                 const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
-                 const heading = computeHeading(
-                     route.path[prev.currentIndex], 
-                     route.path[nextIdx]
-                 );
-                 setPanoramaView(route.path[prev.currentIndex], heading);
-            }
-            setIsSvFullScreen(true);
-            setIsSvActive(true); // Ensure container is visible
+      const isActive = !prev.isActive;
+      if (isActive) {
+        // Restore heading/position
+        if (route && route.path[prev.currentIndex]) {
+          const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
+          const heading = computeHeading(
+            route.path[prev.currentIndex],
+            route.path[nextIdx]
+          );
+          setPanoramaView(route.path[prev.currentIndex], heading);
         }
-        return { ...prev, isActive };
+        setIsSvFullScreen(true);
+        setIsSvActive(true); // Ensure container is visible
+      }
+      return { ...prev, isActive };
     });
   };
 
   const calculateRoute = useCallback(async (
-    targetMode?: TravelMode, 
-    autoStart: boolean = false, 
-    customOrigin?: string, 
-    customDestination?: string, 
-    customWaypoints?: {name: string, location: any}[]
+    targetMode?: TravelMode,
+    autoStart: boolean = false,
+    customOrigin?: string,
+    customDestination?: string,
+    customWaypoints?: { name: string, location: any }[]
   ) => {
     const activeMode = targetMode || mode;
     const finalOrigin = customOrigin || origin;
@@ -1208,7 +1208,7 @@ const App: React.FC = () => {
     const activeWaypoints = customWaypoints || waypoints;
 
     if (!finalOrigin || !finalDestination) return;
-    
+
     // Log calculateRoute call for debugging excessive API calls
     const routeCallTime = new Date().toISOString();
     const stackTrace = new Error().stack || '';
@@ -1223,7 +1223,7 @@ const App: React.FC = () => {
       caller: caller
     };
     console.log('[CALCULATE_ROUTE_CALL]', JSON.stringify(routeCallInfo, null, 2));
-    
+
     setLoading(true);
     setCoachData(null);
     setRouteSource(null);
@@ -1232,7 +1232,7 @@ const App: React.FC = () => {
     lastCoachedIndex.current = -1;
     if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
     // OSRM only (no Google Directions). Geocoding: Nominatim only.
-    
+
     // PRIORITIZE COORDINATE REFS if they are set (and assume they match the current text intent)
     // If calculating from handleSetStart, originLocationRef was just set.
     // If calculating from manual input, refs should be null.
@@ -1240,51 +1240,51 @@ const App: React.FC = () => {
     const useDest = destLocationRef.current || finalDestination;
 
     try {
-    const getCoord = async (val: any, addr: string) => {
-      if (val && typeof val.lat === 'function') return val;
-      if (val && val.lat != null && val.lng != null) return new google.maps.LatLng(val.lat, val.lng);
-      const res = await nominatim.addressToCoord(addr);
-      return new google.maps.LatLng(res.lat, res.lng);
-    };
-    const toLatLng = (p: any) => {
-      if (!p) return null;
-      if (typeof p.lat === 'function' && typeof p.lng === 'function') return p;
-      const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
-      const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
-      if (lat != null && lng != null && typeof google !== 'undefined' && google.maps?.LatLng) return new google.maps.LatLng(lat, lng);
-      return null;
-    };
+      const getCoord = async (val: any, addr: string) => {
+        if (val && typeof val.lat === 'function') return val;
+        if (val && val.lat != null && val.lng != null) return new google.maps.LatLng(val.lat, val.lng);
+        const res = await nominatim.addressToCoord(addr);
+        return new google.maps.LatLng(res.lat, res.lng);
+      };
+      const toLatLng = (p: any) => {
+        if (!p) return null;
+        if (typeof p.lat === 'function' && typeof p.lng === 'function') return p;
+        const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
+        const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
+        if (lat != null && lng != null && typeof google !== 'undefined' && google.maps?.LatLng) return new google.maps.LatLng(lat, lng);
+        return null;
+      };
 
-    let path: any[] = [];
-    let distText = '';
-    let durText = '';
-    try {
-      const originLatLng = await getCoord(useOrigin, finalOrigin);
-      const destLatLng = await getCoord(useDest, finalDestination);
-      const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
-      const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-      const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
-      const url = `/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`;
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.code === 'Ok') {
-        const decoded = decodePath(data.routes[0].geometry);
-        path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
-        distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
-        durText = formatDurationSimple(data.routes[0].duration);
-        setRouteSource('OSRM');
-        if (googleMapRef.current && path.length) {
-          const bounds = new google.maps.LatLngBounds();
-          path.forEach((p: any) => bounds.extend(p));
-          googleMapRef.current.fitBounds(bounds);
+      let path: any[] = [];
+      let distText = '';
+      let durText = '';
+      try {
+        const originLatLng = await getCoord(useOrigin, finalOrigin);
+        const destLatLng = await getCoord(useDest, finalDestination);
+        const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
+        const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+        const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
+        const url = `/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.code === 'Ok') {
+          const decoded = decodePath(data.routes[0].geometry);
+          path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+          distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
+          durText = formatDurationSimple(data.routes[0].duration);
+          setRouteSource('OSRM');
+          if (googleMapRef.current && path.length) {
+            const bounds = new google.maps.LatLngBounds();
+            path.forEach((p: any) => bounds.extend(p));
+            googleMapRef.current.fitBounds(bounds);
+          }
         }
+      } catch (e) {
+        console.error('[OSRM_ERROR]', e);
+        setLoading(false);
+        return;
       }
-    } catch (e) {
-      console.error('[OSRM_ERROR]', e);
-      setLoading(false);
-      return;
-    }
-    if (path.length > 0) {
+      if (path.length > 0) {
         // Log Elevation API call for debugging
         const elevationCallTime = new Date().toISOString();
         const elevationCallInfo = {
@@ -1316,47 +1316,47 @@ const App: React.FC = () => {
         let calculatedSeconds = 0;
         const points = elevationRes.results;
         for (let i = 0; i < points.length - 1; i++) {
-            const p1 = points[i];
-            const p2 = points[i + 1];
-            const dist = computeDistanceBetween(p1.location, p2.location);
-            
-            if (dist > 0) {
-                const elevationChange = p2.elevation - p1.elevation;
-                const grade = (elevationChange / dist) * 100;
-                
-                // Grade adjustments recommended by Fitness Expert
-                let factor = 1.0;
-                if (grade <= -6) factor = 1.35; // Steep descent
-                else if (grade <= -3) factor = 1.25; // Descent
-                else if (grade <= -1) factor = 1.10; // Mild descent
-                else if (grade < 1) factor = 1.00; // Flat
-                else if (grade < 3) factor = 0.85; // Mild ascent
-                else if (grade < 6) factor = 0.70; // Ascent
-                else factor = 0.50; // Steep ascent (> 6%)
-                
-                // V = V0 * factor
-                const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
-                calculatedSeconds += (dist / adjustedSpeedMs);
-            }
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const dist = computeDistanceBetween(p1.location, p2.location);
+
+          if (dist > 0) {
+            const elevationChange = p2.elevation - p1.elevation;
+            const grade = (elevationChange / dist) * 100;
+
+            // Grade adjustments recommended by Fitness Expert
+            let factor = 1.0;
+            if (grade <= -6) factor = 1.35; // Steep descent
+            else if (grade <= -3) factor = 1.25; // Descent
+            else if (grade <= -1) factor = 1.10; // Mild descent
+            else if (grade < 1) factor = 1.00; // Flat
+            else if (grade < 3) factor = 0.85; // Mild ascent
+            else if (grade < 6) factor = 0.70; // Ascent
+            else factor = 0.50; // Steep ascent (> 6%)
+
+            // V = V0 * factor
+            const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
+            calculatedSeconds += (dist / adjustedSpeedMs);
+          }
         }
-        
+
         durText = formatDurationSimple(calculatedSeconds);
 
         const densifiedPath = [];
         const segmentLength = 10;
         for (let i = 0; i < path.length - 1; i++) {
-             const p1 = path[i];
-             const p2 = path[i + 1];
-             densifiedPath.push(p1);
-             const dist = computeDistanceBetween(p1, p2);
-             if (dist > segmentLength) {
-                 const stepCount = Math.floor(dist / segmentLength);
-                 const heading = computeHeading(p1, p2);
-                 for (let j = 1; j <= stepCount; j++) {
-                     const nextPt = computeOffset(p1, j * segmentLength, heading);
-                     densifiedPath.push(new google.maps.LatLng(nextPt.lat, nextPt.lng));
-                 }
-             }
+          const p1 = path[i];
+          const p2 = path[i + 1];
+          densifiedPath.push(p1);
+          const dist = computeDistanceBetween(p1, p2);
+          if (dist > segmentLength) {
+            const stepCount = Math.floor(dist / segmentLength);
+            const heading = computeHeading(p1, p2);
+            for (let j = 1; j <= stepCount; j++) {
+              const nextPt = computeOffset(p1, j * segmentLength, heading);
+              densifiedPath.push(new google.maps.LatLng(nextPt.lat, nextPt.lng));
+            }
+          }
         }
         densifiedPath.push(path[path.length - 1]);
         const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
@@ -1369,7 +1369,7 @@ const App: React.FC = () => {
         startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
         activeWaypoints.forEach((wp, idx) => {
-            waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
+          waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
         });
         const gmap = googleMapRef.current;
         if (gmap) {
@@ -1446,14 +1446,14 @@ const App: React.FC = () => {
           }
         })();
       }
-    } catch (err) { 
+    } catch (err) {
       console.error('[CALCULATE_ROUTE_FINAL_ERROR]', {
         timestamp: new Date().toISOString(),
         origin: finalOrigin.substring(0, 50),
         destination: finalDestination.substring(0, 50),
         error: err instanceof Error ? err.message : String(err)
       });
-      alert("경로를 찾을 수 없습니다."); 
+      alert("경로를 찾을 수 없습니다.");
     }
     finally { setLoading(false); }
   }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
@@ -1498,7 +1498,7 @@ const App: React.FC = () => {
       const newOrigin = clickedLocation.name || clickedLocation.address;
       setOrigin(newOrigin);
       originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
-      
+
       if (startMarker.current) { startMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current); }
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
 
@@ -1582,53 +1582,53 @@ const App: React.FC = () => {
       endMarker.current = null;
     }
   };
-  
+
   const handlePlaceSearch = async (term?: string) => {
-      const query = term || searchTerm;
-      if (!query || !googleMapRef.current) return;
-      try {
-          const res = await nominatim.search(query);
-          const lat = res.lat;
-          const lng = res.lng;
-          const location = new google.maps.LatLng(lat, lng);
-          const map = googleMapRef.current;
-          map.setCenter({ lat, lng });
-          map.setZoom(16);
-          if (searchMarkerRef.current) {
-              searchMarkerRef.current.setMap(null);
-              googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
-          }
-          searchMarkerRef.current = new google.maps.Marker({
-            position: { lat, lng },
-            map,
-            label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
-            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
-          });
-          googleMarkersRef.current.push(searchMarkerRef.current);
-          setClickedLocation({ lat, lng, name: query, address: query, elevation: null, location });
-          setRecentPlaceSearches(prev => {
-              const filtered = prev.filter(item => item !== query);
-              const updated = [query, ...filtered].slice(0, 5);
-              localStorage.setItem('recent_places', JSON.stringify(updated));
-              return updated;
-          });
-          setSearchTerm(query);
-      } catch { /* ignore */ }
+    const query = term || searchTerm;
+    if (!query || !googleMapRef.current) return;
+    try {
+      const res = await nominatim.search(query);
+      const lat = res.lat;
+      const lng = res.lng;
+      const location = new google.maps.LatLng(lat, lng);
+      const map = googleMapRef.current;
+      map.setCenter({ lat, lng });
+      map.setZoom(16);
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.setMap(null);
+        googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+      }
+      searchMarkerRef.current = new google.maps.Marker({
+        position: { lat, lng },
+        map,
+        label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+      });
+      googleMarkersRef.current.push(searchMarkerRef.current);
+      setClickedLocation({ lat, lng, name: query, address: query, elevation: null, location });
+      setRecentPlaceSearches(prev => {
+        const filtered = prev.filter(item => item !== query);
+        const updated = [query, ...filtered].slice(0, 5);
+        localStorage.setItem('recent_places', JSON.stringify(updated));
+        return updated;
+      });
+      setSearchTerm(query);
+    } catch { /* ignore */ }
   };
 
   const handlePlaceHistoryClick = (term: string) => {
-      setSearchTerm(term);
-      handlePlaceSearch(term);
+    setSearchTerm(term);
+    handlePlaceSearch(term);
   };
 
   const handleClearSearch = () => {
-      setSearchTerm('');
-      setClickedLocation(null);
-      if (searchMarkerRef.current) {
-          searchMarkerRef.current.setMap(null);
-          googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
-          searchMarkerRef.current = null;
-      }
+    setSearchTerm('');
+    setClickedLocation(null);
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+      searchMarkerRef.current = null;
+    }
   };
 
   const handleToggleMapType = () => {
@@ -1661,8 +1661,8 @@ const App: React.FC = () => {
 
       {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
       <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}>
-         <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
-         <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
+        <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
+        <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
       </div>
 
       {loading && (
@@ -1682,15 +1682,15 @@ const App: React.FC = () => {
       {isSvActive && showSvWarning && (
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
-             <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
-             <span className="text-white font-bold text-xs">No Street View available for this section.</span>
+            <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
+            <span className="text-white font-bold text-xs">No Street View available for this section.</span>
           </div>
         </div>
       )}
       {isSvActive && isUserPano && (
         <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
           <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
-             <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
+            <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
           </div>
         </div>
       )}
@@ -1711,26 +1711,29 @@ const App: React.FC = () => {
       {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
-             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
+            <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
           </div>
         </div>
       )}
-      
+
       {/* Info Button - Top Right Corner */}
       <button
         onClick={() => setShowAbout(true)}
         title="About"
         className="fixed z-[90] flex items-center justify-center text-blue-600 bg-white/80 hover:bg-gray-100 transition-colors touch-manipulation font-bold"
         style={{
-          top: 'env(safe-area-inset-top, 0px)',
-          right: 'env(safe-area-inset-right, 0px)',
-          fontSize: '17px',
-          width: '24px',
-          height: '24px',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: '24px',
+          width: '48px',
+          height: '48px',
           padding: 0,
           margin: 0,
           border: 'none',
           cursor: 'pointer',
+          borderRadius: '50%',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
           // lineHeight: '1',
           display: 'flex',
           alignItems: 'center',
@@ -1744,22 +1747,22 @@ const App: React.FC = () => {
       {/* Map Style Button - Moved Left */}
       <div className="absolute right-20 top-4 z-50">
         <button onClick={handleToggleMapType} title="Change Map Style" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
-            <Layers size={24} />
+          <Layers size={24} />
         </button>
       </div>
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
         <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Streetview Coverage" : "Show Streetview Coverage"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-            <RouteIcon size={24} aria-label={showCoverage ? "Hide Streetview Coverage" : "Show Streetview Coverage"} />
+          <RouteIcon size={24} aria-label={showCoverage ? "Hide Streetview Coverage" : "Show Streetview Coverage"} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-            <img src={STREETVIEW_ICON} alt="Street View" className="w-6 h-6 object-contain" />
+          <img src={STREETVIEW_ICON} alt="Street View" className="w-6 h-6 object-contain" />
         </button>
         {isSvActive && (
-            <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
-                {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
-            </button>
+          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+            {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
+          </button>
         )}
       </div>
 
@@ -1769,7 +1772,7 @@ const App: React.FC = () => {
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
             <button onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
-               <X size={14} />
+              <X size={14} />
             </button>
           )}
         </div>
@@ -1777,7 +1780,7 @@ const App: React.FC = () => {
           <div className="w-full flex flex-col px-2 pb-2 gap-1 border-t border-slate-100">
             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider px-1 mt-1">Recent</span>
             {recentPlaceSearches.map((term, idx) => (
-              <button key={idx} onClick={() => handlePlaceHistoryClick(term)} className="text-left w-full truncate text-[11px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-1 transition-colors flex items-center gap-2"><History size={10} className="text-slate-400"/>{term}</button>
+              <button key={idx} onClick={() => handlePlaceHistoryClick(term)} className="text-left w-full truncate text-[11px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-1 transition-colors flex items-center gap-2"><History size={10} className="text-slate-400" />{term}</button>
             ))}
           </div>
         )}
@@ -1787,89 +1790,89 @@ const App: React.FC = () => {
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
-                <div className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
-                    <div className="relative flex flex-col gap-1.5">
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
-                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }} />
-                            <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
-                                <X size={10} />
-                            </button>
+              <div className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
+                <div className="relative flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                    <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }} />
+                    <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
+                      <X size={10} />
+                    </button>
+                  </div>
+                  {/* Waypoints Render */}
+                  {waypoints.length > 0 && (
+                    <div className="flex flex-col gap-1 px-1">
+                      {waypoints.map((wp, idx) => (
+                        <div key={idx} className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 h-6 bg-slate-50 shadow-inner w-full">
+                          <div className="w-3 h-3 rounded-full bg-amber-500 shrink-0 flex items-center justify-center text-[7px] text-white font-black">{idx + 1}</div>
+                          <span className="flex-1 text-[9px] text-slate-500 font-bold truncate tracking-tighter">{wp.name}</span>
+                          <button onClick={() => handleRemoveWaypoint(idx)} title="Remove Waypoint" className="text-slate-400 hover:text-red-500 shrink-0">
+                            <X size={10} />
+                          </button>
                         </div>
-                        {/* Waypoints Render */}
-                        {waypoints.length > 0 && (
-                            <div className="flex flex-col gap-1 px-1">
-                                {waypoints.map((wp, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 border border-slate-200 rounded-lg px-2 h-6 bg-slate-50 shadow-inner w-full">
-                                        <div className="w-3 h-3 rounded-full bg-amber-500 shrink-0 flex items-center justify-center text-[7px] text-white font-black">{idx + 1}</div>
-                                        <span className="flex-1 text-[9px] text-slate-500 font-bold truncate tracking-tighter">{wp.name}</span>
-                                        <button onClick={() => handleRemoveWaypoint(idx)} title="Remove Waypoint" className="text-slate-400 hover:text-red-500 shrink-0">
-                                            <X size={10} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
-                            <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                            <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }} />
-                            <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
-                                <X size={10} />
-                            </button>
-                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-1 w-full px-0.5">
-                         <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
-                         <input type="number" min="10" max="70" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
-                         <input type="range" min="10" max="70" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                         <div className="flex items-center gap-1 ml-auto shrink-0">
-                             <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
-                             
-                             <button onClick={handleToggleFavorite} title={isSaved ? "My Routes" : "Add to Favorites"} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
-                                <Star size={12} className={isSaved ? "text-amber-400 fill-amber-400" : "text-slate-400"} />
-                             </button>
-
-                             <button onClick={clearMapOverlays} title="Delete Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
-                         </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 w-full">
-                        <div className="flex-1 min-w-0 max-w-[88px] flex items-center justify-center gap-1 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
-                            <span className="text-[10px] font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span>
-                            <div className="h-3 w-px bg-slate-300 shrink-0"></div>
-                            <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
-                        </div>
-                        <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
-                            <Search size={14} />
-                        </button>
-                        <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
-                    </div>
+                  )}
+                  <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                    <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }} />
+                    <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
+                      <X size={10} />
+                    </button>
+                  </div>
                 </div>
-                
-                <button 
-                  onClick={() => setHistoryExpanded(!historyExpanded)}
-                  title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                  className="w-4 shrink-0 flex items-center justify-center p-0 text-slate-300 hover:text-slate-500 transition-colors"
-                >
-                  {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-                </button>
+                <div className="flex items-center gap-1 w-full px-0.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
+                  <input type="number" min="10" max="70" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
+                  <input type="range" min="10" max="70" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                  <div className="flex items-center gap-1 ml-auto shrink-0">
+                    <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
 
-                <div className={`flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
-                    <div className="flex justify-between items-center px-1 mb-1">
-                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
-                         <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
-                    </div>
-                    {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
-                        <div key={route.id} className="group/item flex items-center justify-between w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors">
-                            <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} -> ${route.destination}`} className="text-left flex-1 truncate text-[10px] text-slate-600 hover:text-blue-600 leading-tight">
-                                <span className="font-bold mr-1">{route.origin}</span>
-                                <span className="text-slate-400">to</span>
-                                <span className="font-bold ml-1">{route.destination}</span>
-                                {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
-                            </button>
-                            <button onClick={(e) => handleDeleteFavorite(route.id, e)} className="opacity-0 group-hover/item:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"><X size={10} /></button>
-                        </div>
-                    )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
+                    <button onClick={handleToggleFavorite} title={isSaved ? "My Routes" : "Add to Favorites"} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
+                      <Star size={12} className={isSaved ? "text-amber-400 fill-amber-400" : "text-slate-400"} />
+                    </button>
+
+                    <button onClick={clearMapOverlays} title="Delete Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
+                  </div>
                 </div>
+                <div className="flex items-center gap-1.5 w-full">
+                  <div className="flex-1 min-w-0 max-w-[88px] flex items-center justify-center gap-1 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
+                    <span className="text-[10px] font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span>
+                    <div className="h-3 w-px bg-slate-300 shrink-0"></div>
+                    <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
+                  </div>
+                  <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
+                    <Search size={14} />
+                  </button>
+                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setHistoryExpanded(!historyExpanded)}
+                title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                className="w-4 shrink-0 flex items-center justify-center p-0 text-slate-300 hover:text-slate-500 transition-colors"
+              >
+                {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+              </button>
+
+              <div className={`flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
+                <div className="flex justify-between items-center px-1 mb-1">
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
+                  <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
+                </div>
+                {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
+                  <div key={route.id} className="group/item flex items-center justify-between w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors">
+                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} -> ${route.destination}`} className="text-left flex-1 truncate text-[10px] text-slate-600 hover:text-blue-600 leading-tight">
+                      <span className="font-bold mr-1">{route.origin}</span>
+                      <span className="text-slate-400">to</span>
+                      <span className="font-bold ml-1">{route.destination}</span>
+                      {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
+                    </button>
+                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} className="opacity-0 group-hover/item:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"><X size={10} /></button>
+                  </div>
+                )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
+              </div>
             </div>
           )}
         </div>
@@ -1883,8 +1886,8 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                         <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
-                         {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
+                      <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
+                      {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
                     </div>
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest truncate">{routeSource} ROUTE</p>
                   </div>
@@ -1917,7 +1920,7 @@ const App: React.FC = () => {
       {clickedLocation && (
         <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 w-[85%] max-w-[300px]">
           <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-slate-200 relative">
-            <button onClick={() => setClickedLocation(null)} title="Close" className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10}/></button>
+            <button onClick={() => setClickedLocation(null)} title="Close" className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1.5"><X size={10} /></button>
             <p className="text-slate-800 text-[12px] font-bold truncate">{clickedLocation.name}</p>
             <p className="text-slate-500 text-[10px] mb-2">
               {clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}
@@ -1928,14 +1931,14 @@ const App: React.FC = () => {
             <div className="grid grid-cols-3 gap-1.5 mt-2">
               <button onClick={handleSetStart} title="Set as Start" className="py-2 bg-blue-50 text-blue-700 rounded-xl text-[9px] font-black tracking-tighter uppercase">START (A)</button>
               <button onClick={handleAddWaypoint} disabled={waypoints.length >= 3} title="Add Waypoint" className={`py-2 rounded-xl text-[9px] font-black tracking-tighter uppercase flex items-center justify-center gap-0.5 ${waypoints.length >= 3 ? 'bg-slate-100 text-slate-400' : 'bg-amber-50 text-amber-700'}`}>
-                  <Plus size={10}/> WAYPOINT ({waypoints.length}/3)
+                <Plus size={10} /> WAYPOINT ({waypoints.length}/3)
               </button>
               <button onClick={handleSetEnd} title="Set as Destination" className="py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black tracking-tighter uppercase">END (B)</button>
             </div>
           </div>
         </div>
       )}
-      
+
       {/* About Page */}
       {showAbout && <About onClose={() => setShowAbout(false)} />}
     </div>
