@@ -1,3 +1,4 @@
+// about.tsx
 import React from 'react';
 
 interface AboutProps {
@@ -7,7 +8,7 @@ interface AboutProps {
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
     <div
-      className="fixed inset-0 z-[100] bg-[#0f172a] overflow-y-auto"
+      className="fixed inset-0 z-[100] bg-[#0f172a]/95 overflow-y-auto flex flex-col"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
         paddingRight: 'env(safe-area-inset-right)',
@@ -16,18 +17,11 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
       }}
     >
       {/* Header */}
-      <header
-        className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-[#0f172a]/95 backdrop-blur-md border-b border-white/10 z-10"
-        style={{
-          paddingTop: 'env(safe-area-inset-top)',
-          paddingLeft: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-right)',
-        }}
-      >
+      <header className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-[#0f172a]/95 backdrop-blur-md border-b border-white/10 z-10 px-4">
         <button
           onClick={onClose}
-          className="bg-transparent border-none text-white text-[20px] px-4 cursor-pointer hover:opacity-70 transition-opacity"
-          aria-label="Back"
+          className="bg-transparent border-none text-white text-[20px] mr-4 hover:opacity-70 transition-opacity focus:outline-none"
+          aria-label="Close"
         >
           ←
         </button>
@@ -78,19 +72,14 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
           </h2>
 
           <p className="my-1.5 text-slate-200">
-            This application uses third-party services and map data.
-            All rights belong to their respective owners.
+            This application uses third-party services and map data. All rights belong to their respective owners.
           </p>
 
-          <p className="my-1.5 text-slate-200">
-            Map data © OpenStreetMap contributors.
-          </p>
+          <p className="my-1.5 text-slate-200">Map data © OpenStreetMap contributors.</p>
         </section>
 
         {/* Footer */}
-        <div className="mt-10 text-xs text-slate-400 text-center">
-          © 2026 Cycle Simulator
-        </div>
+        <div className="mt-10 text-xs text-slate-400 text-center">© 2026 Cycle Simulator</div>
       </main>
     </div>
   );
