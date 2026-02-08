@@ -8,76 +8,146 @@
   <style>
     body {
       margin: 0;
-      padding: 20px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
       background: #0f172a;
-      color: #ffffff;
+      color: #f8fafc;
       line-height: 1.6;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     h1 {
-      font-size: 22px;
-      margin-bottom: 16px;
+      font-size: 24px;
+      margin-bottom: 8px;
+      margin-top: 48px;
+      font-weight: 700;
     }
 
     h2 {
-      font-size: 16px;
-      margin-top: 24px;
-      margin-bottom: 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-      padding-bottom: 4px;
+      font-size: 18px;
+      margin-top: 32px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 8px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    p {
+      margin-bottom: 16px;
+      font-size: 15px;
+      color: #cbd5e1;
     }
 
     .section {
-      font-size: 14px;
-      opacity: 0.9;
+      font-size: 15px;
+      color: #cbd5e1;
     }
 
-    .back {
+    .back-btn {
       position: fixed;
-      top: 12px;
-      left: 12px;
-      font-size: 14px;
-      color: #60a5fa;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 52px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      z-index: 100;
       text-decoration: none;
+      color: white;
+      font-weight: 600;
+    }
+
+    .back-btn span {
+      margin-left: 8px;
+    }
+
+    strong {
+      color: #fff;
+    }
+
+    .credit-item {
+      margin-bottom: 16px;
     }
   </style>
 </head>
 
 <body>
 
-  <a class="back" href="/">← Back</a>
+  <a class="back-btn" href="/">
+    ← <span>Back to Simulator</span>
+  </a>
 
   <h1>Cycle Simulator</h1>
+  <p>
+    An immersive indoor cycling experience powered by Google Maps Street View.
+    Ride anywhere in the world with real-time slope analysis and AI coaching.
+  </p>
 
+  <h2>Features</h2>
   <div class="section">
-    Virtual cycling simulation based on real-world map and street data.
+    <ul>
+      <li>Virtual riding on any route worldwide</li>
+      <li>Real-time gradient simulation & resistance coaching</li>
+      <li>Interactive Street View playback</li>
+      <li>Elevation profile analysis</li>
+    </ul>
   </div>
 
-  <h2>Data & Credits</h2>
-
+  <h2>Technology Stack</h2>
   <div class="section">
-
-    <strong>Maps & Street View</strong><br />
-    Google Maps Platform<br /><br />
-
-    <strong>Geocoding</strong><br />
-    Nominatim (OpenStreetMap)<br /><br />
-
-    <strong>Routing</strong><br />
-    OSRM (Data © OpenStreetMap contributors)<br /><br />
-
-    <strong>Elevation</strong><br />
-    Open-Elevation<br />
-
+    <div class="credit-item">
+      <strong>Frontend</strong><br />
+      React 18, TypeScript, Vite, Tailwind CSS
+    </div>
+    <div class="credit-item">
+      <strong>Maps & Data</strong><br />
+      Google Maps Platform (JS API, Street View Service)<br />
+    </div>
   </div>
 
-  <h2>Legal</h2>
-
+  <h2>Credits & Licenses</h2>
   <div class="section">
-    This application uses third-party services and map data.
-    All trademarks and copyrights belong to their respective owners.
+    <div class="credit-item">
+      <strong>Map Data</strong><br />
+      Map data ©2024 Google. Street View imagery ©2024 Google.
+    </div>
+
+    <div class="credit-item">
+      <strong>Geocoding Service</strong><br />
+      Search provided by Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.
+    </div>
+
+    <div class="credit-item">
+      <strong>Routing Engine</strong><br />
+      Routes calculated by OSRM. Data © OpenStreetMap contributors.
+    </div>
+
+    <div class="credit-item">
+      <strong>Elevation Data</strong><br />
+      Elevation provided by Open-Elevation API.
+    </div>
+
+    <div class="credit-item">
+      <strong>Icons</strong><br />
+      Icons provided by Lucide React (ISC License).
+    </div>
   </div>
+
+  <h2>Disclaimer</h2>
+  <p>
+    This application is for educational and fitness entertainment purposes only.
+    Use at your own risk. Always consult with a physician before starting any exercise program.
+  </p>
+  <p style="font-size: 13px; color: #64748b; margin-top: 40px;">
+    Cycle Simulator v1.0.0 &copy; 2024
+  </p>
 
 </body>
 </html>

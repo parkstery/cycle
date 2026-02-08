@@ -1915,12 +1915,11 @@ const App: React.FC = () => {
 
       {/* About Page */}
       {showAbout && <About onClose={() => setShowAbout(false)} />}
-      {/* Info Button - Top Right Corner - Moved to end for Z-Index Safety */}
-      <button
-        type="button"
-        onClick={() => setShowAbout(true)}
+      {/* Info Button - Top Right Corner - Direct HTML Link for Reliability */}
+      <a
+        href="/about.html"
         title="About"
-        className="fixed z-[999] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold"
+        className="fixed z-[999] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold no-underline"
         style={{
           top: '50%',
           left: '50%',
@@ -1940,7 +1939,7 @@ const App: React.FC = () => {
         aria-label="About"
       >
         <Info size={36} strokeWidth={3} />
-      </button>
+      </a>
 
     </div>
   );
