@@ -1720,28 +1720,26 @@ const App: React.FC = () => {
       <button
         onClick={() => setShowAbout(true)}
         title="About"
-        className="fixed z-[90] flex items-center justify-center text-blue-600 bg-white/80 hover:bg-gray-100 transition-colors touch-manipulation font-bold"
+        className="fixed z-[200] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold"
         style={{
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          fontSize: '24px',
-          width: '48px',
-          height: '48px',
+          width: '56px',
+          height: '56px',
           padding: 0,
           margin: 0,
-          border: 'none',
+          border: '4px solid white',
           cursor: 'pointer',
           borderRadius: '50%',
-          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-          // lineHeight: '1',
+          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
         aria-label="About"
       >
-        ⓘ
+        <Info size={32} strokeWidth={2.5} />
       </button>
 
       {/* Map Style Button - Moved Left */}
