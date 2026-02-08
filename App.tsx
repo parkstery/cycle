@@ -1735,7 +1735,7 @@ const App: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
-          fontWeight: '700', // ← 여기 추가
+          // fontWeight: '700', // ← 여기 추가
         }}
         aria-label="About"
       >
