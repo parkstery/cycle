@@ -1729,7 +1729,7 @@ const App: React.FC = () => {
           height: '24px',
           padding: 0,
           margin: 0,
-          border: 'none',
+          border: '2px solid #2563eb',
           cursor: 'pointer',
           lineHeight: '1',
           display: 'flex',
