@@ -1915,31 +1915,39 @@ const App: React.FC = () => {
 
       {/* About Page */}
       {showAbout && <About onClose={() => setShowAbout(false)} />}
-      {/* Info Button - Top Right Corner - Direct HTML Link for Reliability */}
-      <a
-        href="/about.html"
-        title="About"
-        className="fixed z-[999] flex items-center justify-center text-blue-600 bg-white hover:bg-gray-100 transition-colors touch-manipulation font-bold no-underline"
-        style={{
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '64px',
-          height: '64px',
-          padding: 0,
-          margin: 0,
-          border: '4px solid white',
-          cursor: 'pointer',
-          borderRadius: '50%',
-          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-        aria-label="About"
-      >
-        <Info size={36} strokeWidth={3} />
-      </a>
+      {/* Info Button - Top Right Corner - Direct HTML Link for Reliability - DEBUG STYLE */}
+      {(() => {
+        console.log("Rendering About Button");
+        return (
+          <a
+            href="/about.html"
+            title="About Info"
+            className="fixed z-[9999] flex flex-col items-center justify-center text-white bg-red-600 hover:bg-red-700 transition-colors touch-manipulation font-bold no-underline shadow-2xl"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '80px',
+              height: '80px',
+              padding: 0,
+              margin: 0,
+              border: '4px solid yellow',
+              cursor: 'pointer',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'fixed',
+              zIndex: 9999,
+            }}
+            aria-label="About Information"
+            id="debug-about-btn"
+          >
+            <Info size={36} strokeWidth={3} />
+            <span className="text-[10px] font-black mt-1">INFO</span>
+          </a>
+        );
+      })()}
 
     </div>
   );
