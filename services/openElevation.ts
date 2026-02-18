@@ -1,10 +1,11 @@
 /**
  * Open-Elevation API — Google Elevation API 대체용.
  * 경로를 따라 샘플링한 좌표로 POST 한 번에 고도 조회.
+ * CORS 회피를 위해 동일 오리진의 API 프록시(/api/elevation) 사용.
  * @see https://api.open-elevation.com/
  */
 
-const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
+const OPEN_ELEVATION_URL = '/api/elevation';
 
 export interface OpenElevationResultItem {
   latitude: number;

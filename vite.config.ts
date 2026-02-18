@@ -32,6 +32,11 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
+        '/api/elevation': {
+          target: 'https://api.open-elevation.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/elevation/, '/api/v1/lookup'),
+        },
         '/api/osrm-route': {
           target: 'https://router.project-osrm.org',
           changeOrigin: true,
