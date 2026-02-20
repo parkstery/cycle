@@ -26,6 +26,10 @@ async function throttle(): Promise<void> {
 const reverseCache = new Map<string, { formatted_address: string }>();
 const searchCache = new Map<string, { lat: number; lng: number }>();
 
+/** 자동완성용 검색 결과 항목 */
+export type SearchSuggestionItem = { display_name: string; lat: number; lng: number };
+const suggestCache = new Map<string, SearchSuggestionItem[]>();
+
 function reverseCacheKey(lat: number, lon: number): string {
   return `${lat.toFixed(4)},${lon.toFixed(4)}`;
 }
@@ -78,6 +82,37 @@ export async function search(address: string): Promise<{ lat: number; lng: numbe
     lng: parseFloat(arr[0].lon),
   };
   searchCache.set(key, result);
+  return result;
+}
+
+/**
+ * 주소/지명 자동완성: 쿼리 문자열로 여러 추천 결과 반환.
+ * 경로 출발·도착 입력란 추천 목록에 사용.
+ */
+export async function searchSuggestions(
+  query: string,
+  limit = 5
+): Promise<SearchSuggestionItem[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const key = `${q.toLowerCase()}_${limit}`;
+  const cached = suggestCache.get(key);
+  if (cached) return cached;
+
+  await throttle();
+  const url = USE_PROXY
+    ? `/api/nominatim-search?q=${encodeURIComponent(q)}&format=json&limit=${limit}`
+    : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=${limit}`;
+  const res = await fetch(url, { headers: USE_PROXY ? {} : { 'User-Agent': USER_AGENT } });
+  if (!res.ok) return [];
+  const arr = (await res.json()) as Array<{ lat: string; lon: string; display_name?: string }>;
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+  const result: SearchSuggestionItem[] = arr.map((item) => ({
+    display_name: item.display_name ?? `${item.lat}, ${item.lon}`,
+    lat: parseFloat(item.lat),
+    lng: parseFloat(item.lon),
+  }));
+  suggestCache.set(key, result);
   return result;
 }
 

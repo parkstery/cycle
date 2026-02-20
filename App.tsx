@@ -6,6 +6,7 @@ import About from './About';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
+import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
@@ -245,6 +246,17 @@ const App: React.FC = () => {
   const [destination, setDestination] = useState('');
   const [waypoints, setWaypoints] = useState<{ name: string, location: any }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  /** 출발/도착 입력란 자동완성 추천 목록 */
+  const [originSuggestions, setOriginSuggestions] = useState<SearchSuggestionItem[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<SearchSuggestionItem[]>([]);
+  const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  const originSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const destSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const originSuggestReqIdRef = useRef(0);
+  const destSuggestReqIdRef = useRef(0);
+  const closeOriginSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeDestSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
@@ -673,6 +685,54 @@ const App: React.FC = () => {
     googleMapRef.current.panTo(userLocation);
     googleMapRef.current.setZoom(14);
   }, [isMapReady, userLocation]);
+
+  // 출발지 입력 디바운스 → Nominatim 추천 목록
+  useEffect(() => {
+    const q = origin.trim();
+    if (q.length < 2) {
+      setOriginSuggestions([]);
+      setShowOriginSuggestions(false);
+      return;
+    }
+    if (originSuggestDebounceRef.current) clearTimeout(originSuggestDebounceRef.current);
+    originSuggestDebounceRef.current = window.setTimeout(() => {
+      const reqId = ++originSuggestReqIdRef.current;
+      nominatim.searchSuggestions(q, 5).then((list) => {
+        if (reqId !== originSuggestReqIdRef.current) return;
+        setOriginSuggestions(list);
+        setShowOriginSuggestions(list.length > 0);
+      }).catch(() => {
+        if (reqId === originSuggestReqIdRef.current) setOriginSuggestions([]);
+      });
+    }, 400);
+    return () => {
+      if (originSuggestDebounceRef.current) clearTimeout(originSuggestDebounceRef.current);
+    };
+  }, [origin]);
+
+  // 도착지 입력 디바운스 → Nominatim 추천 목록
+  useEffect(() => {
+    const q = destination.trim();
+    if (q.length < 2) {
+      setDestinationSuggestions([]);
+      setShowDestinationSuggestions(false);
+      return;
+    }
+    if (destSuggestDebounceRef.current) clearTimeout(destSuggestDebounceRef.current);
+    destSuggestDebounceRef.current = window.setTimeout(() => {
+      const reqId = ++destSuggestReqIdRef.current;
+      nominatim.searchSuggestions(q, 5).then((list) => {
+        if (reqId !== destSuggestReqIdRef.current) return;
+        setDestinationSuggestions(list);
+        setShowDestinationSuggestions(list.length > 0);
+      }).catch(() => {
+        if (reqId === destSuggestReqIdRef.current) setDestinationSuggestions([]);
+      });
+    }, 400);
+    return () => {
+      if (destSuggestDebounceRef.current) clearTimeout(destSuggestDebounceRef.current);
+    };
+  }, [destination]);
 
   // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
   useEffect(() => {
@@ -1600,9 +1660,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSelectOriginSuggestion = (item: SearchSuggestionItem) => {
+    setOrigin(item.display_name);
+    originLocationRef.current = { lat: item.lat, lng: item.lng };
+    setOriginSuggestions([]);
+    setShowOriginSuggestions(false);
+  };
+
+  const handleSelectDestinationSuggestion = (item: SearchSuggestionItem) => {
+    setDestination(item.display_name);
+    destLocationRef.current = { lat: item.lat, lng: item.lng };
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
+  };
+
   const handleRemoveStart = () => {
     setOrigin('');
     originLocationRef.current = null;
+    setOriginSuggestions([]);
+    setShowOriginSuggestions(false);
     if (startMarker.current) {
       startMarker.current?.setMap(null);
       googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current);
@@ -1613,6 +1689,8 @@ const App: React.FC = () => {
   const handleRemoveEnd = () => {
     setDestination('');
     destLocationRef.current = null;
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
     if (endMarker.current) {
       endMarker.current?.setMap(null);
       googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current);
@@ -1803,12 +1881,35 @@ const App: React.FC = () => {
             <div className="flex flex-row w-full pl-6 gap-3">
               <div className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                 <div className="relative flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                    <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="Start" value={origin} onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }} />
-                    <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
-                      <X size={10} />
-                    </button>
+                  <div className="relative">
+                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
+                      <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                      <input
+                        className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
+                        placeholder="Start (지명·주소 입력)"
+                        value={origin}
+                        onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }}
+                        onFocus={() => originSuggestions.length > 0 && setShowOriginSuggestions(true)}
+                        onBlur={() => {
+                          if (closeOriginSuggestRef.current) clearTimeout(closeOriginSuggestRef.current);
+                          closeOriginSuggestRef.current = window.setTimeout(() => setShowOriginSuggestions(false), 180);
+                        }}
+                      />
+                      <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
+                        <X size={10} />
+                      </button>
+                    </div>
+                    {showOriginSuggestions && originSuggestions.length > 0 && (
+                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto">
+                        {originSuggestions.map((item, idx) => (
+                          <li key={idx}>
+                            <button type="button" className="w-full text-left px-2 py-1.5 text-[11px] text-slate-700 hover:bg-blue-50 truncate" onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }}>
+                              {item.display_name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   {/* Waypoints Render */}
                   {waypoints.length > 0 && (
@@ -1824,12 +1925,35 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
-                    <input className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0" placeholder="End" value={destination} onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }} />
-                    <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
-                      <X size={10} />
-                    </button>
+                  <div className="relative">
+                    <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                      <input
+                        className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
+                        placeholder="End (지명·주소 입력)"
+                        value={destination}
+                        onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }}
+                        onFocus={() => destinationSuggestions.length > 0 && setShowDestinationSuggestions(true)}
+                        onBlur={() => {
+                          if (closeDestSuggestRef.current) clearTimeout(closeDestSuggestRef.current);
+                          closeDestSuggestRef.current = window.setTimeout(() => setShowDestinationSuggestions(false), 180);
+                        }}
+                      />
+                      <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
+                        <X size={10} />
+                      </button>
+                    </div>
+                    {showDestinationSuggestions && destinationSuggestions.length > 0 && (
+                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto">
+                        {destinationSuggestions.map((item, idx) => (
+                          <li key={idx}>
+                            <button type="button" className="w-full text-left px-2 py-1.5 text-[11px] text-slate-700 hover:bg-red-50 truncate" onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }}>
+                              {item.display_name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 w-full px-0.5">
