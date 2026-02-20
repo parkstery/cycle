@@ -1321,31 +1321,40 @@ const App: React.FC = () => {
           return;
         }
 
-        // Calculate physiological duration based on slope and user speed
+        // Duration: walking = fixed speed; car/bike = slope-adjusted speed
         let calculatedSeconds = 0;
         const points = elevationRes.results;
-        for (let i = 0; i < points.length - 1; i++) {
-          const p1 = points[i];
-          const p2 = points[i + 1];
-          const dist = computeDistanceBetween(p1.location, p2.location);
+        const walkingSpeedMs = 4.5 * 1000 / 3600; // ~4.5 km/h in m/s
 
-          if (dist > 0) {
-            const elevationChange = p2.elevation - p1.elevation;
-            const grade = (elevationChange / dist) * 100;
+        if (activeMode === TravelMode.WALKING) {
+          for (let i = 0; i < points.length - 1; i++) {
+            const dist = computeDistanceBetween(points[i].location, points[i + 1].location);
+            calculatedSeconds += dist / walkingSpeedMs;
+          }
+        } else {
+          for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const dist = computeDistanceBetween(p1.location, p2.location);
 
-            // Grade adjustments recommended by Fitness Expert
-            let factor = 1.0;
-            if (grade <= -6) factor = 1.35; // Steep descent
-            else if (grade <= -3) factor = 1.25; // Descent
-            else if (grade <= -1) factor = 1.10; // Mild descent
-            else if (grade < 1) factor = 1.00; // Flat
-            else if (grade < 3) factor = 0.85; // Mild ascent
-            else if (grade < 6) factor = 0.70; // Ascent
-            else factor = 0.50; // Steep ascent (> 6%)
+            if (dist > 0) {
+              const elevationChange = p2.elevation - p1.elevation;
+              const grade = (elevationChange / dist) * 100;
 
-            // V = V0 * factor
-            const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
-            calculatedSeconds += (dist / adjustedSpeedMs);
+              // Grade adjustments recommended by Fitness Expert
+              let factor = 1.0;
+              if (grade <= -6) factor = 1.35; // Steep descent
+              else if (grade <= -3) factor = 1.25; // Descent
+              else if (grade <= -1) factor = 1.10; // Mild descent
+              else if (grade < 1) factor = 1.00; // Flat
+              else if (grade < 3) factor = 0.85; // Mild ascent
+              else if (grade < 6) factor = 0.70; // Ascent
+              else factor = 0.50; // Steep ascent (> 6%)
+
+              // V = V0 * factor
+              const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
+              calculatedSeconds += (dist / adjustedSpeedMs);
+            }
           }
         }
 
@@ -1824,13 +1833,13 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => calculateRoute(mode, false)} title="car" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button type="button" title="bike" disabled className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 text-slate-400 cursor-not-allowed">
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button type="button" title="walk" disabled className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 text-slate-400 cursor-not-allowed">
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="walk" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
                   <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
