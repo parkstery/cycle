@@ -7,11 +7,13 @@ interface AboutProps {
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    /* Overlay */
-    <div className="fixed inset-0 z-[100] bg-black/20 backdrop-blur-sm">
-
+    /* Overlay: 50% transparent white; scroll handled by App.tsx wrapper */
+    <div className="min-h-full bg-white/50">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-transparent z-20 px-4">
+      <header
+        className="fixed top-0 left-0 right-0 h-[52px] flex items-center z-20 px-4 bg-white/50"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <button
           onClick={onClose}
           className="text-slate-900 font-semibold hover:opacity-70"
@@ -20,27 +22,8 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
         </button>
       </header>
 
-      {/* Scroll + Padding Controller (중요) */}
-      <div
-        className="
-          absolute
-          inset-0
-          overflow-y-auto
-          pt-[72px]
-          pb-12
-          px-6
-        "
-      >
-
-        {/* Content Area */}
-        <main
-          className="
-            max-w-[720px]
-            mx-auto
-            text-slate-900
-            leading-relaxed
-          "
-        >
+      {/* Content: padding so header does not overlap title */}
+      <main className="max-w-[720px] mx-auto px-6 pt-[72px] pb-12 text-slate-900 leading-relaxed">
 
           {/* Title */}
           <h1 className="text-2xl font-bold mb-2">
@@ -86,8 +69,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
             © 2026 Cycle Simulator
           </p>
 
-        </main>
-      </div>
+      </main>
     </div>
   );
 };

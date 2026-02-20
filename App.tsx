@@ -1920,7 +1920,11 @@ const App: React.FC = () => {
       )}
 
       {/* About Page */}
-      {showAbout && <About onClose={() => setShowAbout(false)} />}
+      {showAbout && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          <About onClose={() => setShowAbout(false)} />
+        </div>
+      )}
       {/* About Info - (i) circle, top-right; opens modal (no page navigation, state preserved) */}
       <button
         type="button"
