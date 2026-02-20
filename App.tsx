@@ -29,16 +29,23 @@ const PLAYLIST = [
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
 const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
 
+/** API 무응답 시 무한 대기 방지. 이 시간 내에 콜백이 오지 않으면 resolve({ data: null })로 진행 */
+const SV_GET_PANORAMA_TIMEOUT_MS = 3000;
+
+/** setPanoramaView / setPanoramaViewByPanoId 전체 대기 상한. 초과 시 resolve하여 주행은 반드시 시작됨 */
+const PANORAMA_VIEW_TIMEOUT_MS = 3000;
+
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
  * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
  * OVER_QUERY_LIMIT 시에만 DEFAULT 호출 생략. ZERO_RESULTS(구글 공식 없음)일 때는 DEFAULT(사용자 제작) 폴백 시도.
+ * 타임아웃 시 data: null로 resolve하여 주행이 막히지 않도록 함.
  */
 const getPanoramaWithFallback = (
   service: any,
   opts: { location: any; radius: number; preference?: any }
 ): Promise<{ data: any; usedFallback: boolean }> => {
-  return new Promise((resolve) => {
+  const apiPromise = new Promise<{ data: any; usedFallback: boolean }>((resolve) => {
     service.getPanorama({
       location: opts.location,
       radius: opts.radius,
@@ -67,6 +74,13 @@ const getPanoramaWithFallback = (
       });
     });
   });
+  const timeoutPromise = new Promise<{ data: any; usedFallback: boolean }>((resolve) => {
+    setTimeout(() => {
+      console.warn('[SV] getPanorama timeout — no callback within', SV_GET_PANORAMA_TIMEOUT_MS, 'ms');
+      resolve({ data: null, usedFallback: false });
+    }, SV_GET_PANORAMA_TIMEOUT_MS);
+  });
+  return Promise.race([apiPromise, timeoutPromise]);
 };
 
 // Helper to wrap getPanorama in a Promise (no direction filter); uses GOOGLE then DEFAULT fallback
@@ -462,8 +476,9 @@ const App: React.FC = () => {
   }, []);
 
   // Helper function to update panorama atomically (Hybrid Double Buffer). 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
+  // 무한 대기 방지: PANORAMA_VIEW_TIMEOUT_MS 초과 시 resolve하여 주행이 반드시 시작되도록 함.
   const setPanoramaView = useCallback((location: any, heading: number): Promise<void> => {
-    return new Promise((resolve) => {
+    const inner = new Promise<void>((resolve) => {
       if (!svServiceRef.current) { resolve(); return; }
       if (pendingSwapTimeoutRef.current) {
         clearTimeout(pendingSwapTimeoutRef.current);
@@ -501,15 +516,24 @@ const App: React.FC = () => {
         scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
       }).catch(() => resolve());
     });
+    const timeout = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        console.warn('[SV] setPanoramaView timeout — proceeding without street view');
+        setShowSvWarning(true);
+        resolve();
+      }, PANORAMA_VIEW_TIMEOUT_MS);
+    });
+    return Promise.race([inner, timeout]);
   }, [scheduleSwapAfterOk]);
 
   /**
    * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
    * isUserPhoto: 사용자 제작 이미지 여부(배지 표시용).
    * 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
+   * 무한 대기 방지: PANORAMA_VIEW_TIMEOUT_MS 초과 시 resolve하여 주행이 반드시 시작되도록 함.
    */
   const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number, isUserPhoto?: boolean): Promise<void> => {
-    return new Promise((resolve) => {
+    const inner = new Promise<void>((resolve) => {
       setIsUserPano(!!isUserPhoto);
       if (pendingSwapTimeoutRef.current) {
         clearTimeout(pendingSwapTimeoutRef.current);
@@ -546,6 +570,14 @@ const App: React.FC = () => {
       nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
       scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
     });
+    const timeout = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        console.warn('[SV] setPanoramaViewByPanoId timeout — proceeding without street view');
+        setShowSvWarning(true);
+        resolve();
+      }, PANORAMA_VIEW_TIMEOUT_MS);
+    });
+    return Promise.race([inner, timeout]);
   }, [scheduleSwapAfterOk]);
 
   /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 120m 제한없음) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
@@ -554,7 +586,7 @@ const App: React.FC = () => {
     onProgress: (k: number, n: number) => void,
     options?: { fromDistanceM?: number; maxDistanceM?: number; intervalM?: number }
   ): Promise<{ panoData: PanoDataItem[]; sampleCount: number }> => {
-    if (!svServiceRef.current || !path.length) return [];
+    if (!svServiceRef.current || !path.length) return { panoData: [], sampleCount: 0 };
     const cumDist: number[] = [0];
     for (let i = 1; i < path.length; i++) {
       cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
@@ -1555,10 +1587,13 @@ const App: React.FC = () => {
 
           if (autoStart) {
             countdownDoneRef.current = async () => {
-              // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작
+              // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작. 무한 대기 방지로 타임아웃 시에도 주행은 시작됨.
               const firstPano = panoData.length > 0 ? panoData[0] : null;
-              if (firstPano) await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-              else {
+              if (firstPano) {
+                await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
+              } else {
+                // 출발지 주변에 거리뷰 없음 → 지도 기반 주행. 사전 안내 표시 후 setPanoramaView(타임아웃 보장) 호출.
+                setShowSvWarning(true);
                 const startPos = densifiedPath[0];
                 const heading = computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
                 await setPanoramaView(startPos, heading);
@@ -1606,10 +1641,12 @@ const App: React.FC = () => {
     setCoveredDistance(0);
     lastCoachedIndex.current = -1;
     const pathLen = currentRoute.path.length;
-    // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작
+    // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작. 무한 대기 방지로 타임아웃 시에도 주행은 시작됨.
     const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
-    if (firstPano) await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-    else if (pathLen > 0) {
+    if (firstPano) {
+      await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
+    } else if (pathLen > 0) {
+      setShowSvWarning(true);
       const startPos = currentRoute.path[0];
       const heading = pathLen > 1 ? computeHeading(startPos, currentRoute.path[1]) : 0;
       await setPanoramaView(startPos, heading);
