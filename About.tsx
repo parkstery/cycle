@@ -7,34 +7,37 @@ interface AboutProps {
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    /* Background Overlay */
-    <div className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-sm overflow-y-auto">
+    /* Overlay */
+    <div className="fixed inset-0 z-[100] bg-black/20 backdrop-blur-sm">
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-white/90 backdrop-blur border-b border-slate-200 z-20 px-4">
+      <header className="fixed top-0 left-0 right-0 h-[52px] flex items-center bg-transparent z-20 px-4">
         <button
           onClick={onClose}
-          className="text-slate-800 font-semibold hover:opacity-70"
+          className="text-slate-900 font-semibold hover:opacity-70"
         >
           ← <span className="ml-2">Back to Simulator</span>
         </button>
       </header>
 
-      {/* Center Wrapper (Margin Controller) */}
-      <div className="pt-[72px] pb-12 px-4 sm:px-6">
+      {/* Scroll + Padding Controller (중요) */}
+      <div
+        className="
+          absolute
+          inset-0
+          overflow-y-auto
+          pt-[72px]
+          pb-12
+          px-6
+        "
+      >
 
-        {/* Document Card */}
+        {/* Content Area */}
         <main
           className="
-            mx-auto
             max-w-[720px]
-            bg-white
-            rounded-xl
-            shadow-xl
-            px-6
-            sm:px-8
-            py-8
-            text-slate-800
+            mx-auto
+            text-slate-900
             leading-relaxed
           "
         >
@@ -44,7 +47,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
             Cycle Simulator
           </h1>
 
-          <p className="text-slate-700 mb-5">
+          <p className="text-slate-700 mb-6">
             Virtual cycling simulation with real-world maps and AI coaching.
           </p>
 
@@ -58,7 +61,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
             </ul>
           </Section>
 
-          {/* Technology */}
+          {/* Tech */}
           <Section title="Technology Stack">
 
             <Credit title="Frontend">
@@ -73,13 +76,13 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
 
           {/* Disclaimer */}
           <Section title="Disclaimer">
-            <p>
+            <p className="text-slate-700">
               This application is for educational and fitness purposes only.
             </p>
           </Section>
 
           {/* Footer */}
-          <p className="text-sm text-slate-500 text-center mt-10">
+          <p className="text-sm text-slate-600 text-center mt-12">
             © 2026 Cycle Simulator
           </p>
 
@@ -92,7 +95,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
 export default About;
 
 
-/* ===== Sub Components ===== */
+/* ---------- Components ---------- */
 
 function Section({
   title,
@@ -110,7 +113,7 @@ function Section({
           font-semibold
           text-blue-700
           border-b
-          border-slate-200
+          border-slate-300
           pb-2
           mb-3
         "
@@ -118,7 +121,7 @@ function Section({
         {title}
       </h2>
 
-      <div className="text-slate-700 space-y-2">
+      <div className="text-slate-800 space-y-2">
         {children}
       </div>
 
