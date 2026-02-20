@@ -634,7 +634,8 @@ const App: React.FC = () => {
         streetViewControl: false,
         fullscreenControl: false,
         zoomControl: false,
-        scaleControl: false,
+        scaleControl: true,
+        scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
         rotateControl: false,
         tiltControl: false,
         clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
