@@ -918,7 +918,7 @@ const App: React.FC = () => {
             setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
             setShowSvWarning(false);
           }
-          // 슬라이딩 prefetch: 캐시 끝 근처에서 다음 구간만 prefetch (주행 중 API는 prefetch에만 사용)
+          // 슬라이딩 prefetch: 캐시 끝 근처 또는 현재 위치 기준으로 다음 구간 prefetch (갭 구간 지난 뒤에도 재개되도록)
           if (
             lastPano &&
             currentIdx >= lastPano.pathIndex - 150 &&
@@ -933,8 +933,10 @@ const App: React.FC = () => {
             }
             const totalM = cumDist[path.length - 1];
             const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
-            const fromM = distAtLast + 10;
-            const toM = Math.min(distAtLast + 400, totalM);
+            const distAtCurrent = cumDist[Math.min(currentIdx, path.length - 1)];
+            // 마지막 pano 기준과 현재 주행 위치 중 더 앞선 쪽부터 prefetch → 갭 이후 구간도 수집
+            const fromM = Math.max(distAtLast + 10, distAtCurrent);
+            const toM = Math.min(fromM + 400, totalM);
             if (fromM < toM) {
               preFetchStreetViewData(path, () => { }, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
                 .then(({ panoData: nextPanos }) => {
