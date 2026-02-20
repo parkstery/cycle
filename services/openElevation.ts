@@ -80,6 +80,8 @@ export async function getElevationAlongPath(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Elevation ${res.status}`);
+  const usedProvider = res.headers.get('X-Elevation-Provider');
+  if (usedProvider) console.log('[Elevation] X-Elevation-Provider:', usedProvider);
   const data = (await res.json()) as OpenElevationResponse;
   if (!data.results || !Array.isArray(data.results)) throw new Error('Elevation invalid response');
   elevationCache.set(key, data.results);

@@ -25,9 +25,14 @@ export default async function handler(req, res) {
       return;
     }
 
+    console.log('Elevation provider (requested):', provider ?? 'auto');
+
     if (provider === 'opentopodata') {
       const data = await tryOpenTopoData(locations);
       if (data) {
+        res.setHeader('X-Elevation-Provider', 'opentopodata');
+        res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+        console.log('Elevation provider (used): opentopodata');
         res.status(200).json(data);
         return;
       }
@@ -38,6 +43,9 @@ export default async function handler(req, res) {
     if (provider === 'open-elevation') {
       const data = await tryOpenElevation(locations);
       if (data) {
+        res.setHeader('X-Elevation-Provider', 'open-elevation');
+        res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+        console.log('Elevation provider (used): open-elevation');
         res.status(200).json(data);
         return;
       }
@@ -47,12 +55,18 @@ export default async function handler(req, res) {
 
     let data = await tryOpenElevation(locations);
     if (data) {
+      res.setHeader('X-Elevation-Provider', 'open-elevation');
+      res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+      console.log('Elevation provider (used): open-elevation');
       res.status(200).json(data);
       return;
     }
 
     data = await tryOpenTopoData(locations);
     if (data) {
+      res.setHeader('X-Elevation-Provider', 'opentopodata');
+      res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+      console.log('Elevation provider (used): opentopodata');
       res.status(200).json(data);
       return;
     }
