@@ -305,6 +305,12 @@ const App: React.FC = () => {
 
   const [clickedLocation, setClickedLocation] = useState<{ lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any } | null>(null);
 
+  /** 이중화 테스트: URL ?elevation_provider=opentopodata 또는 ?elevation_provider=open-elevation */
+  const elevationProvider = typeof window !== 'undefined' ? (() => {
+    const p = new URLSearchParams(window.location.search).get('elevation_provider');
+    return (p === 'opentopodata' || p === 'open-elevation') ? p : undefined;
+  })() : undefined;
+
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
@@ -711,7 +717,7 @@ const App: React.FC = () => {
         });
       // 3) 표고 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
       openElevation
-        .getElevationAlongPath([{ lat, lng }], 1)
+        .getElevationAlongPath([{ lat, lng }], 1, elevationProvider ? { provider: elevationProvider } : undefined)
         .then((r) => r.results[0]?.elevation ?? null)
         .catch(() => null)
         .then((elevation) => {
@@ -721,7 +727,7 @@ const App: React.FC = () => {
           });
         });
     };
-  }, [isMapsApiLoaded]);
+  }, [isMapsApiLoaded, elevationProvider]);
 
   // Google Maps API: Map(베이스맵) + Street View
   useEffect(() => {
@@ -1299,7 +1305,7 @@ const App: React.FC = () => {
 
         let elevationRes: { results: Array<{ location: any; elevation: number; resolution?: number }> };
         try {
-          const openRes = await openElevation.getElevationAlongPath(path, 100);
+          const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
           elevationRes = {
             results: openRes.results.map((r) => ({
               elevation: r.elevation,

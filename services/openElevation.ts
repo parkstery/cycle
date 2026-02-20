@@ -51,29 +51,37 @@ function pathCacheKey(path: LatLngLike[], samples: number): string {
 
 const elevationCache = new Map<string, OpenElevationResultItem[]>();
 
+export type ElevationProvider = 'open-elevation' | 'opentopodata';
+
 /**
- * 경로를 따라 samples개 지점의 고도를 Open-Elevation으로 조회.
+ * 경로를 따라 samples개 지점의 고도를 조회.
+ * options.provider 지정 시 해당 공급자만 사용(이중화 테스트: URL ?elevation_provider=opentopodata 활용).
  * 반환: { results: [{ latitude, longitude, elevation }] } — App에서 location(LatLng)으로 매핑용.
  */
 export async function getElevationAlongPath(
   path: LatLngLike[],
-  samples: number = 100
+  samples: number = 100,
+  options?: { provider?: ElevationProvider }
 ): Promise<OpenElevationResponse> {
   if (path.length === 0) return { results: [] };
 
-  const key = pathCacheKey(path, samples);
+  const provider = options?.provider;
+  const key = pathCacheKey(path, samples) + (provider ? `:${provider}` : '');
   const cached = elevationCache.get(key);
   if (cached) return { results: cached };
 
   const locations = samplePath(path, samples);
+  const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = { locations };
+  if (provider) body.provider = provider;
+
   const res = await fetch(OPEN_ELEVATION_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ locations }),
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Open-Elevation ${res.status}`);
+  if (!res.ok) throw new Error(`Elevation ${res.status}`);
   const data = (await res.json()) as OpenElevationResponse;
-  if (!data.results || !Array.isArray(data.results)) throw new Error('Open-Elevation invalid response');
+  if (!data.results || !Array.isArray(data.results)) throw new Error('Elevation invalid response');
   elevationCache.set(key, data.results);
   return data;
 }
