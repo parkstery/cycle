@@ -9,22 +9,22 @@ const HEADER_HEIGHT = 52;
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    /* Overlay: 20% transparent white; scroll in App.tsx wrapper; explicit padding so layout is never clipped */
+    /* Full white background */
     <div
-      className="min-h-full bg-white/80 box-border"
+      className="min-h-screen bg-white box-border"
       style={{
-        paddingLeft: 'max(16px, env(safe-area-inset-left))',
-        paddingRight: 'max(16px, env(safe-area-inset-right))',
-        paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+        paddingLeft: "max(16px, env(safe-area-inset-left))",
+        paddingRight: "max(16px, env(safe-area-inset-right))",
+        paddingBottom: "max(24px, env(safe-area-inset-bottom))",
       }}
     >
-      {/* Header: fixed bar so "Back to Simulator" never overlaps content */}
+      {/* Header */}
       <header
-        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white/80 border-b border-white/30"
+        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white border-b border-slate-200"
         style={{
           top: 0,
           minHeight: HEADER_HEIGHT,
-          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingTop: "env(safe-area-inset-top, 0px)",
           paddingBottom: 12,
         }}
       >
@@ -36,17 +36,17 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
         </button>
       </header>
 
-      {/* Spacer: exact height of header so title always starts below it */}
+      {/* Spacer */}
       <div
         aria-hidden
         style={{
           minHeight: HEADER_HEIGHT,
-          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingTop: "env(safe-area-inset-top, 0px)",
           paddingBottom: 12,
         }}
       />
 
-      {/* Content: top padding only for gap; sides from parent */}
+      {/* Content */}
       <main
         className="max-w-[720px] mx-auto pt-4 pb-12 text-slate-900 leading-relaxed"
         style={{
@@ -54,51 +54,47 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
           paddingRight: 24,
         }}
       >
+        {/* Title */}
+        <h1 className="text-2xl font-bold mb-2">
+          Cycle Simulator
+        </h1>
 
-          {/* Title */}
-          <h1 className="text-2xl font-bold mb-2">
-            Cycle Simulator
-          </h1>
+        <p className="text-slate-700 mb-6">
+          Virtual cycling simulation with real-world maps and AI coaching.
+        </p>
 
-          <p className="text-slate-700 mb-6">
-            Virtual cycling simulation with real-world maps and AI coaching.
+        {/* Features */}
+        <Section title="Features">
+          <ul className="list-disc list-inside space-y-1">
+            <li>Virtual riding worldwide</li>
+            <li>Gradient simulation</li>
+            <li>Street View playback</li>
+            <li>Elevation analysis</li>
+          </ul>
+        </Section>
+
+        {/* Tech */}
+        <Section title="Technology Stack">
+          <Credit title="Frontend">
+            React, TypeScript, Vite, Tailwind
+          </Credit>
+
+          <Credit title="Maps & Data">
+            Google Maps Platform
+          </Credit>
+        </Section>
+
+        {/* Disclaimer */}
+        <Section title="Disclaimer">
+          <p className="text-slate-700">
+            This application is for educational and fitness purposes only.
           </p>
+        </Section>
 
-          {/* Features */}
-          <Section title="Features">
-            <ul className="list-disc list-inside space-y-1">
-              <li>Virtual riding worldwide</li>
-              <li>Gradient simulation</li>
-              <li>Street View playback</li>
-              <li>Elevation analysis</li>
-            </ul>
-          </Section>
-
-          {/* Tech */}
-          <Section title="Technology Stack">
-
-            <Credit title="Frontend">
-              React, TypeScript, Vite, Tailwind
-            </Credit>
-
-            <Credit title="Maps & Data">
-              Google Maps Platform
-            </Credit>
-
-          </Section>
-
-          {/* Disclaimer */}
-          <Section title="Disclaimer">
-            <p className="text-slate-700">
-              This application is for educational and fitness purposes only.
-            </p>
-          </Section>
-
-          {/* Footer */}
-          <p className="text-sm text-slate-600 text-center mt-12">
-            © 2026 Cycle Simulator
-          </p>
-
+        {/* Footer */}
+        <p className="text-sm text-slate-600 text-center mt-12">
+          © 2026 Cycle Simulator
+        </p>
       </main>
     </div>
   );
@@ -118,7 +114,6 @@ function Section({
 }) {
   return (
     <section className="mt-8 mb-6">
-
       <h2
         className="
           text-lg
@@ -136,7 +131,6 @@ function Section({
       <div className="text-slate-800 space-y-2">
         {children}
       </div>
-
     </section>
   );
 }
@@ -151,7 +145,6 @@ function Credit({
 }) {
   return (
     <div className="mb-4">
-
       <div className="font-semibold text-slate-900">
         {title}
       </div>
@@ -159,7 +152,6 @@ function Credit({
       <div className="text-slate-700">
         {children}
       </div>
-
     </div>
   );
 }
