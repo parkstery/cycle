@@ -4,7 +4,7 @@ import React from "react";
 interface AboutProps {
   onClose: () => void;
 }
-
+// sdfasdfasdasd
 const HEADER_HEIGHT = 52;
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
