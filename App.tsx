@@ -251,12 +251,18 @@ const App: React.FC = () => {
   const [destinationSuggestions, setDestinationSuggestions] = useState<SearchSuggestionItem[]>([]);
   const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  /** 추천 목록 키보드 포커스 인덱스 (-1: 없음) */
+  const [originHighlightIndex, setOriginHighlightIndex] = useState(-1);
+  const [destinationHighlightIndex, setDestinationHighlightIndex] = useState(-1);
   const originSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const originSuggestReqIdRef = useRef(0);
   const destSuggestReqIdRef = useRef(0);
   const closeOriginSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeDestSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const routeInputContainerRef = useRef<HTMLDivElement | null>(null);
+  const originSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
+  const destSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
@@ -701,10 +707,11 @@ const App: React.FC = () => {
         if (reqId !== originSuggestReqIdRef.current) return;
         setOriginSuggestions(list);
         setShowOriginSuggestions(list.length > 0);
+        setOriginHighlightIndex(-1);
       }).catch(() => {
         if (reqId === originSuggestReqIdRef.current) setOriginSuggestions([]);
       });
-    }, 400);
+    }, 0);
     return () => {
       if (originSuggestDebounceRef.current) clearTimeout(originSuggestDebounceRef.current);
     };
@@ -725,14 +732,30 @@ const App: React.FC = () => {
         if (reqId !== destSuggestReqIdRef.current) return;
         setDestinationSuggestions(list);
         setShowDestinationSuggestions(list.length > 0);
+        setDestinationHighlightIndex(-1);
       }).catch(() => {
         if (reqId === destSuggestReqIdRef.current) setDestinationSuggestions([]);
       });
-    }, 400);
+    }, 0);
     return () => {
       if (destSuggestDebounceRef.current) clearTimeout(destSuggestDebounceRef.current);
     };
   }, [destination]);
+
+  // 맵·다른 콘트롤 클릭 시 추천 목록 닫기
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      const el = routeInputContainerRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) {
+        setShowOriginSuggestions(false);
+        setShowDestinationSuggestions(false);
+        setOriginHighlightIndex(-1);
+        setDestinationHighlightIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, []);
 
   // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
   useEffect(() => {
@@ -1665,6 +1688,7 @@ const App: React.FC = () => {
     originLocationRef.current = { lat: item.lat, lng: item.lng };
     setOriginSuggestions([]);
     setShowOriginSuggestions(false);
+    setOriginHighlightIndex(-1);
   };
 
   const handleSelectDestinationSuggestion = (item: SearchSuggestionItem) => {
@@ -1672,6 +1696,7 @@ const App: React.FC = () => {
     destLocationRef.current = { lat: item.lat, lng: item.lng };
     setDestinationSuggestions([]);
     setShowDestinationSuggestions(false);
+    setDestinationHighlightIndex(-1);
   };
 
   const handleRemoveStart = () => {
@@ -1879,7 +1904,7 @@ const App: React.FC = () => {
           <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
-              <div className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
+              <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                 <div className="relative flex flex-col gap-1.5">
                   <div className="relative">
                     <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
@@ -1894,16 +1919,41 @@ const App: React.FC = () => {
                           if (closeOriginSuggestRef.current) clearTimeout(closeOriginSuggestRef.current);
                           closeOriginSuggestRef.current = window.setTimeout(() => setShowOriginSuggestions(false), 180);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            if (originSuggestions.length === 0) return;
+                            setShowOriginSuggestions(true);
+                            setOriginHighlightIndex((i) => (i < originSuggestions.length - 1 ? i + 1 : i));
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setOriginHighlightIndex((i) => (i <= 0 ? -1 : i - 1));
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            if (originHighlightIndex >= 0 && originSuggestions[originHighlightIndex]) {
+                              e.preventDefault();
+                              handleSelectOriginSuggestion(originSuggestions[originHighlightIndex]);
+                            }
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            setShowOriginSuggestions(false);
+                            setOriginHighlightIndex(-1);
+                          }
+                        }}
                       />
                       <button onClick={handleRemoveStart} title="Remove Start" className="text-slate-400 hover:text-red-500 shrink-0">
                         <X size={10} />
                       </button>
                     </div>
                     {showOriginSuggestions && originSuggestions.length > 0 && (
-                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto">
+                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={originHighlightIndex >= 0 ? `origin-suggestion-${originHighlightIndex}` : undefined}>
                         {originSuggestions.map((item, idx) => (
-                          <li key={idx}>
-                            <button type="button" className="w-full text-left px-2 py-1.5 text-[11px] text-slate-700 hover:bg-blue-50 truncate" onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }}>
+                          <li key={idx} id={`origin-suggestion-${idx}`} role="option" aria-selected={originHighlightIndex === idx}>
+                            <button ref={idx === originHighlightIndex ? (el) => { originSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${originHighlightIndex === idx ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-blue-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }} onMouseEnter={() => setOriginHighlightIndex(idx)}>
                               {item.display_name}
                             </button>
                           </li>
@@ -1938,16 +1988,41 @@ const App: React.FC = () => {
                           if (closeDestSuggestRef.current) clearTimeout(closeDestSuggestRef.current);
                           closeDestSuggestRef.current = window.setTimeout(() => setShowDestinationSuggestions(false), 180);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            if (destinationSuggestions.length === 0) return;
+                            setShowDestinationSuggestions(true);
+                            setDestinationHighlightIndex((i) => (i < destinationSuggestions.length - 1 ? i + 1 : i));
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setDestinationHighlightIndex((i) => (i <= 0 ? -1 : i - 1));
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            if (destinationHighlightIndex >= 0 && destinationSuggestions[destinationHighlightIndex]) {
+                              e.preventDefault();
+                              handleSelectDestinationSuggestion(destinationSuggestions[destinationHighlightIndex]);
+                            }
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            setShowDestinationSuggestions(false);
+                            setDestinationHighlightIndex(-1);
+                          }
+                        }}
                       />
                       <button onClick={handleRemoveEnd} title="Remove End" className="text-slate-400 hover:text-red-500 shrink-0">
                         <X size={10} />
                       </button>
                     </div>
                     {showDestinationSuggestions && destinationSuggestions.length > 0 && (
-                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto">
+                      <ul className="absolute top-full left-0 right-0 mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={destinationHighlightIndex >= 0 ? `dest-suggestion-${destinationHighlightIndex}` : undefined}>
                         {destinationSuggestions.map((item, idx) => (
-                          <li key={idx}>
-                            <button type="button" className="w-full text-left px-2 py-1.5 text-[11px] text-slate-700 hover:bg-red-50 truncate" onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }}>
+                          <li key={idx} id={`dest-suggestion-${idx}`} role="option" aria-selected={destinationHighlightIndex === idx}>
+                            <button ref={idx === destinationHighlightIndex ? (el) => { destSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${destinationHighlightIndex === idx ? 'bg-red-100 text-red-900' : 'text-slate-700 hover:bg-red-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }} onMouseEnter={() => setDestinationHighlightIndex(idx)}>
                               {item.display_name}
                             </button>
                           </li>
