@@ -20,7 +20,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
     >
       {/* Header: fixed bar so "Back to Simulator" never overlaps content */}
       <header
-        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white/20 border-b border-white/30"
+        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white/80 border-b border-white/30"
         style={{
           top: 0,
           minHeight: HEADER_HEIGHT,
