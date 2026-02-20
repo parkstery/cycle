@@ -266,6 +266,9 @@ const App: React.FC = () => {
   /** 항목 선택 직후에는 추천 목록을 다시 열지 않음 */
   const originJustSelectedRef = useRef(false);
   const destJustSelectedRef = useRef(false);
+  /** 맵 클릭으로 출발/도착이 설정된 경우 해당 턴에서는 추천 목록을 표시하지 않음 */
+  const originSetFromMapClickRef = useRef(false);
+  const destSetFromMapClickRef = useRef(false);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
@@ -695,8 +698,15 @@ const App: React.FC = () => {
     googleMapRef.current.setZoom(14);
   }, [isMapReady, userLocation]);
 
-  // 출발지 입력 디바운스 → Nominatim 추천 목록
+  // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
+    if (originSetFromMapClickRef.current) {
+      originSetFromMapClickRef.current = false;
+      setOriginSuggestions([]);
+      setShowOriginSuggestions(false);
+      setOriginHighlightIndex(-1);
+      return;
+    }
     const q = origin.trim();
     if (q.length < 2) {
       setOriginSuggestions([]);
@@ -721,8 +731,15 @@ const App: React.FC = () => {
     };
   }, [origin]);
 
-  // 도착지 입력 디바운스 → Nominatim 추천 목록
+  // 도착지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
+    if (destSetFromMapClickRef.current) {
+      destSetFromMapClickRef.current = false;
+      setDestinationSuggestions([]);
+      setShowDestinationSuggestions(false);
+      setDestinationHighlightIndex(-1);
+      return;
+    }
     const q = destination.trim();
     if (q.length < 2) {
       setDestinationSuggestions([]);
@@ -1622,6 +1639,7 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newOrigin = clickedLocation.name || clickedLocation.address;
       originJustSelectedRef.current = true;
+      originSetFromMapClickRef.current = true;
       setOrigin(newOrigin);
       setOriginSuggestions([]);
       setShowOriginSuggestions(false);
@@ -1639,6 +1657,7 @@ const App: React.FC = () => {
     if (clickedLocation) {
       const newDest = clickedLocation.name || clickedLocation.address;
       destJustSelectedRef.current = true;
+      destSetFromMapClickRef.current = true;
       setDestination(newDest);
       setDestinationSuggestions([]);
       setShowDestinationSuggestions(false);
