@@ -1,4 +1,4 @@
-const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
+const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup-xxx';
 const OPENTOPODATA_URL = 'https://api.opentopodata.org/v1/srtm90m';
 const OPEN_ELEVATION_TIMEOUT_MS = 8000;
 
