@@ -1921,39 +1921,26 @@ const App: React.FC = () => {
 
       {/* About Page */}
       {showAbout && <About onClose={() => setShowAbout(false)} />}
-      {/* Info Button - Top Right Corner - Direct HTML Link for Reliability - DEBUG STYLE */}
-      {(() => {
-        console.log("Rendering About Button");
-        return (
-          <a
-            href="/about.html"
-            title="About Info"
-            className="fixed z-[9999] flex flex-col items-center justify-center text-white bg-red-600 hover:bg-red-700 transition-colors touch-manipulation font-bold no-underline shadow-2xl"
-            style={{
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '80px',
-              height: '80px',
-              padding: 0,
-              margin: 0,
-              border: '4px solid yellow',
-              cursor: 'pointer',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'fixed',
-              zIndex: 9999,
-            }}
-            aria-label="About Information"
-            id="debug-about-btn"
-          >
-            <Info size={36} strokeWidth={3} />
-            <span className="text-[10px] font-black mt-1">INFO</span>
-          </a>
-        );
-      })()}
+      {/* About Info - (i) circle, top-right */}
+      <a
+        href="/about.html"
+        title="About Info"
+        className="fixed z-[9999] flex items-center justify-center rounded-full border border-slate-400 text-slate-600 bg-white/90 hover:bg-slate-100 touch-manipulation no-underline"
+        style={{
+          top: 0,
+          right: 0,
+          width: '20px',
+          height: '20px',
+          padding: 0,
+          margin: 0,
+          cursor: 'pointer',
+          zIndex: 9999,
+        }}
+        aria-label="About Information"
+        id="debug-about-btn"
+      >
+        <Info size={10} strokeWidth={2} />
+      </a>
 
     </div>
   );
