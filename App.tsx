@@ -249,6 +249,8 @@ const App: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   const [mapRevealed, setMapRevealed] = useState(false);
+  /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
@@ -616,6 +618,16 @@ const App: React.FC = () => {
     return best ?? panoData[0];
   }, []);
 
+  // 사용자 현재 위치 조회 (Geolocation API) — 지도 노출 전에 요청해 초기 중심에 반영
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* 거부/오류 시 기본(서울) 유지 */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, []);
+
   // 2초 후 맵 영역 노출 — 타일 로드 문제 방지를 위해 먼저 노출 후 맵 생성
   useEffect(() => {
     const t = window.setTimeout(() => setMapRevealed(true), 2000);
@@ -654,6 +666,13 @@ const App: React.FC = () => {
       setIsMapReady(false);
     };
   }, [mapRevealed, isMapsApiLoaded]);
+
+  // 사용자 위치를 받으면 지도 중심을 해당 위치로 이동
+  useEffect(() => {
+    if (!isMapReady || !userLocation || !googleMapRef.current) return;
+    googleMapRef.current.panTo(userLocation);
+    googleMapRef.current.setZoom(14);
+  }, [isMapReady, userLocation]);
 
   // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
   useEffect(() => {
