@@ -1824,10 +1824,16 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => calculateRoute(mode, false)} title="Search Route" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
-                    <Search size={14} />
+                  <button onClick={() => calculateRoute(mode, false)} title="car" disabled={loading || !origin || !destination} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-red-500 flex items-center justify-center shrink-0 hover:bg-slate-200 active:scale-95 transition-transform text-slate-600">
+                    <Car size={14} />
                   </button>
-                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="w-20 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                  <button type="button" title="bike" disabled className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 text-slate-400 cursor-not-allowed">
+                    <Bike size={14} />
+                  </button>
+                  <button type="button" title="walk" disabled className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 text-slate-400 cursor-not-allowed">
+                    <Footprints size={14} />
+                  </button>
+                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                 </div>
               </div>
 
