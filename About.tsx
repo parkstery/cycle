@@ -11,7 +11,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
     /* Overlay: 20% transparent white; scroll in App.tsx wrapper; explicit padding so layout is never clipped */
     <div
-      className="min-h-full bg-white/20 box-border"
+      className="min-h-full bg-white/80 box-border"
       style={{
         paddingLeft: 'max(16px, env(safe-area-inset-left))',
         paddingRight: 'max(16px, env(safe-area-inset-right))',
