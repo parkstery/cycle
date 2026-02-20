@@ -2,11 +2,18 @@ const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
 const OPENTOPODATA_URL = 'https://api.opentopodata.org/v1/srtm90m';
 const OPEN_ELEVATION_TIMEOUT_MS = 8000;
 
+/** 응답 직전에 항상 호출 — DevTools에서 사용된 공급자 확인 가능 */
+function setProviderHeaders(res, usedProvider) {
+  res.setHeader('X-Elevation-Provider', usedProvider);
+  res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+}
+
 /**
  * Open-Elevation 1차, 실패 시 OpenTopoData 2차 호출.
  * POST body: { locations: [{ latitude, longitude }], provider?: 'open-elevation' | 'opentopodata' }
  * provider 지정 시 해당 공급자만 사용(이중화 테스트용).
  * 응답(항상 동일 형식): { results: [{ latitude, longitude, elevation }] }
+ * X-Elevation-Provider: 200 시 사용된 공급자, 502 시 'none' — 항상 내려감.
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,13 +21,16 @@ export default async function handler(req, res) {
     return;
   }
   res.setHeader('Access-Control-Allow-Origin', '*');
+  let usedProvider = 'none';
   try {
     const { locations, provider } = req.body || {};
     if (!locations || !Array.isArray(locations) || locations.length === 0) {
+      setProviderHeaders(res, usedProvider);
       res.status(400).json({ error: 'Missing or empty locations' });
       return;
     }
     if (locations.length > 100) {
+      setProviderHeaders(res, usedProvider);
       res.status(400).json({ error: 'At most 100 locations per request' });
       return;
     }
@@ -30,12 +40,13 @@ export default async function handler(req, res) {
     if (provider === 'opentopodata') {
       const data = await tryOpenTopoData(locations);
       if (data) {
-        res.setHeader('X-Elevation-Provider', 'opentopodata');
-        res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+        usedProvider = 'opentopodata';
         console.log('Elevation provider (used): opentopodata');
+        setProviderHeaders(res, usedProvider);
         res.status(200).json(data);
         return;
       }
+      setProviderHeaders(res, usedProvider);
       res.status(502).json({ error: 'OpenTopoData unavailable' });
       return;
     }
@@ -43,36 +54,39 @@ export default async function handler(req, res) {
     if (provider === 'open-elevation') {
       const data = await tryOpenElevation(locations);
       if (data) {
-        res.setHeader('X-Elevation-Provider', 'open-elevation');
-        res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+        usedProvider = 'open-elevation';
         console.log('Elevation provider (used): open-elevation');
+        setProviderHeaders(res, usedProvider);
         res.status(200).json(data);
         return;
       }
+      setProviderHeaders(res, usedProvider);
       res.status(502).json({ error: 'Open-Elevation unavailable' });
       return;
     }
 
     let data = await tryOpenElevation(locations);
     if (data) {
-      res.setHeader('X-Elevation-Provider', 'open-elevation');
-      res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+      usedProvider = 'open-elevation';
       console.log('Elevation provider (used): open-elevation');
+      setProviderHeaders(res, usedProvider);
       res.status(200).json(data);
       return;
     }
 
     data = await tryOpenTopoData(locations);
     if (data) {
-      res.setHeader('X-Elevation-Provider', 'opentopodata');
-      res.setHeader('Access-Control-Expose-Headers', 'X-Elevation-Provider');
+      usedProvider = 'opentopodata';
       console.log('Elevation provider (used): opentopodata');
+      setProviderHeaders(res, usedProvider);
       res.status(200).json(data);
       return;
     }
 
+    setProviderHeaders(res, usedProvider);
     res.status(502).json({ error: 'Elevation service unavailable' });
   } catch (e) {
+    setProviderHeaders(res, usedProvider);
     res.status(502).json({ error: String(e?.message ?? e) });
   }
 }
