@@ -5,14 +5,28 @@ interface AboutProps {
   onClose: () => void;
 }
 
+const HEADER_HEIGHT = 52;
+
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    /* Overlay: 50% transparent white; scroll handled by App.tsx wrapper */
-    <div className="min-h-full bg-white/50">
-      {/* Header */}
+    /* Overlay: 20% transparent white; scroll in App.tsx wrapper; explicit padding so layout is never clipped */
+    <div
+      className="min-h-full bg-white/20 box-border"
+      style={{
+        paddingLeft: 'max(16px, env(safe-area-inset-left))',
+        paddingRight: 'max(16px, env(safe-area-inset-right))',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+      }}
+    >
+      {/* Header: fixed bar so "Back to Simulator" never overlaps content */}
       <header
-        className="fixed top-0 left-0 right-0 h-[52px] flex items-center z-20 px-4 bg-white/50"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white/20 border-b border-white/30"
+        style={{
+          top: 0,
+          minHeight: HEADER_HEIGHT,
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 12,
+        }}
       >
         <button
           onClick={onClose}
@@ -22,8 +36,24 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
         </button>
       </header>
 
-      {/* Content: padding so header does not overlap title */}
-      <main className="max-w-[720px] mx-auto px-6 pt-[72px] pb-12 text-slate-900 leading-relaxed">
+      {/* Spacer: exact height of header so title always starts below it */}
+      <div
+        aria-hidden
+        style={{
+          minHeight: HEADER_HEIGHT,
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 12,
+        }}
+      />
+
+      {/* Content: top padding only for gap; sides from parent */}
+      <main
+        className="max-w-[720px] mx-auto pt-4 pb-12 text-slate-900 leading-relaxed"
+        style={{
+          paddingLeft: 24,
+          paddingRight: 24,
+        }}
+      >
 
           {/* Title */}
           <h1 className="text-2xl font-bold mb-2">
