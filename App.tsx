@@ -1621,7 +1621,11 @@ const App: React.FC = () => {
   const handleSetStart = () => {
     if (clickedLocation) {
       const newOrigin = clickedLocation.name || clickedLocation.address;
+      originJustSelectedRef.current = true;
       setOrigin(newOrigin);
+      setOriginSuggestions([]);
+      setShowOriginSuggestions(false);
+      setOriginHighlightIndex(-1);
       originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
 
       if (startMarker.current) { startMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current); }
@@ -1634,7 +1638,11 @@ const App: React.FC = () => {
   const handleSetEnd = () => {
     if (clickedLocation) {
       const newDest = clickedLocation.name || clickedLocation.address;
+      destJustSelectedRef.current = true;
       setDestination(newDest);
+      setDestinationSuggestions([]);
+      setShowDestinationSuggestions(false);
+      setDestinationHighlightIndex(-1);
       destLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
 
       if (endMarker.current) { endMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current); }
