@@ -263,6 +263,9 @@ const App: React.FC = () => {
   const routeInputContainerRef = useRef<HTMLDivElement | null>(null);
   const originSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
   const destSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
+  /** 항목 선택 직후에는 추천 목록을 다시 열지 않음 */
+  const originJustSelectedRef = useRef(false);
+  const destJustSelectedRef = useRef(false);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
@@ -706,7 +709,8 @@ const App: React.FC = () => {
       nominatim.searchSuggestions(q, 5).then((list) => {
         if (reqId !== originSuggestReqIdRef.current) return;
         setOriginSuggestions(list);
-        setShowOriginSuggestions(list.length > 0);
+        if (!originJustSelectedRef.current) setShowOriginSuggestions(list.length > 0);
+        originJustSelectedRef.current = false;
         setOriginHighlightIndex(-1);
       }).catch(() => {
         if (reqId === originSuggestReqIdRef.current) setOriginSuggestions([]);
@@ -731,7 +735,8 @@ const App: React.FC = () => {
       nominatim.searchSuggestions(q, 5).then((list) => {
         if (reqId !== destSuggestReqIdRef.current) return;
         setDestinationSuggestions(list);
-        setShowDestinationSuggestions(list.length > 0);
+        if (!destJustSelectedRef.current) setShowDestinationSuggestions(list.length > 0);
+        destJustSelectedRef.current = false;
         setDestinationHighlightIndex(-1);
       }).catch(() => {
         if (reqId === destSuggestReqIdRef.current) setDestinationSuggestions([]);
@@ -1684,6 +1689,7 @@ const App: React.FC = () => {
   };
 
   const handleSelectOriginSuggestion = (item: SearchSuggestionItem) => {
+    originJustSelectedRef.current = true;
     setOrigin(item.display_name);
     originLocationRef.current = { lat: item.lat, lng: item.lng };
     setOriginSuggestions([]);
@@ -1692,6 +1698,7 @@ const App: React.FC = () => {
   };
 
   const handleSelectDestinationSuggestion = (item: SearchSuggestionItem) => {
+    destJustSelectedRef.current = true;
     setDestination(item.display_name);
     destLocationRef.current = { lat: item.lat, lng: item.lng };
     setDestinationSuggestions([]);
