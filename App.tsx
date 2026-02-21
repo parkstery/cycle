@@ -29,23 +29,24 @@ const PLAYLIST = [
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
 const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
 
-/** API 무응답 시 무한 대기 방지. 이 시간 내에 콜백이 오지 않으면 resolve({ data: null })로 진행 */
-const SV_GET_PANORAMA_TIMEOUT_MS = 3000;
+/** API 무응답 시 무한 대기 방지. 정상 로딩이 3초를 넘길 수 있으므로 6초로 설정 (과민 경고 방지) */
+const SV_GET_PANORAMA_TIMEOUT_MS = 6000;
 
-/** setPanoramaView / setPanoramaViewByPanoId 전체 대기 상한. 초과 시 resolve하여 주행은 반드시 시작됨 */
-const PANORAMA_VIEW_TIMEOUT_MS = 3000;
+/** setPanoramaView / setPanoramaViewByPanoId 전체 대기 상한. getPano + status OK까지 6초 허용 */
+const PANORAMA_VIEW_TIMEOUT_MS = 6000;
+
+type SvResultReason = 'timeout' | 'no_pano';
 
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
- * Returns { data, usedFallback }. usedFallback true when DEFAULT was used.
- * OVER_QUERY_LIMIT 시에만 DEFAULT 호출 생략. ZERO_RESULTS(구글 공식 없음)일 때는 DEFAULT(사용자 제작) 폴백 시도.
- * 타임아웃 시 data: null로 resolve하여 주행이 막히지 않도록 함.
+ * Returns { data, usedFallback, reason? }. reason 'timeout' = 응답 지연, 'no_pano' = 실제 커버리지 없음.
+ * 경고 메시지는 no_pano일 때만 표시하고, timeout은 표시하지 않음.
  */
 const getPanoramaWithFallback = (
   service: any,
   opts: { location: any; radius: number; preference?: any }
-): Promise<{ data: any; usedFallback: boolean }> => {
-  const apiPromise = new Promise<{ data: any; usedFallback: boolean }>((resolve) => {
+): Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }> => {
+  const apiPromise = new Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }>((resolve) => {
     service.getPanorama({
       location: opts.location,
       radius: opts.radius,
@@ -57,7 +58,7 @@ const getPanoramaWithFallback = (
         return;
       }
       if (UNRECOVERABLE_STATUS.includes(status)) {
-        resolve({ data: null, usedFallback: false });
+        resolve({ data: null, usedFallback: false, reason: 'no_pano' });
         return;
       }
       service.getPanorama({
@@ -69,15 +70,15 @@ const getPanoramaWithFallback = (
         if (fallbackStatus === 'OK' && fallbackData?.location?.pano) {
           resolve({ data: fallbackData, usedFallback: true });
         } else {
-          resolve({ data: null, usedFallback: false });
+          resolve({ data: null, usedFallback: false, reason: 'no_pano' });
         }
       });
     });
   });
-  const timeoutPromise = new Promise<{ data: any; usedFallback: boolean }>((resolve) => {
+  const timeoutPromise = new Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }>((resolve) => {
     setTimeout(() => {
       console.warn('[SV] getPanorama timeout — no callback within', SV_GET_PANORAMA_TIMEOUT_MS, 'ms');
-      resolve({ data: null, usedFallback: false });
+      resolve({ data: null, usedFallback: false, reason: 'timeout' });
     }, SV_GET_PANORAMA_TIMEOUT_MS);
   });
   return Promise.race([apiPromise, timeoutPromise]);
@@ -488,8 +489,13 @@ const App: React.FC = () => {
         clearTimeout(pendingSwapFallbackRef.current);
         pendingSwapFallbackRef.current = null;
       }
-      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback }) => {
-        if (!data?.location) { resolve(); return; }
+      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback, reason }) => {
+        if (!data?.location) {
+          // timeout은 응답 지연일 뿐이므로 경고 표시 안 함. no_pano일 때만 "No street view" 표시
+          if (reason === 'no_pano') setShowSvWarning(true);
+          resolve();
+          return;
+        }
         setIsUserPano(usedFallback);
         const currentIdx = activePanoRef.current;
         const nextIdx = currentIdx === 0 ? 1 : 0;
@@ -519,7 +525,7 @@ const App: React.FC = () => {
     const timeout = new Promise<void>((resolve) => {
       setTimeout(() => {
         console.warn('[SV] setPanoramaView timeout — proceeding without street view');
-        setShowSvWarning(true);
+        // timeout은 로딩 지연이므로 경고 표시하지 않음. OK 수신 시 status_changed에서 해제됨
         resolve();
       }, PANORAMA_VIEW_TIMEOUT_MS);
     });
@@ -573,7 +579,7 @@ const App: React.FC = () => {
     const timeout = new Promise<void>((resolve) => {
       setTimeout(() => {
         console.warn('[SV] setPanoramaViewByPanoId timeout — proceeding without street view');
-        setShowSvWarning(true);
+        // timeout은 로딩 지연이므로 경고 표시하지 않음. OK 수신 시 status_changed에서 해제됨
         resolve();
       }, PANORAMA_VIEW_TIMEOUT_MS);
     });
@@ -927,9 +933,10 @@ const App: React.FC = () => {
     svServiceRef.current = new google.maps.StreetViewService();
     const handleStatus = () => {
       const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-      if (currentPano) {
-        setSvStatus(currentPano.getStatus());
-        if (currentPano.getStatus() === 'OK') setShowSvWarning(false);
+      if (currentPano) setSvStatus(currentPano.getStatus());
+      // OK 수신 시 경고 즉시 해제. 양쪽 파노라마 모두 확인(스왑 직전에 로드된 쪽이 OK여도 해제)
+      if (panorama1.current?.getStatus() === 'OK' || panorama2.current?.getStatus() === 'OK') {
+        setShowSvWarning(false);
       }
     };
     panorama1.current.addListener('status_changed', handleStatus);
