@@ -211,6 +211,8 @@ const App: React.FC = () => {
 
   // Last route request params: reuse route on Go when inputs unchanged (avoid duplicate Directions/Elevation)
   const lastRouteRequestRef = useRef<{ origin: string; destination: string; waypointNames: string[]; mode: TravelMode } | null>(null);
+  /** Favorites 복원 함수 ref (handleLoadFavorite보다 나중에 정의되므로 ref로 호출) */
+  const restoreRouteFromSavedGeometryRef = useRef<((saved: SavedRoute) => Promise<void>) | null>(null);
 
   // Audio References
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -401,24 +403,42 @@ const App: React.FC = () => {
         return;
       }
 
-      // Serialize waypoints
+      // Serialize waypoints (정밀도 유지)
       const newWaypoints = waypoints.map(wp => {
-        // Check if location is a Google LatLng object (has methods) or plain object
         const lat = typeof wp.location.lat === 'function' ? wp.location.lat() : wp.location.lat;
         const lng = typeof wp.location.lng === 'function' ? wp.location.lng() : wp.location.lng;
         return {
           name: wp.name,
-          lat: lat,
-          lng: lng
+          lat: Number(Number(lat).toFixed(8)),
+          lng: Number(Number(lng).toFixed(8))
         };
       });
+
+      // OSRM 경로가 있으면 fullGeometry 저장 → 불러올 때 재호출 없이 복원(위치 변동 방지)
+      let routePayload: SavedRoute['routePayload'] = undefined;
+      if (route && routeSource === 'OSRM' && route.path?.length > 0) {
+        const fullGeometry: [number, number][] = route.path.map((p: any) => {
+          const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
+          const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
+          return [Number(Number(lat).toFixed(8)), Number(Number(lng).toFixed(8))] as [number, number];
+        });
+        const profile = mode === TravelMode.DRIVING ? 'driving' : mode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+        routePayload = {
+          provider: 'osrm',
+          profile,
+          distance: route.distance,
+          duration: route.duration,
+          fullGeometry
+        };
+      }
 
       const newRoute: SavedRoute = {
         id: Date.now().toString(),
         origin,
         destination,
         waypoints: newWaypoints,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        ...(routePayload && { routePayload })
       };
 
       const newFavorites = [newRoute, ...favoriteRoutes];
@@ -427,7 +447,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLoadFavorite = (saved: SavedRoute) => {
+  const handleLoadFavorite = async (saved: SavedRoute) => {
     setOrigin(saved.origin);
     setDestination(saved.destination);
     originLocationRef.current = null;
@@ -437,6 +457,9 @@ const App: React.FC = () => {
       location: { lat: wp.lat, lng: wp.lng },
     }));
     setWaypoints(restoredWaypoints);
+    if (saved.routePayload?.fullGeometry?.length) {
+      await restoreRouteFromSavedGeometryRef.current?.(saved);
+    }
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
@@ -1276,6 +1299,95 @@ const App: React.FC = () => {
     googleMarkersRef.current.push(marker);
     return marker;
   };
+
+  /** 저장된 fullGeometry로 경로 복원(OSRM 재호출 없음 → 출발/도착 위치 변동 방지) */
+  const restoreRouteFromSavedGeometry = useCallback(async (saved: SavedRoute) => {
+    const payload = saved.routePayload;
+    if (!payload?.fullGeometry?.length) return;
+    setLoading(true);
+    try {
+      const path = payload.fullGeometry.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+      const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
+      const elevationRes = {
+        results: openRes.results.map((r) => ({
+          elevation: r.elevation,
+          location: new google.maps.LatLng(r.latitude, r.longitude),
+          resolution: 0
+        }))
+      };
+      const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
+      oldMarkers.forEach(m => m?.setMap(null));
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => !oldMarkers.includes(m));
+      startMarker.current = null;
+      endMarker.current = null;
+      waypointMarkers.current = [];
+      if (googlePolylineRef.current) {
+        googlePolylineRef.current.setMap(null);
+        googlePolylineRef.current = null;
+      }
+      startMarker.current = createCustomMarker(path[0], 'A', '#3b82f6');
+      endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
+      saved.waypoints.forEach((wp, idx) => {
+        waypointMarkers.current.push(createCustomMarker({ lat: wp.lat, lng: wp.lng }, (idx + 1).toString(), '#f59e0b'));
+      });
+      const gmap = googleMapRef.current;
+      if (gmap) {
+        const pathForPoly = path.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
+        googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5, clickable: true });
+        googlePolylineRef.current.setMap(gmap);
+        googlePolylineRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+          if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
+        });
+      }
+      const modeFromProfile = payload.profile === 'driving' ? TravelMode.DRIVING : payload.profile === 'cycling' ? TravelMode.BICYCLING : TravelMode.WALKING;
+      setMode(modeFromProfile);
+      setRoute({
+        origin: saved.origin,
+        destination: saved.destination,
+        distance: payload.distance,
+        duration: payload.duration,
+        path,
+        elevation: elevationRes.results
+      });
+      lastRouteRequestRef.current = {
+        origin: saved.origin.trim(),
+        destination: saved.destination.trim(),
+        waypointNames: saved.waypoints.map(w => (w.name || '').trim()),
+        mode: modeFromProfile
+      };
+      setRouteSource('OSRM');
+      setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
+      setAppPhase('IDLE');
+      svDisplayPathIndexRef.current = 0;
+      lastDisplayedPanoPathIndexRef.current = -1;
+      lastCoachedIndex.current = -1;
+      originLocationRef.current = path[0];
+      destLocationRef.current = path[path.length - 1];
+      if (path.length > 0) {
+        const startPos = path[0];
+        const heading = path.length > 1 ? computeHeading(startPos, path[1]) : 0;
+        setPanoramaView(startPos, heading);
+      }
+      setAppPhase('PREPARING');
+      setPreparingProgress({ k: 0, n: 1 });
+      const { panoData, sampleCount } = await preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), { maxDistanceM: 300, intervalM: 10 });
+      setPreparingProgress(null);
+      const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
+      setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
+      setAppPhase('IDLE');
+      if (googleMapRef.current && path.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach((p: any) => bounds.extend(p));
+        googleMapRef.current.fitBounds(bounds);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [elevationProvider, setPanoramaView, preFetchStreetViewData]);
+
+  useEffect(() => {
+    restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
+  }, [restoreRouteFromSavedGeometry]);
 
   const clearMapOverlays = () => {
     setAppPhase('IDLE');

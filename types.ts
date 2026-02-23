@@ -64,6 +64,16 @@ export interface CoachingData {
   validUntilIndex?: number;
 }
 
+/** 저장된 경로 지오메트리(OSRM 재호출 없이 복원용). 출발/도착 위치 변동 방지. */
+export interface SavedRoutePayload {
+  provider: 'osrm';
+  profile: 'cycling' | 'driving' | 'foot';
+  distance: string;
+  duration: string;
+  /** 경로 좌표 [lat, lng][] — 정밀도 6자리 이상 유지 */
+  fullGeometry: [number, number][];
+}
+
 export interface SavedRoute {
   id: string;
   origin: string;
@@ -74,4 +84,6 @@ export interface SavedRoute {
     lng: number;
   }[];
   timestamp: number;
+  /** 있으면 불러올 때 OSRM 재요청 없이 경로 복원(위치 변동 방지) */
+  routePayload?: SavedRoutePayload;
 }
