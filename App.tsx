@@ -708,6 +708,7 @@ const App: React.FC = () => {
         streetViewControl: false,
         fullscreenControl: false,
         zoomControl: false,
+        cameraControl: false,
         scaleControl: true,
         scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
         rotateControl: false,
