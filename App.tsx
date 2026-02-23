@@ -1485,40 +1485,32 @@ const App: React.FC = () => {
           return;
         }
 
-        // Duration: walking = fixed speed; car/bike = slope-adjusted speed
+        // Duration: Car, Bike, Foot 모두 선택 속도(speedKmH) + 경사 보정으로 동일 계산 (실내 사이클 사용자 경로 선택 일관성)
         let calculatedSeconds = 0;
         const points = elevationRes.results;
-        const walkingSpeedMs = 4.5 * 1000 / 3600; // ~4.5 km/h in m/s
 
-        if (activeMode === TravelMode.WALKING) {
-          for (let i = 0; i < points.length - 1; i++) {
-            const dist = computeDistanceBetween(points[i].location, points[i + 1].location);
-            calculatedSeconds += dist / walkingSpeedMs;
-          }
-        } else {
-          for (let i = 0; i < points.length - 1; i++) {
-            const p1 = points[i];
-            const p2 = points[i + 1];
-            const dist = computeDistanceBetween(p1.location, p2.location);
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const dist = computeDistanceBetween(p1.location, p2.location);
 
-            if (dist > 0) {
-              const elevationChange = p2.elevation - p1.elevation;
-              const grade = (elevationChange / dist) * 100;
+          if (dist > 0) {
+            const elevationChange = p2.elevation - p1.elevation;
+            const grade = (elevationChange / dist) * 100;
 
-              // Grade adjustments recommended by Fitness Expert
-              let factor = 1.0;
-              if (grade <= -6) factor = 1.35; // Steep descent
-              else if (grade <= -3) factor = 1.25; // Descent
-              else if (grade <= -1) factor = 1.10; // Mild descent
-              else if (grade < 1) factor = 1.00; // Flat
-              else if (grade < 3) factor = 0.85; // Mild ascent
-              else if (grade < 6) factor = 0.70; // Ascent
-              else factor = 0.50; // Steep ascent (> 6%)
+            // Grade adjustments recommended by Fitness Expert
+            let factor = 1.0;
+            if (grade <= -6) factor = 1.35; // Steep descent
+            else if (grade <= -3) factor = 1.25; // Descent
+            else if (grade <= -1) factor = 1.10; // Mild descent
+            else if (grade < 1) factor = 1.00; // Flat
+            else if (grade < 3) factor = 0.85; // Mild ascent
+            else if (grade < 6) factor = 0.70; // Ascent
+            else factor = 0.50; // Steep ascent (> 6%)
 
-              // V = V0 * factor
-              const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
-              calculatedSeconds += (dist / adjustedSpeedMs);
-            }
+            // V = V0 * factor
+            const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
+            calculatedSeconds += (dist / adjustedSpeedMs);
           }
         }
 
