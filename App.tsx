@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
@@ -2112,8 +2112,10 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-1 w-full px-0.5">
                   <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
-                  <input type="number" min="10" max="70" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
-                  <input type="range" min="10" max="70" step="1" value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="속도 1 km/h 감소" className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="속도 감소"><Minus size={12} /></button>
+                  <input type="number" min={10} max={70} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="w-8 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
+                  <input type="range" min={10} max={70} step={1} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="속도 1 km/h 증가" className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="속도 증가"><Plus size={12} /></button>
                   <div className="flex items-center gap-1 ml-auto shrink-0">
                     <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
 
