@@ -2275,7 +2275,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
                 title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                className="w-4 h-8 shrink-0 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors -mr-[3px]"
+                className="w-4 h-8 shrink-0 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors -mr-[0px]"
               >
                 {historyExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
               </button>
