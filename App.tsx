@@ -2094,7 +2094,7 @@ const App: React.FC = () => {
             )}
           </div>
           {routeInputExpanded && (
-            <div className="flex flex-row w-full pl-6 gap-3">
+            <div className="flex flex-row w-full pl-1 gap-3">
               {routeSettingsPanelExpanded && (
               <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                 <div className="relative flex flex-col gap-1.5">
