@@ -2088,7 +2088,7 @@ const App: React.FC = () => {
           <div className={`flex flex-col items-center justify-center shrink-0 z-10 ${routeInputExpanded ? 'w-8 gap-0.5' : 'w-full h-full'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 ${routeInputExpanded ? 'w-8 h-8' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
             {routeInputExpanded && (
-              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "경로설정 패널 접기" : "경로설정 패널 펼치기"} className="w-8 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100" aria-label={routeSettingsPanelExpanded ? "경로설정 패널 접기" : "경로설정 패널 펼치기"}>
+              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-8 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
                 {routeSettingsPanelExpanded ? <ChevronLeft size={16} className="opacity-80" /> : <ChevronRight size={16} className="opacity-80" />}
               </button>
             )}
