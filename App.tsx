@@ -253,6 +253,7 @@ const App: React.FC = () => {
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
+  const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [coachingOn, setCoachingOn] = useState(true);
@@ -2082,11 +2083,19 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[300px] min-w-[300px] max-w-[300px]') : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[96px] min-w-[96px] max-w-[96px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
-          <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`absolute left-0 top-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 z-10 ${!routeInputExpanded ? 'w-full' : ''}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+          <div className={`flex flex-col items-center justify-center shrink-0 z-10 ${routeInputExpanded ? 'w-8 gap-0.5' : 'w-full h-full'}`}>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 ${routeInputExpanded ? 'w-8 h-8' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+            {routeInputExpanded && (
+              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "경로설정 패널 접기" : "경로설정 패널 펼치기"} className="w-8 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100" aria-label={routeSettingsPanelExpanded ? "경로설정 패널 접기" : "경로설정 패널 펼치기"}>
+                {routeSettingsPanelExpanded ? <ChevronLeft size={16} className="opacity-80" /> : <ChevronRight size={16} className="opacity-80" />}
+              </button>
+            )}
+          </div>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-6 gap-3">
+              {routeSettingsPanelExpanded && (
               <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                 <div className="relative flex flex-col gap-1.5">
                   <div className="relative">
@@ -2248,6 +2257,7 @@ const App: React.FC = () => {
                   <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                 </div>
               </div>
+              )}
 
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
