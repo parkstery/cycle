@@ -2089,7 +2089,7 @@ const App: React.FC = () => {
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
             {routeInputExpanded && (
               <div className="flex-1 flex items-center justify-center min-h-0">
-              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-10px" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
+              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-20px]" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
                 {routeSettingsPanelExpanded ? <ChevronLeft size={14} className="opacity-80" /> : <ChevronRight size={14} className="opacity-80" />}
               </button>
               </div>
