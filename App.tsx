@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
@@ -2083,23 +2083,23 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[96px] min-w-[96px] max-w-[96px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
-          <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-8 gap-0.5 justify-start pt-0.5' : 'w-full h-full justify-center'}`}>
-            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 ${routeInputExpanded ? 'w-8 h-8' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronLeft size={20} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+          <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 gap-0.5 justify-start pt-0.5' : 'w-full h-full justify-center'}`}>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
             {routeInputExpanded && (
-              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-8 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
-                {routeSettingsPanelExpanded ? <ChevronLeft size={16} className="opacity-80" /> : <ChevronRight size={16} className="opacity-80" />}
+              <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
+                {routeSettingsPanelExpanded ? <ChevronLeft size={12} className="opacity-80" /> : <ChevronRight size={12} className="opacity-80" />}
               </button>
             )}
             {routeInputExpanded && !routeSettingsPanelExpanded && (
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
                 title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                className="w-8 h-7 flex items-center justify-center text-slate-300 hover:text-slate-500 rounded hover:bg-slate-100 transition-colors"
+                className="hidden w-4 h-4 flex items-center justify-center text-slate-300 hover:text-slate-500 rounded hover:bg-slate-100 transition-colors"
                 aria-label={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
               >
-                {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                {historyExpanded ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
               </button>
             )}
           </div>
