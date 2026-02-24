@@ -1032,8 +1032,8 @@ const App: React.FC = () => {
   }, [countdown]);
 
   useEffect(() => {
-    let timer: number;
-    if (!route?.path?.length) return () => clearTimeout(0);
+    let timer: ReturnType<typeof setTimeout> = 0;
+    if (!route?.path?.length) return () => clearTimeout(timer);
     const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
     const currentPos = route.path[currentIdx];
     const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
@@ -1222,7 +1222,6 @@ const App: React.FC = () => {
       }
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
-    }
     return () => clearTimeout(timer);
   }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen, isSvActive]);
 
