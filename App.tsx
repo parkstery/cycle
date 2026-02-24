@@ -2092,6 +2092,16 @@ const App: React.FC = () => {
                 {routeSettingsPanelExpanded ? <ChevronLeft size={16} className="opacity-80" /> : <ChevronRight size={16} className="opacity-80" />}
               </button>
             )}
+            {routeInputExpanded && !routeSettingsPanelExpanded && (
+              <button
+                onClick={() => setHistoryExpanded(!historyExpanded)}
+                title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                className="w-8 h-7 flex items-center justify-center text-slate-300 hover:text-slate-500 rounded hover:bg-slate-100 transition-colors"
+                aria-label={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+              >
+                {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+              </button>
+            )}
           </div>
           {routeInputExpanded && (
             <div className="flex flex-row w-full pl-1 gap-3">
@@ -2259,6 +2269,7 @@ const App: React.FC = () => {
               </div>
               )}
 
+              {routeSettingsPanelExpanded && (
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
                 title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
@@ -2266,6 +2277,7 @@ const App: React.FC = () => {
               >
                 {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
               </button>
+              )}
 
               <div className={`flex-1 border-l border-slate-200 pl-2 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
                 <div className="flex justify-between items-center px-1 mb-1">
