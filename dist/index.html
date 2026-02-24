@@ -7,11 +7,13 @@
   <title>Cycle Simulator</title>
   <link rel="icon" href="/icon-512.png" type="image/png">
   <!-- PWA Configuration -->
-  <link rel="manifest" href="/assets/manifest-vVEg05w5.json">
+  <link rel="manifest" href="/assets/manifest-CYY8OAvM.json?v=3">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <!-- 성능: Maps/폰트 도메인 미리 연결 -->
+  <!-- 화면 회전 허용: 기기 세로=세로, 가로=가로 (manifest orientation:any + 잠금 해제) -->
+  <meta name="screen-orientation" content="any">
+  <!-- 성능: Maps/폰트 도메인 미리 연결 -->   
   <link rel="preconnect" href="https://maps.googleapis.com">
   <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,13 +31,23 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-CDPTScWM.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-m1em6obR.css">
+  <script type="module" crossorigin src="/assets/index-BbP4nOK-.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BMwzOJiV.css">
 </head>
 <body>
   <div id="root"></div>
   
   
+  <!-- 화면 방향: 회전 잠금 해제 (세로/가로 기기 방향에 따라 전환) -->
+  <script>
+    (function() {
+      try {
+        if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+      } catch (e) {}
+    })();
+  </script>
   <!-- Force cache clear - NO Service Worker registration -->
   <script>
     // Immediately clear ALL caches and service workers on every page load
