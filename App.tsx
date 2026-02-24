@@ -2378,20 +2378,20 @@ const App: React.FC = () => {
                       onClick={() => jumpToRouteIndex(Math.max(0, simulation.currentIndex - STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex <= 0}
                       title="Backward"
-                      className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
+                      className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-[19.2px] h-[19.2px] flex items-center justify-center rounded-md bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Backward"
                     >
-                      <ChevronLeft size={18} strokeWidth={2.5} />
+                      <ChevronLeft size={11} strokeWidth={2.5} />
                     </button>
                     <button
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.min(route.path.length - 1, simulation.currentIndex + STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex >= route.path.length - 1}
                       title="Fast Forward"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-[19.2px] h-[19.2px] flex items-center justify-center rounded-md bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Fast Forward"
                     >
-                      <ChevronRight size={18} strokeWidth={2.5} />
+                      <ChevronRight size={11} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
