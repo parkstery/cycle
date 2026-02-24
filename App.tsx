@@ -1033,52 +1033,73 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let timer: number;
-    if (simulation.isActive && route) {
-      setAppPhase('RUNNING');
-      if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
-      const currentIdx = simulation.currentIndex;
-      if (currentIdx >= route.path.length - 1) {
-        setSimulation(prev => ({ ...prev, isActive: false }));
-        setAppPhase('IDLE');
-        getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
-        return;
-      }
-      const currentPos = route.path[currentIdx];
-      const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
-      const targetPosForHeading = route.path[lookAheadIdx];
+    if (!route?.path?.length) return () => clearTimeout(0);
+    const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
+    const currentPos = route.path[currentIdx];
+    const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
+    const targetPosForHeading = route.path[lookAheadIdx];
 
-      // Update Simulation Marker
-      const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
-      const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-      const map = googleMapRef.current;
-      // 주행 방향: 좌우(수평)만 반전. 상하 회전 없음. 기본 아이콘=동쪽(오른쪽), 서쪽(왼쪽)일 때 수평 반전.
-      let flipHorizontal = false;
-      if (lookAheadIdx > currentIdx) {
-        const heading = computeHeading(currentPos, targetPosForHeading);
-        flipHorizontal = heading > 180; // 180~360° = 서쪽 방향 → 좌우 반전
+    // Sync simulation marker to currentIndex (주행 중·일시정지 공통)
+    const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+    const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+    const map = googleMapRef.current;
+    let flipHorizontal = false;
+    if (lookAheadIdx > currentIdx) {
+      const heading = computeHeading(currentPos, targetPosForHeading);
+      flipHorizontal = heading > 180;
+    }
+    const dataUrl = cyclingMarkerDataUrlRef.current;
+    const cyclingIcon = (() => {
+      if (dataUrl) {
+        const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></svg>';
+        return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
       }
-      const dataUrl = cyclingMarkerDataUrlRef.current;
-      const cyclingIcon = (() => {
-        if (dataUrl) {
-          const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
-          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></svg>';
-          return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+      return { url: '/cycling-position-marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+    })();
+    if (!simulationMarker.current && map) {
+      simulationMarker.current = new google.maps.Marker({
+        position: { lat, lng },
+        map,
+        icon: cyclingIcon,
+      });
+    } else if (simulationMarker.current) {
+      simulationMarker.current.setPosition({ lat, lng });
+      simulationMarker.current.setIcon(cyclingIcon);
+    }
+
+    // 일시정지 상태: ref·거리뷰·맵만 동기화 후 종료 (타이머 없음)
+    if (!simulation.isActive) {
+      svDisplayPathIndexRef.current = currentIdx;
+      lastDisplayedPanoPathIndexRef.current = currentIdx - 1;
+      lastSvDisplayUpdateRef.current = Date.now();
+      if (isSvActive && route.panoData?.length) {
+        const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
+        if (panoItem) {
+          lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+          setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+          setShowSvWarning(false);
         }
-        return { url: '/cycling-position-marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
-      })();
-
-      if (!simulationMarker.current && map) {
-        simulationMarker.current = new google.maps.Marker({
-          position: { lat, lng },
-          map,
-          icon: cyclingIcon,
-        });
-      } else if (simulationMarker.current) {
-        simulationMarker.current.setPosition({ lat, lng });
-        simulationMarker.current.setIcon(cyclingIcon);
       }
+      if (isSvFullScreen && googleMapRef.current) {
+        const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+        const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+        googleMapRef.current.panTo({ lat: plat, lng: plng });
+      }
+      return () => clearTimeout(0);
+    }
 
-      // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한 (주행 스피드 10~70과 독립)
+    // 주행 중: 기존 로직 (타이머, 거리뷰 60km/h 상한, 코칭 등)
+    setAppPhase('RUNNING');
+    if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
+    if (currentIdx >= route.path.length - 1) {
+      setSimulation(prev => ({ ...prev, isActive: false }));
+      setAppPhase('IDLE');
+      getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
+      return () => clearTimeout(0);
+    }
+
+    // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한 (주행 스피드 10~70과 독립)
       const METERS_PER_PATH_POINT = 2;
       const MAX_SV_SPEED_M_PER_SEC = (60 * 1000) / 3600;
       if (currentIdx === 0) {
@@ -2356,8 +2377,8 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.max(0, simulation.currentIndex - STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex <= 0}
-                      title="Backward (뒤로 이동)"
-                      className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 hover:bg-white text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                      title="Backward"
+                      className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Backward"
                     >
                       <ChevronLeft size={18} strokeWidth={2.5} />
@@ -2366,8 +2387,8 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.min(route.path.length - 1, simulation.currentIndex + STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex >= route.path.length - 1}
-                      title="Fast Forward (앞으로 이동)"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 hover:bg-white text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                      title="Fast Forward"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Fast Forward"
                     >
                       <ChevronRight size={18} strokeWidth={2.5} />
