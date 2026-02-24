@@ -2084,13 +2084,15 @@ const App: React.FC = () => {
         )}
       </div>
       <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
-        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
-          <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 gap-0.5 justify-center' : 'w-full h-full justify-center'}`}>
-            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 p-2 relative items-center ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
+          <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
             {routeInputExpanded && (
+              <div className="flex-1 flex items-center justify-center min-h-0">
               <button onClick={() => setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded)} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
                 {routeSettingsPanelExpanded ? <ChevronLeft size={14} className="opacity-80" /> : <ChevronRight size={14} className="opacity-80" />}
               </button>
+              </div>
             )}
             {routeInputExpanded && !routeSettingsPanelExpanded && (
               <button
@@ -2104,7 +2106,7 @@ const App: React.FC = () => {
             )}
           </div>
           {routeInputExpanded && (
-            <div className="flex flex-row w-full pl-1 gap-3">
+            <div className="flex flex-row w-full pl-1 gap-3 items-center">
               {routeSettingsPanelExpanded && (
               <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
                 <div className="relative flex flex-col gap-1.5">
@@ -2273,7 +2275,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
                 title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                className="w-2 h-8 shrink-0 flex items-center justify-center p-0 text-slate-300 hover:text-slate-500 transition-colors"
+                className="w-4 h-8 shrink-0 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
               >
                 {historyExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
               </button>
