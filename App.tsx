@@ -156,6 +156,9 @@ const COVERAGE_MIN = 0.7;
 /** [Phase 1 이후 미사용] 주행 중 실시간 검색 제거로 사용 안 함. */
 const MAX_REALTIME_SV_ATTEMPTS = 3;
 
+/** 주행 위치 강제 이동 시 한 번에 이동할 경로 포인트 수 (Backward / Fast Forward) */
+const STEP_OFFSET = 10;
+
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
   origin: string,
@@ -1481,6 +1484,20 @@ const App: React.FC = () => {
     });
   };
 
+  /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/거리뷰/표고는 기존 effect가 동기화. */
+  const jumpToRouteIndex = (targetIndex: number) => {
+    if (!route?.path?.length) return;
+    const clamped = Math.max(0, Math.min(targetIndex, route.path.length - 1));
+    svDisplayPathIndexRef.current = clamped;
+    lastDisplayedPanoPathIndexRef.current = clamped - 1;
+    lastSvDisplayUpdateRef.current = Date.now();
+    setSimulation(prev => ({ ...prev, currentIndex: clamped }));
+    const coord = route.path[clamped];
+    const lat = typeof coord.lat === 'function' ? coord.lat() : coord.lat;
+    const lng = typeof coord.lng === 'function' ? coord.lng() : coord.lng;
+    googleMapRef.current?.panTo({ lat, lng });
+  };
+
   const calculateRoute = useCallback(async (
     targetMode?: TravelMode,
     autoStart: boolean = false,
@@ -2335,6 +2352,26 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex-1 min-w-0 bg-slate-900 rounded-xl p-1 relative overflow-hidden">
                     <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
+                    <button
+                      type="button"
+                      onClick={() => jumpToRouteIndex(Math.max(0, simulation.currentIndex - STEP_OFFSET))}
+                      disabled={!route?.path?.length || simulation.currentIndex <= 0}
+                      title="Backward (뒤로 이동)"
+                      className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 hover:bg-white text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                      aria-label="Backward"
+                    >
+                      <ChevronLeft size={18} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => jumpToRouteIndex(Math.min(route.path.length - 1, simulation.currentIndex + STEP_OFFSET))}
+                      disabled={!route?.path?.length || simulation.currentIndex >= route.path.length - 1}
+                      title="Fast Forward (앞으로 이동)"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 hover:bg-white text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all"
+                      aria-label="Fast Forward"
+                    >
+                      <ChevronRight size={18} strokeWidth={2.5} />
+                    </button>
                   </div>
                 </div>
               </div>
