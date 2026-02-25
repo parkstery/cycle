@@ -1038,15 +1038,21 @@ const App: React.FC = () => {
     const currentPos = route.path[currentIdx];
     const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
     const targetPosForHeading = route.path[lookAheadIdx];
+    // 방어: path가 sparse이거나 좌표가 없으면 타이머 미설정으로 주행 멈춤 방지
+    if (!currentPos) return () => clearTimeout(timer);
 
     // Sync simulation marker to currentIndex (주행 중·일시정지 공통)
     const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
     const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
     const map = googleMapRef.current;
     let flipHorizontal = false;
-    if (lookAheadIdx > currentIdx) {
-      const heading = computeHeading(currentPos, targetPosForHeading);
-      flipHorizontal = heading > 180;
+    if (lookAheadIdx > currentIdx && targetPosForHeading) {
+      try {
+        const heading = computeHeading(currentPos, targetPosForHeading);
+        flipHorizontal = heading > 180;
+      } catch {
+        // 좌표 형식 오류 시 heading 스킵
+      }
     }
     const dataUrl = cyclingMarkerDataUrlRef.current;
     const cyclingIcon = (() => {
@@ -1093,6 +1099,7 @@ const App: React.FC = () => {
     setAppPhase('RUNNING');
     if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
     if (currentIdx >= route.path.length - 1) {
+      console.log('[SIMULATION_STOP] reason=end_of_route');
       setSimulation(prev => ({ ...prev, isActive: false }));
       setAppPhase('IDLE');
       getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
@@ -1178,19 +1185,20 @@ const App: React.FC = () => {
       // -----------------------------------------------------------
 
       // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps). 모든 멘트는 브라우저 TTS(speak). ----
+      const elevation = route.elevation ?? [];
       const cached = route.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
       if (currentCached) {
         setCoachData(currentCached.coaching);
         const lastValid = cached?.length ? cached[cached.length - 1]?.validUntilPathIndex ?? 0 : 0;
-        if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && route.elevation.length > 0) {
+        if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && elevation.length > 0) {
           lastValidUntilFetched.current = lastValid;
           const pathLen = route.path.length;
-          const elevLen = route.elevation.length;
+          const elevLen = elevation.length;
           const startElevIdx = Math.floor((currentIdx / pathLen) * elevLen);
           const segmentSize = Math.min(20, elevLen - startElevIdx);
           if (segmentSize > 0) {
-            const upcomingSlice = route.elevation.slice(startElevIdx, startElevIdx + segmentSize);
+            const upcomingSlice = elevation.slice(startElevIdx, startElevIdx + segmentSize);
             setIsCoachThinking(true);
             getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, speedKmH, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
@@ -1201,24 +1209,36 @@ const App: React.FC = () => {
               .finally(() => setIsCoachThinking(false));
           }
         }
-      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current) {
+      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current && elevation.length > 0) {
         (async () => {
-          const currentElev = route.elevation[Math.floor((currentIdx / route.path.length) * route.elevation.length)]?.elevation || 0;
-          const upcoming = route.elevation.slice(Math.floor((currentIdx / route.path.length) * route.elevation.length), Math.floor(((currentIdx + 20) / route.path.length) * route.elevation.length));
+          const pathLen = route.path.length;
+          const elevLen = elevation.length;
+          const currentElev = elevation[Math.floor((currentIdx / pathLen) * elevLen)]?.elevation ?? 0;
+          const upcoming = elevation.slice(
+            Math.floor((currentIdx / pathLen) * elevLen),
+            Math.floor(((currentIdx + 20) / pathLen) * elevLen)
+          );
           setIsCoachThinking(true);
-          const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
-          setCoachData(newCoaching);
-          speak(newCoaching.tip);
-          setIsCoachThinking(false);
-          lastCoachedIndex.current = currentIdx;
+          try {
+            const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
+            setCoachData(newCoaching);
+            speak(newCoaching.tip);
+          } finally {
+            setIsCoachThinking(false);
+            lastCoachedIndex.current = currentIdx;
+          }
         })();
       }
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];
       if (nextPos) {
-        const distMeters = computeDistanceBetween(currentPos, nextPos);
-        const speedMetersPerSec = (speedKmH * 1000) / 3600;
-        if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
+        try {
+          const distMeters = computeDistanceBetween(currentPos, nextPos);
+          const speedMetersPerSec = (speedKmH * 1000) / 3600;
+          if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
+        } catch {
+          // 좌표 형식 오류 시 기본 delay 유지
+        }
       }
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
@@ -1371,7 +1391,7 @@ const App: React.FC = () => {
         distance: payload.distance,
         duration: payload.duration,
         path,
-        elevation: elevationRes.results
+        elevation: elevationRes.results ?? []
       });
       lastRouteRequestRef.current = {
         origin: saved.origin.trim(),
@@ -1380,6 +1400,7 @@ const App: React.FC = () => {
         mode: modeFromProfile
       };
       setRouteSource('OSRM');
+      console.log('[SIMULATION_STOP] reason=restore_saved_route');
       setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
       setAppPhase('IDLE');
       svDisplayPathIndexRef.current = 0;
@@ -1426,6 +1447,7 @@ const App: React.FC = () => {
     if (searchMarkerRef.current) { searchMarkerRef.current.setMap(null); searchMarkerRef.current = null; }
     setRoute(null);
     lastRouteRequestRef.current = null;
+    console.log('[SIMULATION_STOP] reason=clear_map');
     setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
     setCoachData(null);
     setRouteSource(null);
@@ -1467,6 +1489,7 @@ const App: React.FC = () => {
   };
 
   const handleStopSimulation = () => {
+    console.log('[SIMULATION_STOP] reason=user_stop');
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
@@ -1487,6 +1510,7 @@ const App: React.FC = () => {
   const handleToggleSimulation = () => {
     setSimulation(prev => {
       const isActive = !prev.isActive;
+      if (!isActive) console.log('[SIMULATION_STOP] reason=user_pause');
       if (isActive) {
         // Restore heading/position
         if (route && route.path[prev.currentIndex]) {
@@ -1704,10 +1728,11 @@ const App: React.FC = () => {
             if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
           });
         }
-        setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results });
+        setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results ?? [] });
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
         // [경로 전환 시 거리뷰 멈춤 방지] 새 path 설정 직후 시뮬레이션·거리뷰 ref 리셋 (방안 1·3)
+        console.log('[SIMULATION_STOP] reason=route_recalculated');
         setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
         setAppPhase('IDLE');
         svDisplayPathIndexRef.current = 0;
@@ -2294,16 +2319,16 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car (경로 재탐색 시 주행 멈춤)" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike (경로 재탐색 시 주행 멈춤)" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot (경로 재탐색 시 주행 멈춤)" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
-                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go (경로를 다시 찾으면 주행이 멈춥니다)" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                 </div>
               </div>
               )}
@@ -2325,7 +2350,7 @@ const App: React.FC = () => {
                 </div>
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
                   <div key={route.id} className="group/item flex items-center justify-between w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors">
-                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} -> ${route.destination}`} className="text-left flex-1 truncate text-[10px] text-slate-600 hover:text-blue-600 leading-tight">
+                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}. 저장된 경로를 불러오면 주행이 초기화됩니다.`} className="text-left flex-1 truncate text-[10px] text-slate-600 hover:text-blue-600 leading-tight">
                       <span className="font-bold mr-1">{route.origin}</span>
                       <span className="text-slate-400">to</span>
                       <span className="font-bold ml-1">{route.destination}</span>
