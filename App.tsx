@@ -1449,10 +1449,10 @@ const App: React.FC = () => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
   }, [restoreRouteFromSavedGeometry]);
 
-  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 300m 확장 prefetch 후 주행 재개
+  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 300m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
   useEffect(() => {
     const prev = prevSpeedKmHRef.current;
-    prevSpeedKmHRef.current = speedKmH;
+    if (!(prev >= SPEED_THRESHOLD_KMH && speedKmH < SPEED_THRESHOLD_KMH)) prevSpeedKmHRef.current = speedKmH;
     if (appPhase !== 'RUNNING' || !route?.path?.length || speedKmH < SPEED_THRESHOLD_KMH || prev >= SPEED_THRESHOLD_KMH) return;
     const path = route.path;
     const currentPathIndex = Math.min(simulation.currentIndex, path.length - 1);
