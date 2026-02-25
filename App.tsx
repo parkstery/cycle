@@ -159,6 +159,11 @@ const MAX_REALTIME_SV_ATTEMPTS = 3;
 /** 주행 위치 강제 이동 시 한 번에 이동할 경로 포인트 수 (Backward / Fast Forward) */
 const STEP_OFFSET = 5;
 
+/** 속도 기준: 이 값 이상이면 초기 거리뷰 수집 300m, 미만이면 100m. 주행 중 40 이상으로 올리면 해당 위치부터 300m 확장 수집 */
+const SPEED_THRESHOLD_KMH = 40;
+const INITIAL_PREFETCH_HIGH_M = 300;
+const INITIAL_PREFETCH_LOW_M = 100;
+
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
   origin: string,
@@ -301,6 +306,8 @@ const App: React.FC = () => {
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
   const [preparingProgress, setPreparingProgress] = useState<{ k: number; n: number } | null>(null);
   const lastPanToTime = useRef<number>(0);
+  /** 주행 중 속도가 SPEED_THRESHOLD_KMH 미만 → 이상으로 올랐을 때 확장 prefetch 트리거용 */
+  const prevSpeedKmHRef = useRef(20);
 
   // Go 버튼 클릭 시 4초 카운트다운 (3, 2, 1, Start!) — 로딩 대기 시간 활용
   const [countdown, setCountdown] = useState<3 | 2 | 1 | 'start' | null>(null);
@@ -1420,9 +1427,10 @@ const App: React.FC = () => {
         const heading = path.length > 1 ? computeHeading(startPos, path[1]) : 0;
         setPanoramaView(startPos, heading);
       }
+      const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
       setAppPhase('PREPARING');
       setPreparingProgress({ k: 0, n: 1 });
-      const { panoData, sampleCount } = await preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), { maxDistanceM: 300, intervalM: 10 });
+      const { panoData, sampleCount } = await preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), { maxDistanceM: initialPrefetchM, intervalM: 10 });
       setPreparingProgress(null);
       const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
       setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
@@ -1435,11 +1443,44 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, setPanoramaView, preFetchStreetViewData]);
+  }, [elevationProvider, setPanoramaView, preFetchStreetViewData, speedKmH]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
   }, [restoreRouteFromSavedGeometry]);
+
+  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 300m 확장 prefetch 후 주행 재개
+  useEffect(() => {
+    const prev = prevSpeedKmHRef.current;
+    prevSpeedKmHRef.current = speedKmH;
+    if (appPhase !== 'RUNNING' || !route?.path?.length || speedKmH < SPEED_THRESHOLD_KMH || prev >= SPEED_THRESHOLD_KMH) return;
+    const path = route.path;
+    const currentPathIndex = Math.min(simulation.currentIndex, path.length - 1);
+    const cumDist: number[] = [0];
+    for (let i = 1; i < path.length; i++) {
+      cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
+    }
+    const currentDistanceM = cumDist[currentPathIndex];
+    setSimulation((s) => ({ ...s, isActive: false }));
+    setAppPhase('PREPARING');
+    setPreparingProgress({ k: 0, n: 1 });
+    preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), {
+      fromDistanceM: currentDistanceM,
+      maxDistanceM: currentDistanceM + INITIAL_PREFETCH_HIGH_M,
+      intervalM: 10
+    }).then(({ panoData: newPanoData }) => {
+      const kept = (route.panoData || []).filter((p: PanoDataItem) => p.pathIndex < currentPathIndex);
+      const merged = [...kept, ...newPanoData];
+      setRoute((prevRoute) => (prevRoute ? { ...prevRoute, panoData: merged } : null));
+      setPreparingProgress(null);
+      setAppPhase('RUNNING');
+      setSimulation((s) => ({ ...s, isActive: true }));
+    }).catch(() => {
+      setPreparingProgress(null);
+      setAppPhase('RUNNING');
+      setSimulation((s) => ({ ...s, isActive: true }));
+    });
+  }, [speedKmH, appPhase, route, preFetchStreetViewData]);
 
   const clearMapOverlays = () => {
     setAppPhase('IDLE');
@@ -1753,14 +1794,15 @@ const App: React.FC = () => {
           setPanoramaView(startPos, heading);
         }
 
-        // Progressive loading: pre-fetch first 200m (10m interval) for continuous display; rest loaded on-demand
+        // Progressive loading: pre-fetch distance by speed (≥40 km/h: 300m, <40: 100m); rest loaded on-demand
         (async () => {
+          const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
           setAppPhase('PREPARING');
           setPreparingProgress({ k: 0, n: 1 });
           const { panoData, sampleCount } = await preFetchStreetViewData(
             densifiedPath,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: 300, intervalM: 10 }
+            { maxDistanceM: initialPrefetchM, intervalM: 10 }
           );
           setPreparingProgress(null);
           const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
