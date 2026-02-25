@@ -454,6 +454,13 @@ const App: React.FC = () => {
   const handleLoadFavorite = async (saved: SavedRoute) => {
     setOrigin(saved.origin);
     setDestination(saved.destination);
+    // My favorites 로드 시에도 추천 목록 표시 안 함 (맵 클릭과 동일 ref 사용)
+    originSetFromMapClickRef.current = true;
+    destSetFromMapClickRef.current = true;
+    setOriginSuggestions([]);
+    setShowOriginSuggestions(false);
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
     originLocationRef.current = null;
     destLocationRef.current = null;
     const restoredWaypoints = saved.waypoints.map(wp => ({
@@ -2177,7 +2184,7 @@ const App: React.FC = () => {
                       <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                       <input
                         className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
-                        placeholder="Start (지명·주소 입력)"
+                        placeholder="Start"
                         value={origin}
                         onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }}
                         onFocus={() => originSuggestions.length > 0 && setShowOriginSuggestions(true)}
@@ -2246,7 +2253,7 @@ const App: React.FC = () => {
                       <div className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
                       <input
                         className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
-                        placeholder="End (지명·주소 입력)"
+                        placeholder="End"
                         value={destination}
                         onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }}
                         onFocus={() => destinationSuggestions.length > 0 && setShowDestinationSuggestions(true)}
