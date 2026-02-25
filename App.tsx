@@ -157,7 +157,7 @@ const COVERAGE_MIN = 0.7;
 const MAX_REALTIME_SV_ATTEMPTS = 3;
 
 /** 주행 위치 강제 이동 시 한 번에 이동할 경로 포인트 수 (Backward / Fast Forward) */
-const STEP_OFFSET = 10;
+const STEP_OFFSET = 5;
 
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
