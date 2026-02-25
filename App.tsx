@@ -2120,8 +2120,8 @@ const App: React.FC = () => {
 
       {/* Main Control Group - Shifted Up by removing first element */}
       <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Streetview Coverage" : "Show Streetview Coverage"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-          <RouteIcon size={24} aria-label={showCoverage ? "Hide Streetview Coverage" : "Show Streetview Coverage"} />
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+          <RouteIcon size={24} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
           <img src={STREETVIEW_ICON} alt="Street View" className="w-6 h-6 object-contain" />
@@ -2307,9 +2307,9 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-1 w-full px-0.5">
                   <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
                   <input type="number" min={10} max={70} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="speed-input-no-spinner w-6 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="속도 1 km/h 감소" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="속도 감소"><Minus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Decrease speed" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
                   <input type="range" min={10} max={70} step={1} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-[51.2px] h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="속도 1 km/h 증가" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="속도 증가"><Plus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Increase speed" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
                   <div className="flex items-center gap-1 ml-auto shrink-0">
                     <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
 
@@ -2329,7 +2329,7 @@ const App: React.FC = () => {
                   <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike " disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
                   <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
@@ -2395,10 +2395,10 @@ const App: React.FC = () => {
                 </div>
                 <div className="h-10 w-full flex items-stretch gap-1">
                   <div className="flex flex-col justify-center gap-1 shrink-0">
-                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "코칭 멘트 끄기" : "코칭 멘트 켜기"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
+                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Disable coaching" : "Enable coaching"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
                       <Mic size={16} />
                     </button>
-                    <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "배경 음악 끄기" : "배경 음악 켜기"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
+                    <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
                       <Music size={16} />
                     </button>
                   </div>
@@ -2408,9 +2408,9 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.max(0, simulation.currentIndex - STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex <= 0}
-                      title="Backward"
+                      title="Step back"
                       className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-[19.2px] h-[19.2px] flex items-center justify-center rounded-md bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
-                      aria-label="Backward"
+                      aria-label="Step back"
                     >
                       <ChevronLeft size={11} strokeWidth={2.5} />
                     </button>
@@ -2463,7 +2463,7 @@ const App: React.FC = () => {
       <button
         type="button"
         onClick={() => setShowAbout(true)}
-        title="About Info"
+        title="About"
         className="fixed z-[9999] flex items-center justify-center rounded-full border border-slate-400 text-slate-600 bg-white/90 hover:bg-slate-100 touch-manipulation"
         style={{
           top: 0,
@@ -2475,7 +2475,7 @@ const App: React.FC = () => {
           cursor: 'pointer',
           zIndex: 9999,
         }}
-        aria-label="About Information"
+        aria-label="About"
         id="debug-about-btn"
       >
         <Info size={10} strokeWidth={2} />
