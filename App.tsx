@@ -143,6 +143,8 @@ const findStreetViewInDirection = (
 /** [Phase 2] Multi-pass 1단계: 반경(m), 주행 방향 ±각도(°). 시니어 권고 50m ±40° */
 const SV_PASS1_RADIUS_M = 50;
 const SV_PASS1_MAX_ANGLE_DEG = 40;
+/** Pass1 실패 시 재시도 각도(°). 차로 전환 등으로 40° 밖에 파노가 있을 때 멈춤 방지, 실내 파노는 이후 필터로 제외 */
+const SV_PASS1_RELAXED_ANGLE_DEG = 90;
 /** [Phase 2] Multi-pass 2단계: 반경(m), 방향 제한 없음. 시니어 권고 120m */
 const SV_PASS2_RADIUS_M = 120;
 /** [Phase 2] 점수 가중치: 거리 60%, 방향 40%. score = 0.6*(1-d/maxD) + 0.4*(1-diff/90) */
@@ -667,6 +669,19 @@ const App: React.FC = () => {
         SV_PASS1_MAX_ANGLE_DEG
       );
       if (pass1) candidates.push({ item: pass1, maxD: SV_PASS1_RADIUS_M });
+
+      if (candidates.length === 0) {
+        const pass1Relaxed = await findStreetViewInDirection(
+          svServiceRef.current,
+          pathPoint,
+          pathNext,
+          pathIndex,
+          path,
+          SV_PASS1_RADIUS_M,
+          SV_PASS1_RELAXED_ANGLE_DEG
+        );
+        if (pass1Relaxed) candidates.push({ item: pass1Relaxed, maxD: SV_PASS1_RADIUS_M });
+      }
 
       if (candidates.length === 0) {
         const pass2 = await findStreetView(svServiceRef.current, pathPoint, SV_PASS2_RADIUS_M);
