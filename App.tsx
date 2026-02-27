@@ -2091,7 +2091,7 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      {/* LCP용: 지도 로드 전 껍데기 — logo.png + Street Cycle **/}
+      {/* LCP용: 지도 로드 전 껍데기 — logo25.png + Street Cycle **/}
       {!isMapReady && (
         <div className="absolute inset-0 z-[15] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
           <img src="public/logo25.png" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
