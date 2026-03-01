@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Info, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
@@ -2517,12 +2517,12 @@ const App: React.FC = () => {
           <About onClose={() => setShowAbout(false)} />
         </div>
       )}
-      {/* About Info - (i) circle, top-right; opens modal (no page navigation, state preserved) */}
+      {/* About Info - plain 'i' character, top-right; opens modal (no page navigation, state preserved) */}
       <button
         type="button"
         onClick={() => setShowAbout(true)}
         title="About"
-        className="fixed z-[9999] flex items-center justify-center rounded-full border border-slate-400 text-slate-600 bg-white/90 hover:bg-slate-100 touch-manipulation"
+        className="fixed z-[9999] flex items-center justify-center rounded-full border border-slate-400 text-slate-600 bg-white/90 hover:bg-slate-100 touch-manipulation font-serif italic text-[11px] font-semibold"
         style={{
           top: 0,
           right: 0,
@@ -2536,7 +2536,7 @@ const App: React.FC = () => {
         aria-label="About"
         id="debug-about-btn"
       >
-        <Info size={10} strokeWidth={2} />
+        i
       </button>
 
     </div>
