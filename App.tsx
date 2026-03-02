@@ -791,15 +791,19 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // route 선택 시 Go 버튼 1초간 20% 확대 (경로 바뀔 때마다 1회)
+  // route 선택 시 Go 버튼 1초간 20% 확대 후 원래대로 → 3회 반복 (car/bike/foot 경로 선택 시)
   const prevRouteRef = useRef<RouteInfo | null>(null);
   useEffect(() => {
     if (!route) return;
     if (route === prevRouteRef.current) return;
     prevRouteRef.current = route;
     setGoButtonPulse(true);
-    const t = window.setTimeout(() => setGoButtonPulse(false), 1000);
-    return () => clearTimeout(t);
+    const t1 = window.setTimeout(() => setGoButtonPulse(false), 1000);
+    const t2 = window.setTimeout(() => setGoButtonPulse(true), 2000);
+    const t3 = window.setTimeout(() => setGoButtonPulse(false), 3000);
+    const t4 = window.setTimeout(() => setGoButtonPulse(true), 4000);
+    const t5 = window.setTimeout(() => setGoButtonPulse(false), 5000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
   }, [route]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
@@ -2151,10 +2155,10 @@ const App: React.FC = () => {
           </p>
         </div>
       )}
-      {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%) */}
+      {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%→72%, 20% 증가) */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(0.6)' }}>
+          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(0.72)' }}>
             <p className="text-black font-semibold text-base text-center">Please click 2 points on the road.</p>
           </div>
         </div>
