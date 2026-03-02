@@ -318,9 +318,12 @@ const App: React.FC = () => {
   // 인트로 종료 후 "Please click 2 points on the road." 3초간 표시
   const [showClickTwoPointsHint, setShowClickTwoPointsHint] = useState(false);
 
-  // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 10% 확대 유도 (한 번만)
+  // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 20% 확대 유도 (3회 반복)
   const [modeButtonPulseIndex, setModeButtonPulseIndex] = useState<-1 | 0 | 1 | 2>(-1);
   const hasShownModePulseRef = useRef(false);
+
+  // 경로(car/bike/foot) 선택 시 Go 버튼 1초간 20% 확대 유도
+  const [goButtonPulse, setGoButtonPulse] = useState(false);
 
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
@@ -773,20 +776,31 @@ const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [isMapReady]);
 
-  // start/end 둘 다 있을 때 car·bike·foot 버튼 1초간 순차 10% 확대 (세션당 1회)
+  // start/end 둘 다 있을 때 car·bike·foot 버튼 1초간 순차 20% 확대 3회 반복 (세션당 1회)
   useEffect(() => {
     if (!origin || !destination || hasShownModePulseRef.current) return;
     hasShownModePulseRef.current = true;
-    setModeButtonPulseIndex(0);
-    const t1 = window.setTimeout(() => setModeButtonPulseIndex(1), 333);
-    const t2 = window.setTimeout(() => setModeButtonPulseIndex(2), 666);
-    const t3 = window.setTimeout(() => setModeButtonPulseIndex(-1), 1000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    const step = 333; // 1초 사이클
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    for (let cycle = 0; cycle < 3; cycle++) {
+      timeouts.push(window.setTimeout(() => setModeButtonPulseIndex(0), cycle * 1000));
+      timeouts.push(window.setTimeout(() => setModeButtonPulseIndex(1), cycle * 1000 + step));
+      timeouts.push(window.setTimeout(() => setModeButtonPulseIndex(2), cycle * 1000 + step * 2));
+    }
+    timeouts.push(window.setTimeout(() => setModeButtonPulseIndex(-1), 3000));
+    return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
+
+  // route 선택 시 Go 버튼 1초간 20% 확대 (경로 바뀔 때마다 1회)
+  const prevRouteRef = useRef<RouteInfo | null>(null);
+  useEffect(() => {
+    if (!route) return;
+    if (route === prevRouteRef.current) return;
+    prevRouteRef.current = route;
+    setGoButtonPulse(true);
+    const t = window.setTimeout(() => setGoButtonPulse(false), 1000);
+    return () => clearTimeout(t);
+  }, [route]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
   useEffect(() => {
@@ -2137,10 +2151,10 @@ const App: React.FC = () => {
           </p>
         </div>
       )}
-      {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. */}
+      {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%) */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300">
+          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(0.6)' }}>
             <p className="text-black font-semibold text-base text-center">Please click 2 points on the road.</p>
           </div>
         </div>
@@ -2428,16 +2442,16 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
-                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
+                  <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className={`ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform duration-200 flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${goButtonPulse ? 'scale-[1.2]' : 'scale-100'}`}>{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
                 </div>
               </div>
               )}
