@@ -791,19 +791,17 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // route 선택 시 Go 버튼 1초간 20% 확대 후 원래대로 → 3회 반복 (car/bike/foot 경로 선택 시)
+  // route 선택 시 Go 버튼 0.4초간 20% 확대 후 원래대로 → 2회 반복 (car/bike/foot 경로 선택 시)
   const prevRouteRef = useRef<RouteInfo | null>(null);
   useEffect(() => {
     if (!route) return;
     if (route === prevRouteRef.current) return;
     prevRouteRef.current = route;
     setGoButtonPulse(true);
-    const t1 = window.setTimeout(() => setGoButtonPulse(false), 1000);
-    const t2 = window.setTimeout(() => setGoButtonPulse(true), 2000);
-    const t3 = window.setTimeout(() => setGoButtonPulse(false), 3000);
-    const t4 = window.setTimeout(() => setGoButtonPulse(true), 4000);
-    const t5 = window.setTimeout(() => setGoButtonPulse(false), 5000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
+    const t1 = window.setTimeout(() => setGoButtonPulse(false), 400);
+    const t2 = window.setTimeout(() => setGoButtonPulse(true), 800);
+    const t3 = window.setTimeout(() => setGoButtonPulse(false), 1200);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [route]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
