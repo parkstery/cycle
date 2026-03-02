@@ -315,6 +315,9 @@ const App: React.FC = () => {
   const [countdown, setCountdown] = useState<3 | 2 | 1 | 'start' | null>(null);
   const countdownDoneRef = useRef<(() => void) | null>(null);
 
+  // 인트로 종료 후 "Please click 2 points on the road." 3초간 표시
+  const [showClickTwoPointsHint, setShowClickTwoPointsHint] = useState(false);
+
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
@@ -751,6 +754,20 @@ const App: React.FC = () => {
     const t = window.setTimeout(() => setMapRevealed(true), 2000);
     return () => clearTimeout(t);
   }, []);
+
+  // 인트로(지도 로드) 종료 후 "Please click 2 points on the road." 3초간 표시
+  const hasShownClickHintRef = useRef(false);
+  useEffect(() => {
+    if (!isMapReady) {
+      hasShownClickHintRef.current = false;
+      return;
+    }
+    if (hasShownClickHintRef.current) return;
+    hasShownClickHintRef.current = true;
+    setShowClickTwoPointsHint(true);
+    const t = window.setTimeout(() => setShowClickTwoPointsHint(false), 3000);
+    return () => clearTimeout(t);
+  }, [isMapReady]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
   useEffect(() => {
@@ -2099,6 +2116,14 @@ const App: React.FC = () => {
           <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             Map data © OpenStreetMap contributors
           </p>
+        </div>
+      )}
+      {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. */}
+      {showClickTwoPointsHint && (
+        <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
+          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300">
+            <p className="text-white font-semibold text-base text-center">Please click 2 points on the road.</p>
+          </div>
         </div>
       )}
       {/* Go 버튼 클릭 시 4초 카운트다운 오버레이 */}
