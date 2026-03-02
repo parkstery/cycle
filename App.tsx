@@ -318,6 +318,10 @@ const App: React.FC = () => {
   // 인트로 종료 후 "Please click 2 points on the road." 3초간 표시
   const [showClickTwoPointsHint, setShowClickTwoPointsHint] = useState(false);
 
+  // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 10% 확대 유도 (한 번만)
+  const [modeButtonPulseIndex, setModeButtonPulseIndex] = useState<-1 | 0 | 1 | 2>(-1);
+  const hasShownModePulseRef = useRef(false);
+
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
     const saved = localStorage.getItem('favorite_routes');
@@ -768,6 +772,21 @@ const App: React.FC = () => {
     const t = window.setTimeout(() => setShowClickTwoPointsHint(false), 3000);
     return () => clearTimeout(t);
   }, [isMapReady]);
+
+  // start/end 둘 다 있을 때 car·bike·foot 버튼 1초간 순차 10% 확대 (세션당 1회)
+  useEffect(() => {
+    if (!origin || !destination || hasShownModePulseRef.current) return;
+    hasShownModePulseRef.current = true;
+    setModeButtonPulseIndex(0);
+    const t1 = window.setTimeout(() => setModeButtonPulseIndex(1), 333);
+    const t2 = window.setTimeout(() => setModeButtonPulseIndex(2), 666);
+    const t3 = window.setTimeout(() => setModeButtonPulseIndex(-1), 1000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [origin, destination]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
   useEffect(() => {
@@ -2121,8 +2140,8 @@ const App: React.FC = () => {
       {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300">
-            <p className="text-white font-semibold text-base text-center">Please click 2 points on the road.</p>
+          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300">
+            <p className="text-black font-semibold text-base text-center">Please click 2 points on the road.</p>
           </div>
         </div>
       )}
@@ -2409,13 +2428,13 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-110' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
                   <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className="ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
