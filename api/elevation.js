@@ -14,7 +14,7 @@ function send(res, status, body, provider) {
   res.status(status).json(body);
 }
 
-/**
+/**이유가 뭐였을까 이 파일이 사라졌던 이유
  * Open-Elevation 1차, 실패 시 OpenTopoData 2차 호출.
  * POST body: { locations: [{ latitude, longitude }], provider?: 'open-elevation' | 'opentopodata' }
  * provider 지정 시 해당 공급자만 사용(이중화 테스트용).
