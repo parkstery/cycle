@@ -2225,7 +2225,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[11] text-[11px] text-slate-600 hover:underline"
-          style={{ bottom: '20px' }}
+          style={{ bottom: '10px' }}
         >
           © OpenStreetMap contributors
         </a>
