@@ -265,7 +265,7 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
-  const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   const [coachingOn, setCoachingOn] = useState(true);
   const [musicOn, setMusicOn] = useState(true);
 
