@@ -2224,7 +2224,7 @@ const App: React.FC = () => {
           href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute right-0 z-[11] text-[11px] text-slate-600 hover:underline bg-white/50 mr-[5px]"
+          className="absolute right-0 z-[26] text-[11px] text-slate-600 hover:underline bg-white/50 mr-[5px]"
           style={{ bottom: '10px' }}
         >
           © OpenStreetMap contributors
