@@ -2223,14 +2223,14 @@ const App: React.FC = () => {
           className="absolute inset-0"
           aria-hidden
         />
-        {/* OSM attribution: 구글 저작권 바로 위 한 줄에만 표시(구글 영역 가리지 않음) */}
+        {/* OSM attribution: 지도가 보이는 동안 맵 하단에 항상 표시 (ODbL 요건) */}
         {mapRevealed && (
-          <div className="absolute left-0 right-0 z-10 flex justify-center py-0.5 px-1 pointer-events-auto" style={{ bottom: '20px' }}>
+          <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center py-0.5 px-1 bg-white/80 backdrop-blur-[2px] pointer-events-auto">
             <a
               href="https://www.openstreetmap.org/copyright"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-white/95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] hover:underline"
+              className="text-[10px] text-slate-600 hover:text-slate-800 hover:underline"
             >
               © OpenStreetMap contributors
             </a>
@@ -2288,7 +2288,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-14 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row flex-wrap w-full border border-slate-200 px-1 py-2 relative items-center ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[5px] ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
@@ -2511,7 +2511,7 @@ const App: React.FC = () => {
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[80%] max-w-[288px]' : 'right-16 w-12 h-12 group'}`}>
+        <div className={`absolute bottom-14 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[80%] max-w-[288px]' : 'right-16 w-12 h-12 group'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex flex-col w-full border border-slate-200 p-1 overflow-hidden">
             <div className="flex items-center w-full min-w-0">
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
