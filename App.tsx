@@ -2501,7 +2501,7 @@ const App: React.FC = () => {
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px]' : 'right-16 w-12 h-12 group'}`}>
+        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px] [@media(orientation:landscape)]:w-[52%] [@media(orientation:landscape)]:max-w-[230px]' : 'right-16 w-12 h-12 group'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-5 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
             {elevationExpanded && (
