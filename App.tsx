@@ -2470,13 +2470,15 @@ const App: React.FC = () => {
               )}
 
               {routeSettingsPanelExpanded && (
-              <button
-                onClick={() => setHistoryExpanded(!historyExpanded)}
-                title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                className="w-4 h-8 shrink-0 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors -mr-[0px]"
-              >
-                {historyExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-              </button>
+              <div className="w-2 shrink-0 flex items-center justify-center">
+                <button
+                  onClick={() => setHistoryExpanded(!historyExpanded)}
+                  title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                  className="h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors min-w-0"
+                >
+                  {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+              </div>
               )}
 
               <div className={`flex-1 border-l border-slate-200 pl-1 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
