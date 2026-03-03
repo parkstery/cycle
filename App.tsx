@@ -2207,7 +2207,8 @@ const App: React.FC = () => {
       )}
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
-        className={`relative duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        ref={mapRef}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 160 : undefined,
@@ -2217,26 +2218,7 @@ const App: React.FC = () => {
           const map = googleMapRef.current;
           if (map) google.maps.event.trigger(map, 'resize');
         }}
-      >
-        <div
-          ref={mapRef}
-          className="absolute inset-0"
-          aria-hidden
-        />
-        {/* OSM attribution: 지도가 보이는 동안 맵 하단에 항상 표시 (ODbL 요건) */}
-        {mapRevealed && (
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center py-0.5 px-1 bg-white/80 backdrop-blur-[2px] pointer-events-auto">
-            <a
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] text-slate-600 hover:text-slate-800 hover:underline"
-            >
-              © OpenStreetMap contributors
-            </a>
-          </div>
-        )}
-      </div>
+      />
       {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
@@ -2288,8 +2270,8 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-14 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
-        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row flex-wrap w-full border border-slate-200 px-1 py-2 relative items-center ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
+      <div className={`absolute bottom-4 left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-2 relative items-center ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[5px] ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
             {routeInputExpanded && (
@@ -2505,18 +2487,14 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-          <div className="w-full flex-shrink-0 text-[9px] text-slate-400 text-center py-1 border-t border-slate-100">
-            Routing by OSRM · Data © OpenStreetMap contributors
-          </div>
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-14 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[80%] max-w-[288px]' : 'right-16 w-12 h-12 group'}`}>
-          <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex flex-col w-full border border-slate-200 p-1 overflow-hidden">
-            <div className="flex items-center w-full min-w-0">
+        <div className={`absolute bottom-4 z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[80%] max-w-[288px]' : 'right-16 w-12 h-12 group'}`}>
+          <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
             {elevationExpanded && (
-              <div className="flex-1 pl-3 pr-0 py-1 flex flex-col gap-1.5 min-w-0">
+              <div className="flex-1 pl-3 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -2568,10 +2546,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
-            </div>
-            <div className="w-full flex-shrink-0 text-[9px] text-slate-400 text-center py-1 border-t border-slate-100">
-              Elevation by Open-Elevation
-            </div>
           </div>
         </div>
       )}
