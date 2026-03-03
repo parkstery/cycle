@@ -9,7 +9,11 @@ export default {
     "./services/**/*.ts",
   ],
   theme: {
-    extend: {},
-  },
+    extend: {
+      colors: {
+        navy: '#001f3f', // navy blue
+      },
+    },
+  },  
   plugins: [],
 };
