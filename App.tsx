@@ -2156,7 +2156,7 @@ const App: React.FC = () => {
       {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%→72%, 20% 증가) */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(1.0)' }}>
+          <div className="bg-white/50 border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(1.0)' }}>
             <p className="text-navy font-normal text-base text-center">Please click 2 points on the road.</p>
           </div>
         </div>
