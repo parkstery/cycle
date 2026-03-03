@@ -2219,6 +2219,17 @@ const App: React.FC = () => {
           if (map) google.maps.event.trigger(map, 'resize');
         }}
       />
+      {mapRevealed && (
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute right-0 z-[11] text-[11px] text-slate-600 hover:underline"
+          style={{ bottom: '20px' }}
+        >
+          © OpenStreetMap contributors
+        </a>
+      )}
       {simulation.isActive && coachingOn && coachData && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
