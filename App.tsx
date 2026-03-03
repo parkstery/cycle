@@ -2470,11 +2470,11 @@ const App: React.FC = () => {
               )}
 
               {routeSettingsPanelExpanded && (
-              <div className="w-2 shrink-0 flex items-center justify-center">
+              <div className="w-4 shrink-0 flex items-center justify-center">
                 <button
                   onClick={() => setHistoryExpanded(!historyExpanded)}
                   title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
-                  className="h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors min-w-0"
+                  className="w-4 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
                 >
                   {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
                 </button>
