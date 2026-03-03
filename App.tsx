@@ -2512,7 +2512,7 @@ const App: React.FC = () => {
                       <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
                       {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
                     </div>
-                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest truncate">{routeSource} ROUTE</p>
+                    <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest truncate">{routeSource === 'OSRM' ? 'Open-Elevation' : `${routeSource} ROUTE`}</p>
                   </div>
                   <div className="flex gap-1 items-center shrink-0">
                     <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
