@@ -235,6 +235,7 @@ const App: React.FC = () => {
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
+  const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
   const [speedKmH, setSpeedKmH] = useState(20);
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
@@ -1056,6 +1057,11 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
+  // route 상태 변경 시 routeRef 동기화 (stale closure 방지)
+  useEffect(() => {
+    routeRef.current = route;
+  }, [route]);
+
   // 주행 시작→미니맵 전환 시 Google Map 크기 갱신
   useEffect(() => {
     const map = googleMapRef.current;
@@ -1114,7 +1120,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> = 0;
-    if (!route?.path?.length) return () => clearTimeout(timer);
+    // 의존성은 route?.path만 사용하고, panoData/cachedCoaching 등은 routeRef로 참조 (stale closure 방지)
+    const routeData = routeRef.current;
+    if (!route?.path?.length || !routeData) return () => clearTimeout(timer);
     const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
     let currentPos = route.path[currentIdx];
     let adjustedIdx = currentIdx;
@@ -1180,8 +1188,8 @@ const App: React.FC = () => {
       svDisplayPathIndexRef.current = currentIdx;
       lastDisplayedPanoPathIndexRef.current = currentIdx - 1;
       lastSvDisplayUpdateRef.current = Date.now();
-      if (isSvActive && route.panoData?.length) {
-        const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
+      if (isSvActive && routeData.panoData?.length) {
+        const panoItem = getPanoDataForIndex(routeData.panoData, currentIdx);
         if (panoItem) {
           lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
           setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
@@ -1203,7 +1211,7 @@ const App: React.FC = () => {
       console.log('[SIMULATION_STOP] reason=end_of_route');
       setSimulation(prev => ({ ...prev, isActive: false }));
       setAppPhase('IDLE');
-      getRideEncouragement(route, { distance: route.distance, duration: route.duration }).then(speak);
+      getRideEncouragement(routeData, { distance: routeData.distance, duration: routeData.duration }).then(speak);
       return () => clearTimeout(0);
     }
 
@@ -1228,9 +1236,9 @@ const App: React.FC = () => {
 
       // ---- STREET VIEW: 캐시만 사용 (주행 중 API 0). 없으면 끄기/안내. [Phase 1] ----
       if (isSvActive) {
-        if (route.panoData?.length) {
-          const panoItem = getPanoDataForIndex(route.panoData, svDisplayIdxForPano);
-          const lastPano = route.panoData[route.panoData.length - 1];
+        if (routeData.panoData?.length) {
+          const panoItem = getPanoDataForIndex(routeData.panoData, svDisplayIdxForPano);
+          const lastPano = routeData.panoData[routeData.panoData.length - 1];
           const inGap = lastPano && svDisplayIdxForPano > lastPano.pathIndex + 30;
           if (inGap) {
             setShowSvWarning(true);
@@ -1286,8 +1294,8 @@ const App: React.FC = () => {
       // -----------------------------------------------------------
 
       // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps). 모든 멘트는 브라우저 TTS(speak). ----
-      const elevation = route.elevation ?? [];
-      const cached = route.cachedCoaching;
+      const elevation = routeData.elevation ?? [];
+      const cached = routeData.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
       if (currentCached) {
         setCoachData(currentCached.coaching);
@@ -1344,7 +1352,7 @@ const App: React.FC = () => {
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route, speedKmH, isSvFullScreen, isSvActive]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, speedKmH, isSvFullScreen, isSvActive]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
