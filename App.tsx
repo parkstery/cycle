@@ -1116,11 +1116,31 @@ const App: React.FC = () => {
     let timer: ReturnType<typeof setTimeout> = 0;
     if (!route?.path?.length) return () => clearTimeout(timer);
     const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
-    const currentPos = route.path[currentIdx];
-    const lookAheadIdx = Math.min(currentIdx + 10, route.path.length - 1);
+    let currentPos = route.path[currentIdx];
+    let adjustedIdx = currentIdx;
+
+    // 방어: path가 sparse이거나 좌표가 없으면 다음 유효한 인덱스로 스킵 (최대 10개까지)
+    if (!currentPos) {
+      const maxSkip = Math.min(10, route.path.length - currentIdx - 1);
+      for (let skip = 1; skip <= maxSkip; skip++) {
+        const nextIdx = currentIdx + skip;
+        if (route.path[nextIdx]) {
+          adjustedIdx = nextIdx;
+          currentPos = route.path[nextIdx];
+          console.log(`[SIMULATION_SKIP] sparse path at ${currentIdx}, skipping to ${nextIdx}`);
+          setSimulation(prev => ({ ...prev, currentIndex: nextIdx }));
+          return () => clearTimeout(timer);
+        }
+      }
+      // 유효한 인덱스를 찾지 못하면 경로 끝으로 처리
+      console.log('[SIMULATION_STOP] reason=no_valid_position_found');
+      setSimulation(prev => ({ ...prev, isActive: false }));
+      setAppPhase('IDLE');
+      return () => clearTimeout(timer);
+    }
+
+    const lookAheadIdx = Math.min(adjustedIdx + 10, route.path.length - 1);
     const targetPosForHeading = route.path[lookAheadIdx];
-    // 방어: path가 sparse이거나 좌표가 없으면 타이머 미설정으로 주행 멈춤 방지
-    if (!currentPos) return () => clearTimeout(timer);
 
     // Sync simulation marker to currentIndex (주행 중·일시정지 공통)
     const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
