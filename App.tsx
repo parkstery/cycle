@@ -2149,15 +2149,24 @@ const App: React.FC = () => {
           <img src="/logo25.png" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold">Street Cycle</p>
           <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
-            Map data © OpenStreetMap contributors
+            {/* Map data © OpenStreetMap contributors */}
           </p>
         </div>
       )}
       {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%→72%, 20% 증가) */}
+      {/* {showClickTwoPointsHint && (
+        <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
+          <div className="bg-white/50 border border-slate-200 px-5 py-2 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(1.0)' }}>
+            <p className="font-normal text-base text-center text-blue-600">Please click 2 points on the road.</p>
+          </div>
+        </div>
+      )} */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-white/50 border border-slate-200 px-6 py-4 rounded-2xl shadow-xl animate-in fade-in duration-300 origin-center" style={{ transform: 'scaleY(1.0)' }}>
-            <p className="font-normal text-base text-center text-blue-600">Please click 2 points on the road.</p>
+          <div className="bg-white/80 border border-slate-300 px-4 py-2 rounded-xl shadow-md animate-in fade-in duration-300">
+            <p className="text-sm font-medium text-blue-600 text-center">
+              Please click 2 points on the road
+            </p>
           </div>
         </div>
       )}
