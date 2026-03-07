@@ -2189,7 +2189,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )} */}
-      {showClickTwoPointsHint && (
+      {/* {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
           <div className="bg-white/80 border border-slate-300 px-4 py-2 rounded-xl shadow-md animate-in fade-in duration-300">
             <p className="text-sm font-medium text-blue-600 text-center">
@@ -2197,7 +2197,16 @@ const App: React.FC = () => {
             </p>
           </div>
         </div>
-      )}
+      )} */}
+      {showClickTwoPointsHint && (
+        <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
+          <div className="bg-white/85 border border-slate-300 px-5 py-1.5 rounded-full shadow-md backdrop-blur-sm animate-in fade-in duration-300">
+            <p className="text-sm font-medium text-blue-600 text-center whitespace-nowrap">
+              Please click 2 points on the road
+            </p>
+          </div>
+        </div>
+      )}      
       {/* Go 버튼 클릭 시 4초 카운트다운 오버레이 */}
       {countdown !== null && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
@@ -2549,7 +2558,7 @@ const App: React.FC = () => {
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
-                      {simulation.isActive && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className="text-[10px] text-blue-600 font-bold animate-pulse">{(coveredDistance / 1000).toFixed(1)}km</span><span className="text-[10px] text-blue-600 font-bold animate-pulse">{formatTime(elapsedTime)}</span></div>)}
+                      {(simulation.isActive || elapsedTime > 0) && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className={`text-[10px] text-blue-600 font-bold ${simulation.isActive ? 'animate-pulse' : ''}`}>{(coveredDistance / 1000).toFixed(1)}km</span><span className={`text-[10px] text-blue-600 font-bold ${simulation.isActive ? 'animate-pulse' : ''}`}>{formatTime(elapsedTime)}</span></div>)}
                     </div>
                     <p className="text-slate-400 text-[7px] font-black uppercase tracking-widest truncate">{routeSource === 'OSRM' ? 'Open-Elevation' : `${routeSource} ROUTE`}</p>
                   </div>
