@@ -2288,7 +2288,7 @@ const App: React.FC = () => {
 
 
       {/* Map Style Button - Moved Left (80% size) */}
-      <div className="absolute right-20 top-4 z-50">
+      <div className="absolute right-16 top-4 z-50">
         <button onClick={handleToggleMapType} title="Change Map Style" className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
           <Layers size={19} />
         </button>
