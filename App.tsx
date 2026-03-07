@@ -2174,8 +2174,7 @@ const App: React.FC = () => {
       {/* LCP용: 지도 로드 전 껍데기 — logo25.png + Street Cycle **/}
       {!isMapReady && (
         <div className="absolute inset-0 z-[15] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
-          <img src="/street-cycle-128
-          .png" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
+          <img src="/street-cycle-128.png" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold">Street Cycle</p>
           <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             {/* Map data © OpenStreetMap contributors */}
@@ -2552,9 +2551,9 @@ const App: React.FC = () => {
       {route && (
         <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px] [@media(orientation:landscape)]:w-[52%] [@media(orientation:landscape)]:max-w-[230px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
-            <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
+            <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
             {elevationExpanded && (
-              <div className="flex-1 pl-3 pr-0 py-1 flex flex-col gap-1.5">
+              <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
