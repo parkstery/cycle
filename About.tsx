@@ -4,12 +4,11 @@ import React from "react";
 interface AboutProps {
   onClose: () => void;
 }
-// sdfasdfasdasd
+
 const HEADER_HEIGHT = 52;
 
 const About: React.FC<AboutProps> = ({ onClose }) => {
   return (
-    /* Full white background */
     <div
       className="min-h-screen bg-white box-border"
       style={{
@@ -56,44 +55,80 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
       >
         {/* Title */}
         <h1 className="text-2xl font-bold mb-2">
-          Cycle Simulator
+          Street Cycle
         </h1>
 
         <p className="text-slate-700 mb-6">
-          Virtual cycling simulation with real-world maps and AI coaching.
+          Cycling route planner and map-based ride simulator with elevation analysis.
         </p>
 
         {/* Features */}
-        <Section title="Features">
+        <Section title="Key Features">
           <ul className="list-disc list-inside space-y-1">
-            <li>Virtual riding worldwide</li>
-            <li>Gradient simulation</li>
-            <li>Street View playback</li>
-            <li>Elevation analysis</li>
+            <li>Cycling route planner on real-world maps</li>
+            <li>Bike route exploration with interactive map</li>
+            <li>Elevation profile for climbs and descents</li>
+            <li>Ride simulation along selected routes</li>
           </ul>
         </Section>
 
-        {/* Tech */}
-        <Section title="Technology Stack">
-          <Credit title="Frontend">
-            React, TypeScript, Vite, Tailwind
+        {/* Use Cases */}
+        <Section title="Who This App Is For">
+          <ul className="list-disc list-inside space-y-1">
+            <li>Cyclists planning new bike routes</li>
+            <li>Riders exploring unfamiliar cycling areas</li>
+            <li>Users checking elevation before a ride</li>
+            <li>Anyone interested in cycling route maps</li>
+          </ul>
+        </Section>
+
+        {/* Data Sources */}
+        <Section title="Data Sources">
+          <Credit title="Map Data">
+            OpenStreetMap contributors
           </Credit>
 
-          <Credit title="Maps & Data">
-            Google Maps Platform
+          <Credit title="Routing Engine">
+            OSRM (Open Source Routing Machine)
+          </Credit>
+
+          <Credit title="Elevation Data">
+            Open-Elevation API
+          </Credit>
+
+          <Credit title="Map Rendering">
+            Leaflet JS
+          </Credit>
+
+          <Credit title="Icons">
+            Lucide Icons
           </Credit>
         </Section>
 
         {/* Disclaimer */}
         <Section title="Disclaimer">
           <p className="text-slate-700">
-            This application is for educational and fitness purposes only.
+            Street Cycle is provided for route exploration and simulation
+            purposes only.
+          </p>
+
+          <p className="text-slate-700">
+            Map data, routes, and elevation information may contain
+            inaccuracies and may not reflect real-world conditions such
+            as road closures, construction, or traffic restrictions.
+          </p>
+
+          <p className="text-slate-700">
+            Users must follow local traffic laws and ensure their own
+            safety when cycling. The developer assumes no responsibility
+            for any loss, damage, or injury resulting from the use of
+            this application.
           </p>
         </Section>
 
         {/* Footer */}
         <p className="text-sm text-slate-600 text-center mt-12">
-          © 2026 Cycle Simulator
+          © 2026 Street Cycle
         </p>
       </main>
     </div>
