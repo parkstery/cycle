@@ -2201,7 +2201,7 @@ const App: React.FC = () => {
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
           <div className="bg-white/85 border border-slate-300 px-5 py-1.5 rounded-full shadow-md backdrop-blur-sm animate-in fade-in duration-300">
-            <p className="text-sm font-medium text-blue-600 text-center whitespace-nowrap">
+            <p className="text-sm font-semibold text-blue-600 text-center whitespace-nowrap">
               Please click 2 points on the road
             </p>
           </div>
