@@ -2287,31 +2287,31 @@ const App: React.FC = () => {
 
 
 
-      {/* Map Style Button - Moved Left */}
+      {/* Map Style Button - Moved Left (80% size) */}
       <div className="absolute right-20 top-4 z-50">
-        <button onClick={handleToggleMapType} title="Change Map Style" className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
-          <Layers size={24} />
+        <button onClick={handleToggleMapType} title="Change Map Style" className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
+          <Layers size={19} />
         </button>
       </div>
 
-      {/* Main Control Group - Shifted Up by removing first element */}
-      <div className="absolute right-4 top-4 z-50 flex flex-col gap-2">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-          <RouteIcon size={24} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} />
+      {/* Main Control Group - Shifted Up (80% size) */}
+      <div className="absolute right-4 top-4 z-50 flex flex-col gap-1.5">
+        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+          <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} />
         </button>
-        <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-          <img src={STREETVIEW_ICON} alt="Street View" className="w-6 h-6 object-contain" />
+        <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+          <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
         </button>
         {isSvActive && (
-          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-12 h-12 rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
-            {isSvFullScreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
+          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+            {isSvFullScreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
           </button>
         )}
       </div>
 
-      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-12 h-12 rounded-full border-2 border-blue-600 group'}`}>
-        <div className="flex items-center w-full h-12 pr-5 shrink-0">
-          <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={20} /> : <Search size={20} />}</button>
+      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
+        <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
+          <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={16} /> : <Search size={16} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
             <button onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
@@ -2328,10 +2328,10 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-[25px] left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-12 h-12 border-2 border-blue-600 rounded-full group'}`}>
+      <div className={`absolute bottom-[25px] left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}>
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-2 relative items-center ${routeInputExpanded ? 'min-h-[140px]' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
-            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[5px] ${routeInputExpanded ? 'w-4 h-4' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={16} /> : <Waypoints size={20} className="text-blue-600" />}</button>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[5px] ${routeInputExpanded ? 'w-[0.8rem] h-[0.8rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={12} /> : <Waypoints size={16} className="text-blue-600" />}</button>
             {routeInputExpanded && (
               <div className="flex-1 flex items-center justify-center min-h-0">
               <button onClick={() => { if (!historyExpanded && routeSettingsPanelExpanded) { setRouteInputExpanded(false); } else { setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded); } }} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-15px]" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
@@ -2550,9 +2550,9 @@ const App: React.FC = () => {
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px] [@media(orientation:landscape)]:w-[52%] [@media(orientation:landscape)]:max-w-[230px]' : 'right-16 w-12 h-12 group'}`}>
+        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px] [@media(orientation:landscape)]:w-[52%] [@media(orientation:landscape)]:max-w-[230px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}>
           <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden">
-            <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="flex-shrink-0 w-5 h-10 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last">{elevationExpanded ? <ChevronRight size={20} /> : <AreaChartIcon size={20} />}</button>
+            <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className={`flex-shrink-0 flex items-center justify-center text-slate-500 hover:text-blue-600 order-last ${elevationExpanded ? 'w-4 h-8' : 'w-[2.4rem] h-[2.4rem]'}`}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
             {elevationExpanded && (
               <div className="flex-1 pl-3 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
