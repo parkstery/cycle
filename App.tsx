@@ -2174,7 +2174,7 @@ const App: React.FC = () => {
       {/* LCP용: 지도 로드 전 껍데기 — logo25.png + Street Cycle **/}
       {!isMapReady && (
         <div className="absolute inset-0 z-[15] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
-          <img src="/bike745-webp.webp" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
+          <img src="/globe_bike.png" alt="Street Cycle" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold">Street Cycle</p>
           <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             {/* Map data © OpenStreetMap contributors */}
