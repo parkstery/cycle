@@ -2554,7 +2554,7 @@ const App: React.FC = () => {
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[65%] max-w-[288px] [@media(orientation:landscape)]:w-[52%] [@media(orientation:landscape)]:max-w-[230px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}>
+        <div className={`absolute bottom-[25px] z-[50] flex items-end justify-end transition-all duration-300 ease-out ${elevationExpanded ? 'right-4 w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}>
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
           <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
