@@ -102,7 +102,7 @@ export default function MenuPanel({
                     {legalExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} className="text-slate-400" />}
                   </button>
                   {legalExpanded && (
-                    <ul className="bg-slate-50 border-t border-slate-100 pl-6">
+                    <ul className="bg-slate-50 border-t border-slate-100 pl-8">
                       {[
                         { key: 'privacy' as const, label: 'Privacy Policy' },
                         { key: 'terms' as const, label: 'Terms of Service' },
@@ -113,7 +113,7 @@ export default function MenuPanel({
                           <button
                             type="button"
                             onClick={() => setMenuView(key)}
-                            className="w-full text-left pl-4 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
+                            className="w-full text-left pl-5 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
                           >
                             {label}
                           </button>
