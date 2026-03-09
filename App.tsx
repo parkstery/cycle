@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
+import MenuPanel from './MenuPanel';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
@@ -250,6 +251,9 @@ const App: React.FC = () => {
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
   const [showAbout, setShowAbout] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuView, setMenuView] = useState<'list' | 'help' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
+  const [legalExpanded, setLegalExpanded] = useState(false);
 
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -2308,7 +2312,7 @@ const App: React.FC = () => {
         )}
       </div>
 
-      <div className={`absolute top-4 left-4 z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
+      <div className={`absolute top-4 left-[calc(1rem+2.4rem+6px)] z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
         <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
           <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={16} /> : <Search size={16} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
@@ -2637,26 +2641,24 @@ const App: React.FC = () => {
           <About onClose={() => setShowAbout(false)} />
         </div>
       )}
-      {/* About Info - plain 'i' character, top-right; opens modal (no page navigation, state preserved) */}
+      <MenuPanel
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onOpenAbout={() => setShowAbout(true)}
+        menuView={menuView}
+        setMenuView={setMenuView}
+        legalExpanded={legalExpanded}
+        setLegalExpanded={setLegalExpanded}
+      />
+      {/* Hamburger menu - top-left */}
       <button
         type="button"
-        onClick={() => setShowAbout(true)}
-        title="About"
-        className="fixed z-[9999] flex items-center justify-center rounded-full border border-slate-400 text-slate-600 bg-white/90 hover:bg-slate-100 touch-manipulation font-serif italic text-[11px] font-semibold"
-        style={{
-          top: 0,
-          right: 0,
-          width: '20px',
-          height: '20px',
-          padding: 0,
-          margin: 0,
-          cursor: 'pointer',
-          zIndex: 9999,
-        }}
-        aria-label="About"
-        id="debug-about-btn"
+        onClick={() => { setMenuView('list'); setLegalExpanded(false); setMenuOpen(true); }}
+        title="Menu"
+        className="absolute left-4 top-4 z-[80] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
+        aria-label="Open menu"
       >
-        i
+        <Menu size={20} />
       </button>
 
     </div>
