@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -273,6 +273,7 @@ const App: React.FC = () => {
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   const [coachingOn, setCoachingOn] = useState(true);
+  const [coachingMentVisible, setCoachingMentVisible] = useState(true); // 화면 상단 코칭 멘트 텍스트 표시 여부
   const [musicOn, setMusicOn] = useState(true);
 
   // Input States
@@ -2281,7 +2282,7 @@ const App: React.FC = () => {
           © OpenStreetMap contributors
         </a>
       )}
-      {simulation.isActive && coachingOn && coachData && (
+      {simulation.isActive && coachingOn && coachData && coachingMentVisible && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
@@ -2564,8 +2565,11 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-slate-900 font-black text-sm tracking-tighter truncate">{route.distance}</h2>
-                      {(simulation.isActive || elapsedTime > 0) && (<div className="flex flex-col justify-center items-start leading-none ml-1"><span className={`text-[10px] text-blue-600 font-bold ${simulation.isActive ? 'animate-pulse' : ''}`}>{(coveredDistance / 1000).toFixed(1)}km</span><span className={`text-[10px] text-blue-600 font-bold ${simulation.isActive ? 'animate-pulse' : ''}`}>{formatTime(elapsedTime)}</span></div>)}
+                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "코칭 멘트 텍스트 숨기기" : "코칭 멘트 텍스트 표시"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
+                        <MessageSquare size={16} />
+                      </button>
+                      <span className="text-slate-900 font-black text-sm tracking-tighter truncate">{(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km</span>
+                      {(simulation.isActive || elapsedTime > 0) && (<span className={`text-[10px] text-blue-600 font-bold leading-none ml-1 ${simulation.isActive ? 'animate-pulse' : ''}`}>{formatTime(elapsedTime)}</span>)}
                     </div>
                   </div>
                   <div className="flex gap-1 items-center shrink-0">
