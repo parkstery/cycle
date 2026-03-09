@@ -55,7 +55,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
       >
         {/* Title */}
         <h1 className="text-2xl font-bold mb-2">
-          Street Cycle
+          Ride the World – Indoor Cycling
         </h1>
 
         <p className="text-slate-700 mb-6">
@@ -108,7 +108,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
         {/* Disclaimer */}
         <Section title="Disclaimer">
           <p className="text-slate-700">
-            Street Cycle is provided for route exploration and simulation
+            Ride the World – Indoor Cycling is provided for route exploration and simulation
             purposes only.
           </p>
 
@@ -128,7 +128,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
 
         {/* Footer */}
         <p className="text-sm text-slate-600 text-center mt-12">
-          © 2026 Street Cycle
+          © 2026 LiveOnSoft
         </p>
       </main>
     </div>
