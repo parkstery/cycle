@@ -2565,7 +2565,7 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "코칭 멘트 텍스트 숨기기" : "코칭 멘트 텍스트 표시"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
+                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                         <MessageSquare size={16} />
                       </button>
                       <span className="text-slate-900 font-black text-sm tracking-tighter truncate">{(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km</span>
