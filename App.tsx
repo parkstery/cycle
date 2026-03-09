@@ -2645,7 +2645,10 @@ const App: React.FC = () => {
       {/* About Page */}
       {showAbout && (
         <div className="fixed inset-0 z-[100] overflow-y-auto">
-          <About onClose={() => setShowAbout(false)} />
+          <About
+            onClose={() => setShowAbout(false)}
+            onBackToMenu={() => { setShowAbout(false); setMenuOpen(true); }}
+          />
         </div>
       )}
       {typeof document !== 'undefined' && menuOpen && createPortal(

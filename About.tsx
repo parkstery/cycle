@@ -3,11 +3,13 @@ import React from "react";
 
 interface AboutProps {
   onClose: () => void;
+  /** 메뉴에서 진입했을 때만 전달. 있으면 "Back to Menu" 버튼 표시 */
+  onBackToMenu?: () => void;
 }
 
 const HEADER_HEIGHT = 52;
 
-const About: React.FC<AboutProps> = ({ onClose }) => {
+const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
   return (
     <div
       className="min-h-screen bg-white box-border"
@@ -19,7 +21,7 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
     >
       {/* Header */}
       <header
-        className="fixed left-0 right-0 flex items-center z-20 px-4 bg-white border-b border-slate-200"
+        className="fixed left-0 right-0 flex items-center justify-between gap-2 z-20 px-4 bg-white border-b border-slate-200"
         style={{
           top: 0,
           minHeight: HEADER_HEIGHT,
@@ -27,12 +29,26 @@ const About: React.FC<AboutProps> = ({ onClose }) => {
           paddingBottom: 12,
         }}
       >
-        <button
-          onClick={onClose}
-          className="text-slate-900 font-semibold hover:opacity-70"
-        >
-          ← <span className="ml-2">Back to Simulator</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {onBackToMenu && (
+            <button
+              onClick={onBackToMenu}
+              className="text-slate-700 font-medium hover:opacity-70"
+            >
+              ← <span className="ml-1">Back to Menu</span>
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-slate-900 font-semibold hover:opacity-70"
+          >
+            {onBackToMenu ? (
+              <span>Back to Simulator</span>
+            ) : (
+              <>← <span className="ml-2">Back to Simulator</span></>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Spacer */}
