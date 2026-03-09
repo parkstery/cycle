@@ -2559,7 +2559,8 @@ const App: React.FC = () => {
           <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
             {elevationExpanded && (
-              <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
+              // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
+              <div className="flex-1 min-w-0 pl-1 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
