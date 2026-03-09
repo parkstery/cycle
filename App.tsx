@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
@@ -2258,11 +2259,11 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-4 left-4 w-40 h-40 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-50 rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
-          width: (isSvActive && isSvFullScreen) ? 160 : undefined,
-          height: (isSvActive && isSvFullScreen) ? 160 : undefined,
+          width: (isSvActive && isSvFullScreen) ? 144 : undefined,
+          height: (isSvActive && isSvFullScreen) ? 144 : undefined,
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
@@ -2312,7 +2313,7 @@ const App: React.FC = () => {
         )}
       </div>
 
-      <div className={`absolute top-4 left-[calc(1rem+2.4rem+6px)] z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[300px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
+      <div className={`absolute top-4 left-[calc(1rem+2.4rem+6px)] z-[80] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
         <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
           <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={16} /> : <Search size={16} />}</button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
@@ -2641,21 +2642,24 @@ const App: React.FC = () => {
           <About onClose={() => setShowAbout(false)} />
         </div>
       )}
-      <MenuPanel
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onOpenAbout={() => setShowAbout(true)}
-        menuView={menuView}
-        setMenuView={setMenuView}
-        legalExpanded={legalExpanded}
-        setLegalExpanded={setLegalExpanded}
-      />
-      {/* Hamburger menu - top-left */}
+      {typeof document !== 'undefined' && menuOpen && createPortal(
+        <MenuPanel
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onOpenAbout={() => setShowAbout(true)}
+          menuView={menuView}
+          setMenuView={setMenuView}
+          legalExpanded={legalExpanded}
+          setLegalExpanded={setLegalExpanded}
+        />,
+        document.body
+      )}
+      {/* Hamburger menu - top-left (above search so always clickable) */}
       <button
         type="button"
         onClick={() => { setMenuView('list'); setLegalExpanded(false); setMenuOpen(true); }}
         title="Menu"
-        className="absolute left-4 top-4 z-[80] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
+        className="absolute left-4 top-4 z-[85] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
         aria-label="Open menu"
       >
         <Menu size={20} />
