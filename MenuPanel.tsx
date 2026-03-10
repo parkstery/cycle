@@ -26,7 +26,7 @@ function UserGuideContent() {
   return (
     <div className="pb-6 space-y-1">
       <h2 className={docTitle}>Ride the World – Indoor Cycling — User Guide (English)</h2>
-      <p className={docBody}>This guide explains all features of <strong>Ride the World – Indoor Cycling</strong> step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and street view.</p>
+      <p className={docBody}>This guide explains all features of <strong>Ride the World – Indoor Cycling</strong> step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and Street View.</p>
 
       <h3 className={docTitle}>Table of Contents</h3>
       <ol className={`${docList} list-decimal`}>
@@ -37,10 +37,9 @@ function UserGuideContent() {
         <li>Starting a Ride and Controls</li>
         <li>Street View</li>
         <li>Elevation Chart and Position</li>
-        <li>AI Coaching and Music</li>
+        <li>Smart Coaching and Music</li>
         <li>Place Search and Favorites</li>
-        <li>Menu and Information</li>
-        <li>Notes and Disclaimer</li>
+        <li>Map Style</li>
       </ol>
 
       <h3 className={docTitle}>1. App Overview</h3>
@@ -96,9 +95,9 @@ function UserGuideContent() {
       <p className={docBody}>Distance and time depend on the mode. Choose the mode you want <strong>before</strong> pressing <strong>Go</strong>.</p>
       <h4 className={docSubtitle}>3.3 Other Route Buttons</h4>
       <ul className={docList}>
-        <li><strong>↕ (arrows)</strong> — Swap start and end (A↔B).</li>
-        <li><strong>★ (star)</strong> — Save the current route to <strong>My Routes</strong>. If already saved, the star appears filled. Up to <strong>5</strong> routes can be saved.</li>
-        <li><strong>Trash</strong> — Clear the current route and markers. Start/end inputs are kept.</li>
+        <li><strong>↕ (arrows)</strong> — <strong>Swap</strong> start and end (A↔B).</li>
+        <li><strong>★ (star)</strong> — <strong>Save</strong> the current route to <strong>My Routes</strong>. If already saved, the star appears filled. Up to <strong>5</strong> routes can be saved.</li>
+        <li><strong>Trash</strong> — <strong>Clear</strong> the current route and markers. Start/end inputs are kept.</li>
       </ul>
       <h4 className={docSubtitle}>3.4 Distance and Time</h4>
       <p className={docBody}>When a route is calculated, <strong>distance (km)</strong> and <strong>estimated time</strong> are shown in the route area. Actual feel of duration depends on the <strong>speed</strong> you use during the ride.</p>
@@ -169,8 +168,8 @@ function UserGuideContent() {
         <li>Useful after pausing to jump to a different segment and resume.</li>
       </ul>
 
-      <h3 className={docTitle}>8. AI Coaching and Music</h3>
-      <h4 className={docSubtitle}>8.1 AI Coaching</h4>
+      <h3 className={docTitle}>8. Smart Coaching and Music</h3>
+      <h4 className={docSubtitle}>8.1 Smart Coaching</h4>
       <ul className={docList}>
         <li>When <strong>coaching is on</strong>, tips (posture, resistance, intensity, etc.) are shown based on gradient and speed.</li>
         <li>Use the <strong>microphone icon</strong> to turn coaching on or off.</li>
@@ -198,38 +197,9 @@ function UserGuideContent() {
         <li><strong>Delete:</strong> Tap the <strong>X</strong> next to a route (visible on hover) to remove it from favorites.</li>
       </ul>
 
-      <h3 className={docTitle}>10. Menu and Information</h3>
-      <ul className={docList}>
-        <li>Tap the <strong>menu icon (≡)</strong> (top-left) to open the <strong>menu panel</strong>.</li>
-      </ul>
-      <h4 className={docSubtitle}>10.1 Menu Items</h4>
-      <table className={docTable}>
-        <thead>
-          <tr><th className={docTableTh}>Item</th><th className={docTableTh}>Description</th></tr>
-        </thead>
-        <tbody>
-          <tr><td className={docTableTd}><strong>About</strong></td><td className={docTableTd}>App overview, features, audience, data sources, disclaimer</td></tr>
-          <tr><td className={docTableTd}><strong>Help</strong></td><td className={docTableTd}>Summary of how to use the app and controls</td></tr>
-          <tr><td className={docTableTd}><strong>Legal</strong></td><td className={docTableTd}>Privacy Policy, Terms of Service, Disclaimer, Open Source Licenses</td></tr>
-          <tr><td className={docTableTd}><strong>Contact</strong></td><td className={docTableTd}>Contact and feedback</td></tr>
-        </tbody>
-      </table>
-      <ul className={docList}>
-        <li><strong>Back to Menu:</strong> Return to the menu list from a sub-screen.</li>
-        <li><strong>Back to Simulator:</strong> Close the menu and return to the simulator.</li>
-      </ul>
       <h4 className={docSubtitle}>10.2 Map Style</h4>
       <p className={docBody}>Tap the <strong>layers icon</strong> (top-right) to switch between <strong>standard map</strong> and <strong>satellite/terrain (hybrid)</strong>.</p>
 
-      <h3 className={docTitle}>11. Notes and Disclaimer</h3>
-      <ul className={docList}>
-        <li>This app is for <strong>indoor cycling simulation and route exploration</strong> only. Do <strong>not</strong> use it for real-road navigation or safety decisions.</li>
-        <li>Map, route, and elevation data are <strong>approximate</strong> and may differ from real roads, construction, closures, and terrain.</li>
-        <li>Check your <strong>health</strong> before exercise and consult a medical professional if needed. The developer is not responsible for injury or damage from using this app.</li>
-        <li>For details, see <strong>Disclaimer</strong>, <strong>Terms of Service</strong>, and <strong>Privacy Policy</strong> in the menu.</li>
-      </ul>
-
-      <p className={`${docBody} mt-4`}><strong>Ride the World – Indoor Cycling</strong><br />© 2026 LiveOnSoft — Version 1.0</p>
       <p className={docBody}>Screens and wording may vary by app version. For further questions, use <strong>Contact</strong> in the app or the store/official page.</p>
     </div>
   );
@@ -390,14 +360,14 @@ function ContactContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Contact</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling is developed and operated by LiveOnSoft. Last updated: March 2026.</p>
+      <p className={docBody}><strong>Ride the World – Indoor Cycling</strong> Last updated: March 2026.</p>
       <h3 className={docTitle}>1. Overview</h3>
-      <p className={docBody}>For inquiries about the App, privacy, terms, open source licenses, bugs, or suggestions, use the channels below.</p>
-      <h3 className={docTitle}>2. How to Contact</h3>
-      <p className={docBody}>In the App: Use the Contact item in the menu. Store or official page: Use the contact information on the App’s store page or LiveOnSoft’s official project or website. Project repository: For technical questions, bug reports, or feature suggestions, use the repository’s issue or contact channel (e.g. GitHub) when available. Specific email or URL may vary; refer to the latest information in the App or on the store/official page.</p>
-      <h3 className={docTitle}>3. Response</h3>
-      <p className={docBody}>We will respond when possible but do not guarantee response time or that a response will be provided. The App does not require registration or does not store account information on our servers; for account-related questions, refer to the relevant store policy.</p>
-      <p className={`${docBody} font-semibold`}>LiveOnSoft – Developer and operator of Ride the World – Indoor Cycling © 2026</p>
+      <p className={docBody}><strong>LiveOnSoft</strong> develops and operates <strong>Ride the World – Indoor Cycling</strong> (the "App"). For inquiries about using the App, privacy, terms of service, open source licenses, bugs, or suggestions, please follow the guidance below.</p>
+      <h3 className={docTitle}>2. Contact Information</h3>
+      <p className={docBody}><strong>Contact</strong> For app-related inquiries, please contact us at the email address below. liveonsoft@gmail.com</p>
+      <h3 className={docTitle}>3. Response Policy</h3>
+      <p className={docBody}>We will respond to inquiries <strong>to the extent possible</strong>; we do not guarantee response time, method, or that a response will be provided. Requests related to personal information (access, correction, deletion, etc.) are handled in accordance with applicable laws and our Privacy Policy. The App <strong>does not require registration or login</strong> and does not store account information on our servers. For account-related inquiries, please refer to the relevant store (e.g. Google Play, App Store) policy.</p>
+      <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
     </div>
   );
 }
