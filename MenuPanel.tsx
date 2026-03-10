@@ -356,10 +356,30 @@ function LicensesContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Open Source Licenses</h2>
-      <p className={docBody}>Last updated: March 2026. This App is built using open source software. Full license texts can be found in the respective project repositories or npm.</p>
-      <h3 className={docTitle}>2. Open Source Software Used</h3>
+      <p className={docBody}>Last updated: March 2026. This App is built using open source software and map/data services. Below we list map, routing, and elevation data services and software packages with their applicable licenses and terms.</p>
+
+      <h3 className={docTitle}>2. Map & Data Services</h3>
+      <p className={docBody}>Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service’s terms, copyright, and attribution requirements.</p>
+      <table className={docTable}>
+        <thead>
+          <tr><th className={docTableTh}>Service</th><th className={docTableTh}>Purpose</th><th className={docTableTh}>License / Terms</th></tr>
+        </thead>
+        <tbody>
+          <tr><td className={docTableTd}><strong>OpenStreetMap (OSM)</strong></td><td className={docTableTd}>Map tiles, geographic data</td><td className={docTableTd}>© OpenStreetMap contributors. ODbL and other OSM policies apply.</td></tr>
+          <tr><td className={docTableTd}><strong>Nominatim</strong></td><td className={docTableTd}>Address and place search (geocoding)</td><td className={docTableTd}>OSM-based. See Nominatim usage policy.</td></tr>
+          <tr><td className={docTableTd}><strong>OSRM</strong></td><td className={docTableTd}>Car / bike / foot route calculation</td><td className={docTableTd}>OSM-based. Subject to the deployment or service terms.</td></tr>
+          <tr><td className={docTableTd}><strong>Open-Elevation</strong></td><td className={docTableTd}>Elevation data along the route</td><td className={docTableTd}>Subject to the API provider’s terms and attribution.</td></tr>
+          <tr><td className={docTableTd}><strong>Google Maps / Street View</strong></td><td className={docTableTd}>Map display, Street View imagery (when used)</td><td className={docTableTd}>© Google. Google Maps Platform Terms, Google Privacy Policy. Acknowledged here in addition to any on-map attribution.</td></tr>
+        </tbody>
+      </table>
+      <ul className={docList}>
+        <li><strong>Accuracy and availability</strong> of map, route, and elevation data are the responsibility of the respective providers; the App operator does not guarantee them.</li>
+        <li>For full license text and current policies, see each service’s official site.</li>
+      </ul>
+
+      <h3 className={docTitle}>3. Open Source Software Used (Packages)</h3>
       <p className={docBody}>Runtime: react, react-dom (MIT), lucide-react (ISC), recharts (MIT). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
-      <h3 className={docTitle}>3. Summary of Main Licenses</h3>
+      <h3 className={docTitle}>4. Summary of Main Licenses</h3>
       <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, see each package’s official repository or npm.</p>
     </div>
   );
@@ -503,8 +523,10 @@ export default function MenuPanel({
                 </button>
               </li>
 
-              <li className="pt-1">
-                <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Guide</div>
+              <li className="px-4 py-1.5 pt-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Guide
+              </li>
+              <li>
                 <ul className="border-l-2 border-slate-200 ml-4 pl-4 my-0.5 list-none">
                   <li>
                     <button
@@ -537,8 +559,10 @@ export default function MenuPanel({
                 </button>
               </li>
 
-              <li className="pt-1">
-                <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Legal</div>
+              <li className="px-4 py-1.5 pt-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Legal
+              </li>
+              <li>
                 <ul className="border-l-2 border-slate-200 ml-4 pl-4 my-0.5 list-none">
                   <li>
                     <button
