@@ -533,6 +533,7 @@ export default function MenuPanel({
                     <button
                       onClick={() => setMenuView("guideSimple")}
                       className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                      className="w-full text-left pl-10 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Quick Guide
                       <ChevronRight size={18} className="text-slate-400" />
