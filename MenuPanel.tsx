@@ -4,8 +4,12 @@ import { ChevronRight, ChevronLeft, X } from "lucide-react";
 const APP_NAME = "Ride the World – Indoor Cycling";
 
 const docTitle = "text-base font-bold text-slate-900 mt-4 mb-2 first:mt-0";
+const docSubtitle = "text-sm font-bold text-slate-800 mt-3 mb-1.5";
 const docBody = "text-sm text-slate-700 leading-relaxed mb-2";
 const docList = "list-disc pl-5 space-y-1 text-sm text-slate-700 mb-2";
+const docTable = "w-full text-sm text-slate-700 border-collapse my-2";
+const docTableTh = "text-left font-semibold text-slate-800 border border-slate-300 bg-slate-50 px-2 py-1.5";
+const docTableTd = "border border-slate-300 px-2 py-1.5";
 
 function SimpleGuideContent() {
   return (
@@ -20,19 +24,213 @@ function SimpleGuideContent() {
 
 function UserGuideContent() {
   return (
-    <div className="pb-6 space-y-2">
-      <h2 className={docTitle}>Detailed Guide</h2>
-      <p className={docBody}>This guide explains the main features of Ride the World – Indoor Cycling. You can choose real-world routes and simulate them indoors with elevation and Street View.</p>
+    <div className="pb-6 space-y-1">
+      <h2 className={docTitle}>Ride the World – Indoor Cycling — User Guide (English)</h2>
+      <p className={docBody}>This guide explains all features of <strong>Ride the World – Indoor Cycling</strong> step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and street view.</p>
+
+      <h3 className={docTitle}>Table of Contents</h3>
+      <ol className={`${docList} list-decimal`}>
+        <li>App Overview</li>
+        <li>Getting Started</li>
+        <li>Route Settings</li>
+        <li>Ride Mode and Speed</li>
+        <li>Starting a Ride and Controls</li>
+        <li>Street View</li>
+        <li>Elevation Chart and Position</li>
+        <li>AI Coaching and Music</li>
+        <li>Place Search and Favorites</li>
+        <li>Menu and Information</li>
+        <li>Notes and Disclaimer</li>
+      </ol>
+
       <h3 className={docTitle}>1. App Overview</h3>
-      <p className={docBody}>Plan bike / walk / car routes on real maps, view elevation along the route, watch Street View, and simulate the ride indoors at your chosen speed. Data: OpenStreetMap, OSRM, Open-Elevation API.</p>
+      <p className={docBody}><strong>Ride the World – Indoor Cycling</strong> lets you:</p>
+      <ul className={docList}>
+        <li>Plan <strong>bike / walk / car</strong> routes on <strong>real maps</strong></li>
+        <li>View <strong>elevation</strong> along the route</li>
+        <li>Watch <strong>Street View</strong> scenery while you ride</li>
+        <li><strong>Simulate</strong> the ride indoors at your chosen speed</li>
+      </ul>
+      <p className={docBody}>Data sources: OpenStreetMap (maps), OSRM (routing), Open-Elevation API (elevation), and others.</p>
+
       <h3 className={docTitle}>2. Getting Started</h3>
-      <p className={docBody}>The route panel is in the bottom-left. Set Start and End (type addresses with autocomplete, or click the map and use START / WAYPOINT / END in the popup).</p>
-      <h3 className={docTitle}>3. Route and Speed</h3>
-      <p className={docBody}>Choose Car, Bike, or Foot. Set speed 10–70 km/h. Use the star to save routes to My Routes (up to 5). Press Go to start; first time shows a countdown.</p>
-      <h3 className={docTitle}>4. During the Ride</h3>
-      <p className={docBody}>Use Play / Pause, Restart, Stop in the elevation panel. Step back / Fast forward buttons move along the route. Toggle Street View and elevation chart from the controls.</p>
-      <h3 className={docTitle}>5. Menu</h3>
-      <p className={docBody}>About, Guide (Simple Guide, User Guide), Settings, Legal (Privacy, Terms, Disclaimer, Licenses), and Contact are available from the menu.</p>
+      <ul className={docList}>
+        <li>Open the app to load the <strong>map</strong>.</li>
+        <li>The <strong>route panel</strong> is in the <strong>bottom-left</strong>. (If collapsed, tap the <strong>waypoint icon</strong> to expand.)</li>
+        <li>Set <strong>Start</strong> and <strong>End</strong> to search for a route.</li>
+      </ul>
+      <p className={docBody}><strong>Method 1: Type addresses</strong></p>
+      <ul className={docList}>
+        <li>Enter the start in "Start" and the end in "End"; <strong>autocomplete suggestions</strong> will appear.</li>
+        <li>Select from the list or use the keyboard ↑/↓ and Enter.</li>
+      </ul>
+      <p className={docBody}><strong>Method 2: Click on the map</strong></p>
+      <ul className={docList}>
+        <li>Click <strong>anywhere</strong> on the map or route to see a popup with <strong>address, coordinates, and elevation</strong>.</li>
+        <li>Use <strong>START (A)</strong> / <strong>WAYPOINT</strong> / <strong>END (B)</strong> in the popup to set start, waypoints, or destination.</li>
+      </ul>
+
+      <h3 className={docTitle}>3. Route Settings</h3>
+      <h4 className={docSubtitle}>3.1 Start, End, and Waypoints</h4>
+      <table className={docTable}>
+        <thead>
+          <tr><th className={docTableTh}>Field</th><th className={docTableTh}>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td className={docTableTd}><strong>Start (blue marker)</strong></td><td className={docTableTd}>Start. Enter address or click map and choose "START (A)"</td></tr>
+          <tr><td className={docTableTd}><strong>End (red marker)</strong></td><td className={docTableTd}>Destination. Enter address or click map and choose "END (B)"</td></tr>
+          <tr><td className={docTableTd}><strong>Waypoint</strong></td><td className={docTableTd}>Up to <strong>3</strong> waypoints. Click map and choose "WAYPOINT" to add</td></tr>
+        </tbody>
+      </table>
+      <ul className={docList}>
+        <li>Use the <strong>X</strong> next to each field to clear that start/end/waypoint.</li>
+        <li>Waypoints are numbered 1, 2, 3. Removing one only removes that number.</li>
+      </ul>
+      <h4 className={docSubtitle}>3.2 Route Mode (Car / Bike / Foot)</h4>
+      <p className={docBody}>After setting start and end, choose one of:</p>
+      <ul className={docList}>
+        <li><strong>Car</strong> – driving route</li>
+        <li><strong>Bike</strong> – cycling route</li>
+        <li><strong>Foot</strong> – walking route</li>
+      </ul>
+      <p className={docBody}>Distance and time depend on the mode. Choose the mode you want <strong>before</strong> pressing <strong>Go</strong>.</p>
+      <h4 className={docSubtitle}>3.3 Other Route Buttons</h4>
+      <ul className={docList}>
+        <li><strong>↕ (arrows)</strong> — Swap start and end (A↔B).</li>
+        <li><strong>★ (star)</strong> — Save the current route to <strong>My Routes</strong>. If already saved, the star appears filled. Up to <strong>5</strong> routes can be saved.</li>
+        <li><strong>Trash</strong> — Clear the current route and markers. Start/end inputs are kept.</li>
+      </ul>
+      <h4 className={docSubtitle}>3.4 Distance and Time</h4>
+      <p className={docBody}>When a route is calculated, <strong>distance (km)</strong> and <strong>estimated time</strong> are shown in the route area. Actual feel of duration depends on the <strong>speed</strong> you use during the ride.</p>
+
+      <h3 className={docTitle}>4. Ride Mode and Speed</h3>
+      <h4 className={docSubtitle}>4.1 Speed (10–70 km/h)</h4>
+      <ul className={docList}>
+        <li><strong>Numeric field:</strong> Enter a value between 10 and 70.</li>
+        <li><strong>− / + buttons:</strong> Decrease or increase by 1 km/h.</li>
+        <li><strong>Slider:</strong> Drag to adjust speed.</li>
+      </ul>
+      <p className={docBody}>This is the <strong>simulation speed</strong>. On an indoor bike, match your pedaling to this speed.</p>
+
+      <h3 className={docTitle}>5. Starting a Ride and Controls</h3>
+      <h4 className={docSubtitle}>5.1 Go Button</h4>
+      <ul className={docList}>
+        <li>Enter start and end so the <strong>route is shown</strong>, then press <strong>Go</strong>.</li>
+        <li><strong>First time for a route:</strong> Route is fetched → Street View prepared → <strong>3, 2, 1, Start!</strong> countdown, then the ride starts.</li>
+        <li><strong>Same route again:</strong> Only countdown, then the ride starts.</li>
+      </ul>
+      <h4 className={docSubtitle}>5.2 Controls During the Ride (in the elevation panel)</h4>
+      <p className={docBody}>When the elevation panel is open, you can use:</p>
+      <table className={docTable}>
+        <thead>
+          <tr><th className={docTableTh}>Button</th><th className={docTableTh}>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td className={docTableTd}><strong>▶ (Play)</strong></td><td className={docTableTd}>Start or resume the ride</td></tr>
+          <tr><td className={docTableTd}><strong>⏸ (Pause)</strong></td><td className={docTableTd}>Pause the ride</td></tr>
+          <tr><td className={docTableTd}><strong>↺ (Restart)</strong></td><td className={docTableTd}>Restart from the beginning of the route</td></tr>
+          <tr><td className={docTableTd}><strong>■ (Stop)</strong></td><td className={docTableTd}>Stop the ride (position and time reset)</td></tr>
+        </tbody>
+      </table>
+      <ul className={docList}>
+        <li><strong>Distance</strong> and <strong>elapsed time</strong> are shown at the top of the elevation panel.</li>
+        <li>During the ride, a <strong>marker</strong> on the map shows your position; with Street View on, the view updates along the route.</li>
+      </ul>
+
+      <h3 className={docTitle}>6. Street View</h3>
+      <h4 className={docSubtitle}>6.1 Turn Street View On/Off</h4>
+      <ul className={docList}>
+        <li>Tap the <strong>Street View icon</strong> (top-right) to turn Street View on or off.</li>
+        <li>When on, real Street View along the route is shown at the top (or full screen).</li>
+      </ul>
+      <h4 className={docSubtitle}>6.2 Full Screen / Minimize</h4>
+      <ul className={docList}>
+        <li>With Street View on, tap the <strong>expand/collapse icon</strong> to switch between full screen and top half + map below.</li>
+        <li>In full screen, a small <strong>mini map</strong> is shown on one side.</li>
+      </ul>
+      <h4 className={docSubtitle}>6.3 Street View Coverage</h4>
+      <ul className={docList}>
+        <li>Tap the <strong>route icon</strong> to show streets with Street View on the map.</li>
+        <li>Segments in blue have Street View. Some segments may have no coverage; you may see "No Street View available for this section."</li>
+      </ul>
+      <h4 className={docSubtitle}>6.4 User-Contributed Imagery</h4>
+      <p className={docBody}>Where official imagery is not available, <strong>user-contributed panoramas</strong> may be used. In that case, "User-contributed imagery" may be shown.</p>
+
+      <h3 className={docTitle}>7. Elevation Chart and Position</h3>
+      <h4 className={docSubtitle}>7.1 Elevation Chart</h4>
+      <ul className={docList}>
+        <li>When a route exists, the <strong>elevation chart</strong> panel appears in the <strong>bottom-right</strong>.</li>
+        <li>Tap the <strong>chart icon</strong> or <strong>arrow</strong> to expand or collapse the panel.</li>
+        <li>The chart shows <strong>elevation</strong> along the route; a <strong>white vertical line</strong> indicates your <strong>current position</strong>.</li>
+      </ul>
+      <h4 className={docSubtitle}>7.2 Jump Along the Route (Step back / Fast forward)</h4>
+      <ul className={docList}>
+        <li>Use the <strong>◀ / ▶</strong> buttons on the elevation chart to move your position forward or backward along the route by several points.</li>
+        <li>Useful after pausing to jump to a different segment and resume.</li>
+      </ul>
+
+      <h3 className={docTitle}>8. AI Coaching and Music</h3>
+      <h4 className={docSubtitle}>8.1 AI Coaching</h4>
+      <ul className={docList}>
+        <li>When <strong>coaching is on</strong>, tips (posture, resistance, intensity, etc.) are shown based on gradient and speed.</li>
+        <li>Use the <strong>microphone icon</strong> to turn coaching on or off.</li>
+        <li>Use the <strong>speech bubble icon</strong> to show or hide only the coaching text.</li>
+      </ul>
+      <h4 className={docSubtitle}>8.2 Background Music</h4>
+      <ul className={docList}>
+        <li>Use the <strong>music icon</strong> to turn background music on or off.</li>
+        <li>Use it during the ride as you prefer.</li>
+      </ul>
+
+      <h3 className={docTitle}>9. Place Search and Favorites</h3>
+      <h4 className={docSubtitle}>9.1 Place Search</h4>
+      <ul className={docList}>
+        <li>Tap the <strong>search icon</strong> (top-left) to open the <strong>search bar</strong>.</li>
+        <li>Type a place name or address in "Search place..." and press <strong>Enter</strong>; the map moves there and a marker is placed.</li>
+        <li>Searches are stored in <strong>Recent</strong> for quick reuse.</li>
+      </ul>
+      <h4 className={docSubtitle}>9.2 My Routes (Saved Routes)</h4>
+      <ul className={docList}>
+        <li>With the <strong>route panel</strong> open, widen it to the right to see <strong>My Routes</strong>.</li>
+        <li>Up to <strong>5</strong> routes can be saved.</li>
+        <li><strong>Save:</strong> Set start and end (and waypoints), create the route, then tap <strong>★</strong>.</li>
+        <li><strong>Load:</strong> Tap a route in My Routes to apply its start, end, and waypoints; the route is restored if available.</li>
+        <li><strong>Delete:</strong> Tap the <strong>X</strong> next to a route (visible on hover) to remove it from favorites.</li>
+      </ul>
+
+      <h3 className={docTitle}>10. Menu and Information</h3>
+      <ul className={docList}>
+        <li>Tap the <strong>menu icon (≡)</strong> (top-left) to open the <strong>menu panel</strong>.</li>
+      </ul>
+      <h4 className={docSubtitle}>10.1 Menu Items</h4>
+      <table className={docTable}>
+        <thead>
+          <tr><th className={docTableTh}>Item</th><th className={docTableTh}>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td className={docTableTd}><strong>About</strong></td><td className={docTableTd}>App overview, features, audience, data sources, disclaimer</td></tr>
+          <tr><td className={docTableTd}><strong>Help</strong></td><td className={docTableTd}>Summary of how to use the app and controls</td></tr>
+          <tr><td className={docTableTd}><strong>Legal</strong></td><td className={docTableTd}>Privacy Policy, Terms of Service, Disclaimer, Open Source Licenses</td></tr>
+          <tr><td className={docTableTd}><strong>Contact</strong></td><td className={docTableTd}>Contact and feedback</td></tr>
+        </tbody>
+      </table>
+      <ul className={docList}>
+        <li><strong>Back to Menu:</strong> Return to the menu list from a sub-screen.</li>
+        <li><strong>Back to Simulator:</strong> Close the menu and return to the simulator.</li>
+      </ul>
+      <h4 className={docSubtitle}>10.2 Map Style</h4>
+      <p className={docBody}>Tap the <strong>layers icon</strong> (top-right) to switch between <strong>standard map</strong> and <strong>satellite/terrain (hybrid)</strong>.</p>
+
+      <h3 className={docTitle}>11. Notes and Disclaimer</h3>
+      <ul className={docList}>
+        <li>This app is for <strong>indoor cycling simulation and route exploration</strong> only. Do <strong>not</strong> use it for real-road navigation or safety decisions.</li>
+        <li>Map, route, and elevation data are <strong>approximate</strong> and may differ from real roads, construction, closures, and terrain.</li>
+        <li>Check your <strong>health</strong> before exercise and consult a medical professional if needed. The developer is not responsible for injury or damage from using this app.</li>
+        <li>For details, see <strong>Disclaimer</strong>, <strong>Terms of Service</strong>, and <strong>Privacy Policy</strong> in the menu.</li>
+      </ul>
+
+      <p className={`${docBody} mt-4`}><strong>Ride the World – Indoor Cycling</strong><br />© 2026 LiveOnSoft — Version 1.0</p>
+      <p className={docBody}>Screens and wording may vary by app version. For further questions, use <strong>Contact</strong> in the app or the store/official page.</p>
     </div>
   );
 }
@@ -130,17 +328,26 @@ function DisclaimerContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Disclaimer</h2>
-      <p className={docBody}>Last updated: March 2026.</p>
+      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
       <h3 className={docTitle}>1. Purpose and Nature of the App</h3>
-      <p className={docBody}>The App is provided only for indoor cycling route simulation and entertainment. Content is for reference, experience, and motivation; not as an official basis for real-road riding or training.</p>
-      <h3 className={docTitle}>2. Medical and Health</h3>
-      <p className={docBody}>The App is not a substitute for professional medical or exercise advice. Consult a physician before starting or changing an exercise program. If you experience dizziness, difficulty breathing, chest pain, or muscle or joint pain, stop and seek medical care. The developers accept no responsibility for such symptoms or resulting harm.</p>
+      <p className={docBody}>1.1 Ride the World – Indoor Cycling (the "App") is provided only for indoor cycling route simulation and entertainment.</p>
+      <p className={docBody}>1.2 Maps, routes, elevation, Street View, ride simulation, and other content in the App are for reference, experience, and motivation. They must not be used as an official basis or recommendation for real-road riding, racing, or training plans.</p>
+      <h3 className={docTitle}>2. Medical and Health Disclaimer</h3>
+      <p className={docBody}>2.1 The App is not a substitute for professional medical, health, or exercise advice. Coaching, resistance, intensity, and similar content in the App are for general reference only and are not exercise prescriptions tailored to your health, conditions, age, or fitness.</p>
+      <p className={docBody}>2.2 Before starting a new exercise program or changing intensity or method, consult a physician or qualified health or exercise professional. This is especially important if you have cardiovascular, respiratory, or musculoskeletal conditions, are pregnant or nursing, or are on medication.</p>
+      <p className={docBody}>2.3 If you experience dizziness, difficulty breathing, chest pain, or muscle or joint pain while using the App, stop exercising immediately and seek medical care if needed. The developers and operators accept no responsibility for such symptoms or any resulting harm.</p>
       <h3 className={docTitle}>3. Accuracy of Data</h3>
-      <p className={docBody}>Routes, distance, elevation, and time are approximations and may differ from actual conditions. Do not rely on this App alone for outdoor riding or elevation measurement.</p>
+      <p className={docBody}>3.1 Routes, distance, elevation, and estimated time shown in the App are approximations and may differ from actual roads, terrain, closures, construction, and traffic.</p>
+      <p className={docBody}>3.2 This data is based on information from third parties (map, route, elevation APIs, etc.) and may contain errors, delays, or be outdated. Do not rely on this App alone for real outdoor riding, climbing, hiking plans, or distance/elevation measurement.</p>
       <h3 className={docTitle}>4. Outdoor Use and Safety</h3>
       <p className={docBody}>Do not use the App for navigation or safety decisions on real roads. Use official navigation, maps, and traffic rules. The developers are not responsible for accidents or injury from following the App’s routes outdoors.</p>
       <h3 className={docTitle}>5. Limitation of Liability</h3>
-      <p className={docBody}>The developers and Operator disclaim all liability, to the extent permitted by law, for bodily injury, death, property loss, or other damage from use of the App or reliance on its content. Use at your own risk.</p>
+      <p className={docBody}>5.1 The developers, Operator (LiveOnSoft), and related parties disclaim all liability, to the extent permitted by law, for bodily injury, death, property loss, mental harm, indirect, incidental, special, or consequential damage resulting from use or inability to use the App or reliance on data, coaching, music, or other content in the App.</p>
+      <p className={docBody}>5.2 Use of the App is at your own risk. By using the App, you are deemed to have read and agreed to the above disclaimers.</p>
+      <h3 className={docTitle}>6. Other</h3>
+      <p className={docBody}>6.1 This Disclaimer applies together with the Terms of Service and Privacy Policy. If it conflicts with them, the provision more favorable to the user may prevail.</p>
+      <p className={docBody}>6.2 This Disclaimer may be amended; changes will be reflected and announced in the App or documentation. Continued use of the App after changes constitutes acceptance of the updated Disclaimer.</p>
+      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
     </div>
   );
 }
