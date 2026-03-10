@@ -106,8 +106,49 @@ function ContactContent() {
   );
 }
 
+function AboutContent() {
+  return (
+    <>
+      <h3 className="font-semibold text-slate-900 mb-2">Ride the World – Indoor Cycling</h3>
+      <p className="mb-4 text-slate-700">
+        Cycling route planner and map-based ride simulator with elevation analysis.
+      </p>
+      <h3 className="font-semibold text-slate-900 mb-2">Key Features</h3>
+      <ul className="list-disc pl-5 space-y-1 mb-4">
+        <li>Cycling route planner on real-world maps</li>
+        <li>Bike route exploration with interactive map</li>
+        <li>Elevation profile for climbs and descents</li>
+        <li>Ride simulation along selected routes</li>
+      </ul>
+      <h3 className="font-semibold text-slate-900 mb-2">Who This App Is For</h3>
+      <ul className="list-disc pl-5 space-y-1 mb-4">
+        <li>Cyclists planning new bike routes</li>
+        <li>Riders exploring unfamiliar cycling areas</li>
+        <li>Users checking elevation before a ride</li>
+        <li>Anyone interested in cycling route maps</li>
+      </ul>
+      <h3 className="font-semibold text-slate-900 mb-2">Data Sources</h3>
+      <p className="mb-1 font-medium text-slate-900">Map Data</p>
+      <p className="mb-3 text-slate-700">OpenStreetMap contributors</p>
+      <p className="mb-1 font-medium text-slate-900">Routing Engine</p>
+      <p className="mb-3 text-slate-700">OSRM (Open Source Routing Machine)</p>
+      <p className="mb-1 font-medium text-slate-900">Elevation Data</p>
+      <p className="mb-3 text-slate-700">Open-Elevation API</p>
+      <p className="mb-1 font-medium text-slate-900">Map Rendering</p>
+      <p className="mb-3 text-slate-700">Leaflet JS</p>
+      <p className="mb-1 font-medium text-slate-900">Icons</p>
+      <p className="mb-4 text-slate-700">Lucide Icons</p>
+      <h3 className="font-semibold text-slate-900 mb-2">Disclaimer</h3>
+      <p className="mb-3 text-slate-700">
+        Ride the World – Indoor Cycling is provided for route exploration and simulation purposes only. Map data, routes, and elevation may contain inaccuracies. Users must follow local traffic laws and ensure their own safety. The developer assumes no responsibility for any loss, damage, or injury resulting from the use of this application.
+      </p>
+    </>
+  );
+}
+
 export type MenuView =
   | "list"
+  | "about"
   | "help"
   | "privacy"
   | "terms"
@@ -151,6 +192,7 @@ export default function MenuPanel({
   };
 
   const viewMap = {
+    about: <AboutContent />,
     help: <HelpContent />,
     privacy: <PrivacyContent />,
     terms: <TermsContent />,
@@ -217,10 +259,7 @@ export default function MenuPanel({
 
               <li>
                 <button
-                  onClick={() => {
-                    onOpenAbout();
-                    onClose();
-                  }}
+                  onClick={() => setMenuView("about")}
                   className="w-full text-left px-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
                 >
                   About
@@ -298,7 +337,7 @@ export default function MenuPanel({
 
         {/* footer */}
 
-        <div className="px-4 py-3 border-t text-xs text-slate-500">
+        <div className="px-4 py-3 border-t text-xs text-slate-500 text-center">
           {APP_NAME}
           <br />
           Version 1.0

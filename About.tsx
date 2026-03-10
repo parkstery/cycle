@@ -29,24 +29,25 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
           paddingBottom: 12,
         }}
       >
-        <div className="flex items-center gap-3">
-          {onBackToMenu && (
+        <div className="flex items-center">
+          {onBackToMenu ? (
             <button
               onClick={onBackToMenu}
               className="text-slate-700 font-medium hover:opacity-70"
             >
               ← <span className="ml-1">Back to Menu</span>
             </button>
+          ) : (
+            <span aria-hidden />
           )}
+        </div>
+        <div className="flex items-center">
           <button
             onClick={onClose}
-            className="text-slate-900 font-semibold hover:opacity-70"
+            className="text-slate-700 font-medium hover:opacity-70"
           >
-            {onBackToMenu ? (
-              <span>Back to Simulator</span>
-            ) : (
-              <>← <span className="ml-2">Back to Simulator</span></>
-            )}
+            <span>Back to Simulator</span>
+            <span className="ml-1">×</span>
           </button>
         </div>
       </header>
