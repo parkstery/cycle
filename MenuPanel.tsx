@@ -497,7 +497,7 @@ export default function MenuPanel({
               onClick={onClose}
               className="flex items-center gap-1 text-slate-700"
             >
-              Return
+
               <X size={18} />
             </button>
 
