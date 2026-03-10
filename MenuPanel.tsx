@@ -23,18 +23,49 @@ function HelpContent() {
 
 function PrivacyContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Privacy Policy</h3>
-      <p className="mb-3">
-        This app may use your location and map search input only to provide route and elevation data. No personal data is stored on our servers unless you explicitly save routes in the app.
+    <div className="space-y-4 text-slate-800">
+      <h3 className="font-semibold text-slate-900 mb-2">개인정보처리방침</h3>
+      <p className="text-xs">
+        Ride the World – Indoor Cycling은 실내 사이클링 경로 시뮬레이션 및 지도·경로 탐색 서비스를 제공합니다. 개발·운영: LiveOnSoft. 앱은 자체 서버에 개인정보를 저장하지 않습니다.
       </p>
-      <p className="mb-3">
-        Third-party services (e.g. maps, elevation APIs) have their own privacy policies; we recommend reviewing them when using those features.
+
+      <h4 className="font-medium text-slate-900 mt-3 mb-1">1. 수집·이용하는 정보</h4>
+      <ul className="list-disc pl-5 space-y-1 text-xs">
+        <li><strong>직접 입력:</strong> 출발지·도착지·경유지, 장소 검색어 — 경로 검색·지도 표시·표고 계산 목적으로만 사용합니다.</li>
+        <li><strong>위치(선택):</strong> 브라우저 위치 권한 동의 시 현재 위치를 지도 초기 중심 설정에만 사용하며, 서버로 전송하지 않습니다.</li>
+        <li>이름, 이메일, 전화번호, 계정·결제 정보는 수집하지 않으며, 로그인·회원가입을 요구하지 않습니다.</li>
+      </ul>
+
+      <h4 className="font-medium text-slate-900 mt-3 mb-1">2. 저장 데이터 (기기 내)</h4>
+      <p className="text-xs">
+        다음 데이터만 사용자 기기의 브라우저 저장소(localStorage)에 저장됩니다. 자체 서버에는 저장하지 않습니다.
       </p>
-      <p>
-        We do not sell or share your data with advertisers. This policy may be updated; continued use of the app constitutes acceptance.
+      <ul className="list-disc pl-5 space-y-1 text-xs">
+        <li><strong>favorite_routes:</strong> 저장한 경로(출발·도착·경유지·경로 지오메트리) — My Routes 복원용.</li>
+        <li><strong>recent_places:</strong> 최근 장소 검색어 — 검색 편의용. 저장·삭제는 사용자 행위로 제어됩니다.</li>
+      </ul>
+
+      <h4 className="font-medium text-slate-900 mt-3 mb-1">3. 제3자 서비스</h4>
+      <p className="text-xs">
+        경로 검색·지도·표고·거리뷰를 위해 OpenStreetMap/Nominatim, OSRM, Open-Elevation, Google Maps/Street View 등이 사용됩니다. 검색어·좌표·IP 등이 해당 서비스로 전달될 수 있으며, 처리 방식은 각 사업자의 개인정보처리방침을 따릅니다. 앱은 광고주나 데이터 브로커에게 데이터를 판매·공유하지 않습니다.
       </p>
-    </>
+
+      <h4 className="font-medium text-slate-900 mt-3 mb-1">4. 보관·권리·보안</h4>
+      <ul className="list-disc pl-5 space-y-1 text-xs">
+        <li>기기 내 저장 데이터는 사용자가 삭제하거나 저장소를 초기화할 때까지 유지됩니다.</li>
+        <li>My Routes에서 항목 삭제, 브라우저/기기에서 위치 권한 해제 등으로 이용자 권리를 행사할 수 있습니다.</li>
+        <li>통신은 HTTPS 등 암호화된 환경 사용을 권장합니다.</li>
+      </ul>
+
+      <h4 className="font-medium text-slate-900 mt-3 mb-1">5. 정책 변경</h4>
+      <p className="text-xs">
+        본 방침은 법령·서비스 변경에 따라 수정될 수 있습니다. 변경 후에도 앱을 계속 이용하시면 변경된 정책에 동의한 것으로 봅니다. 최종 업데이트 일자는 앱 또는 문서에 표기합니다.
+      </p>
+
+      <p className="text-xs text-slate-500 mt-3">
+        전문은 프로젝트 내 docs/PRIVACY_POLICY_KO.md에서 확인할 수 있습니다. 문의는 앱 스토어 또는 공식 프로젝트 페이지 연락처를 이용해 주세요.
+      </p>
+    </div>
   );
 }
 
