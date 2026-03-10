@@ -1,186 +1,173 @@
 import React, { useEffect } from "react";
-import { ChevronRight, ChevronDown, ChevronLeft, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, X } from "lucide-react";
 
 const APP_NAME = "Ride the World – Indoor Cycling";
 
-function HelpContent() {
+const docTitle = "text-base font-bold text-slate-900 mt-4 mb-2 first:mt-0";
+const docBody = "text-sm text-slate-700 leading-relaxed mb-2";
+const docList = "list-disc pl-5 space-y-1 text-sm text-slate-700 mb-2";
+
+function SimpleGuideContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">How to use</h3>
-      <p className="mb-3">
-        Choose a route on the map or search for a destination. Start the ride to begin indoor cycling with elevation and distance based on your selection.
-      </p>
-      <h3 className="font-semibold text-slate-900 mb-2">Controls</h3>
-      <p className="mb-3">
-        Use Play/Pause to control the simulation. You can adjust speed, view the elevation chart, and use street view where available.
-      </p>
-      <p>
-        For more details, see the About screen from the menu.
-      </p>
-    </>
+    <div className="pb-6">
+      <h2 className={docTitle}>Simple Guide</h2>
+      <p className={docBody}>1) Select two points on the map to set the start and destination.</p>
+      <p className={docBody}>2) Choose the travel mode. (Car / Bike / Foot)</p>
+      <p className={docBody}>3) Press the Go! button to start the ride.</p>
+    </div>
+  );
+}
+
+function UserGuideContent() {
+  return (
+    <div className="pb-6 space-y-2">
+      <h2 className={docTitle}>User Guide</h2>
+      <p className={docBody}>This guide explains the main features of Ride the World – Indoor Cycling. You can choose real-world routes and simulate them indoors with elevation and Street View.</p>
+      <h3 className={docTitle}>1. App Overview</h3>
+      <p className={docBody}>Plan bike / walk / car routes on real maps, view elevation along the route, watch Street View, and simulate the ride indoors at your chosen speed. Data: OpenStreetMap, OSRM, Open-Elevation API.</p>
+      <h3 className={docTitle}>2. Getting Started</h3>
+      <p className={docBody}>The route panel is in the bottom-left. Set Start and End (type addresses with autocomplete, or click the map and use START / WAYPOINT / END in the popup).</p>
+      <h3 className={docTitle}>3. Route and Speed</h3>
+      <p className={docBody}>Choose Car, Bike, or Foot. Set speed 10–70 km/h. Use the star to save routes to My Routes (up to 5). Press Go to start; first time shows a countdown.</p>
+      <h3 className={docTitle}>4. During the Ride</h3>
+      <p className={docBody}>Use Play / Pause, Restart, Stop in the elevation panel. Step back / Fast forward buttons move along the route. Toggle Street View and elevation chart from the controls.</p>
+      <h3 className={docTitle}>5. Menu</h3>
+      <p className={docBody}>About, Guide (Simple Guide, User Guide), Settings, Legal (Privacy, Terms, Disclaimer, Licenses), and Contact are available from the menu.</p>
+    </div>
+  );
+}
+
+function SettingsContent() {
+  return (
+    <div className="pb-6">
+      <h2 className={docTitle}>Settings</h2>
+      <p className={docBody}>Settings screen will be available here in a future update.</p>
+    </div>
+  );
+}
+
+function AboutContent() {
+  return (
+    <div className="pb-6">
+      <h2 className={docTitle}>About</h2>
+      <p className={docBody}>Ride the World – Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Last updated: March 2026.</p>
+      <h3 className={docTitle}>1. App Overview</h3>
+      <p className={docBody}>Set a route anywhere in the world and experience it on your indoor bike.</p>
+      <h3 className={docTitle}>2. Main Features</h3>
+      <ul className={docList}>
+        <li>Route planning on real maps (start, end, waypoints; car, bike, foot)</li>
+        <li>Elevation analysis and chart along the route</li>
+        <li>Ride simulation with speed control</li>
+        <li>Street View along the route</li>
+        <li>AI coaching and background music (when available)</li>
+      </ul>
+      <h3 className={docTitle}>3. Who It's For</h3>
+      <ul className={docList}>
+        <li>Cyclists planning new routes</li>
+        <li>Users who want to preview routes or check elevation</li>
+        <li>Users who want to simulate routes from around the world indoors</li>
+      </ul>
+      <h3 className={docTitle}>4. Data Sources and Credits</h3>
+      <p className={docBody}>Map data: OpenStreetMap (© OpenStreetMap contributors). Routing: OSRM. Geocoding: Nominatim. Elevation: Open-Elevation API. Street View: subject to the respective service terms. Icons: Lucide Icons.</p>
+      <h3 className={docTitle}>5. Disclaimer</h3>
+      <p className={docBody}>This App is for route exploration, simulation, and fitness entertainment only. Do not use for real outdoor navigation or safety decisions. Use at your own risk. See Disclaimer and Terms of Service in the menu.</p>
+      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
+    </div>
   );
 }
 
 function PrivacyContent() {
   return (
-    <div className="space-y-4 text-slate-800">
-      <h3 className="font-semibold text-slate-900 mb-2">개인정보처리방침</h3>
-      <p className="text-xs">
-        Ride the World – Indoor Cycling은 실내 사이클링 경로 시뮬레이션 및 지도·경로 탐색 서비스를 제공합니다. 개발·운영: LiveOnSoft. 앱은 자체 서버에 개인정보를 저장하지 않습니다.
-      </p>
-
-      <h4 className="font-medium text-slate-900 mt-3 mb-1">1. 수집·이용하는 정보</h4>
-      <ul className="list-disc pl-5 space-y-1 text-xs">
-        <li><strong>직접 입력:</strong> 출발지·도착지·경유지, 장소 검색어 — 경로 검색·지도 표시·표고 계산 목적으로만 사용합니다.</li>
-        <li><strong>위치(선택):</strong> 브라우저 위치 권한 동의 시 현재 위치를 지도 초기 중심 설정에만 사용하며, 서버로 전송하지 않습니다.</li>
-        <li>이름, 이메일, 전화번호, 계정·결제 정보는 수집하지 않으며, 로그인·회원가입을 요구하지 않습니다.</li>
-      </ul>
-
-      <h4 className="font-medium text-slate-900 mt-3 mb-1">2. 저장 데이터 (기기 내)</h4>
-      <p className="text-xs">
-        다음 데이터만 사용자 기기의 브라우저 저장소(localStorage)에 저장됩니다. 자체 서버에는 저장하지 않습니다.
-      </p>
-      <ul className="list-disc pl-5 space-y-1 text-xs">
-        <li><strong>favorite_routes:</strong> 저장한 경로(출발·도착·경유지·경로 지오메트리) — My Routes 복원용.</li>
-        <li><strong>recent_places:</strong> 최근 장소 검색어 — 검색 편의용. 저장·삭제는 사용자 행위로 제어됩니다.</li>
-      </ul>
-
-      <h4 className="font-medium text-slate-900 mt-3 mb-1">3. 제3자 서비스</h4>
-      <p className="text-xs">
-        경로 검색·지도·표고·거리뷰를 위해 OpenStreetMap/Nominatim, OSRM, Open-Elevation, Google Maps/Street View 등이 사용됩니다. 검색어·좌표·IP 등이 해당 서비스로 전달될 수 있으며, 처리 방식은 각 사업자의 개인정보처리방침을 따릅니다. 앱은 광고주나 데이터 브로커에게 데이터를 판매·공유하지 않습니다.
-      </p>
-
-      <h4 className="font-medium text-slate-900 mt-3 mb-1">4. 보관·권리·보안</h4>
-      <ul className="list-disc pl-5 space-y-1 text-xs">
-        <li>기기 내 저장 데이터는 사용자가 삭제하거나 저장소를 초기화할 때까지 유지됩니다.</li>
-        <li>My Routes에서 항목 삭제, 브라우저/기기에서 위치 권한 해제 등으로 이용자 권리를 행사할 수 있습니다.</li>
-        <li>통신은 HTTPS 등 암호화된 환경 사용을 권장합니다.</li>
-      </ul>
-
-      <h4 className="font-medium text-slate-900 mt-3 mb-1">5. 정책 변경</h4>
-      <p className="text-xs">
-        본 방침은 법령·서비스 변경에 따라 수정될 수 있습니다. 변경 후에도 앱을 계속 이용하시면 변경된 정책에 동의한 것으로 봅니다. 최종 업데이트 일자는 앱 또는 문서에 표기합니다.
-      </p>
-
-      <p className="text-xs text-slate-500 mt-3">
-        전문은 프로젝트 내 docs/PRIVACY_POLICY_KO.md에서 확인할 수 있습니다. 문의는 앱 스토어 또는 공식 프로젝트 페이지 연락처를 이용해 주세요.
-      </p>
+    <div className="pb-6">
+      <h2 className={docTitle}>Privacy Policy</h2>
+      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
+      <h3 className={docTitle}>1. Overview</h3>
+      <p className={docBody}>The App provides indoor cycling route simulation and map and route exploration. Developer: LiveOnSoft. The App does not store personal information on its own servers.</p>
+      <h3 className={docTitle}>2. Information Collected and Used</h3>
+      <p className={docBody}>Route search input (start, end, waypoints) and place search terms are used for route search, map display, and elevation. Location may be used once with your consent to set the map center; not sent to our servers. We do not collect name, email, phone, account, or payment information. No login or registration required.</p>
+      <h3 className={docTitle}>3. Stored Data (On Device)</h3>
+      <p className={docBody}>favorite_routes: saved routes for My Routes. recent_places: recent search terms. Stored only in your browser (localStorage). Clearing storage removes this data.</p>
+      <h3 className={docTitle}>4. Third-Party Services</h3>
+      <p className={docBody}>OpenStreetMap/Nominatim, OSRM, Open-Elevation, Google Maps/Street View are used. Search terms, coordinates, and IP may be sent to those services under their policies. We do not sell or share data with ad networks or data brokers.</p>
+      <h3 className={docTitle}>5. Your Rights and Policy Changes</h3>
+      <p className={docBody}>You can delete saved routes in My Routes and revoke location in browser/device settings. This policy may be updated; continued use constitutes acceptance.</p>
     </div>
   );
 }
 
 function TermsContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Terms of Service</h3>
-      <p className="mb-3">
-        By using Ride the World – Indoor Cycling you agree to use the app for personal, non-commercial indoor training only. You must not misuse the service or attempt to access systems or data you are not authorised to use.
-      </p>
-      <p className="mb-3">
-        Route and map data are provided by third parties; we do not guarantee accuracy or availability. Use at your own risk, especially when planning outdoor activities.
-      </p>
-      <p>
-        We may change these terms from time to time. Your continued use of the app after changes constitutes acceptance of the updated terms.
-      </p>
-    </>
+    <div className="pb-6">
+      <h2 className={docTitle}>Terms of Service</h2>
+      <p className={docBody}>Last updated: March 2026.</p>
+      <h3 className={docTitle}>1. Application and Acceptance</h3>
+      <p className={docBody}>These Terms govern the relationship between LiveOnSoft (“Operator”) and users of Ride the World – Indoor Cycling. Using the App constitutes acceptance. No registration or login required.</p>
+      <h3 className={docTitle}>2. Definition of the Service</h3>
+      <p className={docBody}>The App provides indoor cycling route simulation and map and route exploration (route search, elevation, ride simulation, Street View, saved routes, AI coaching, etc.). Content and scope may change without notice. The Operator does not guarantee continuity, completeness, or accuracy.</p>
+      <h3 className={docTitle}>3. Eligibility and Use Restrictions</h3>
+      <p className={docBody}>Use only for personal, non-commercial purposes. Commercial use, reverse engineering, crawling, and use that violates laws or others’ rights are prohibited.</p>
+      <h3 className={docTitle}>4. Third-Party Data and Liability</h3>
+      <p className={docBody}>Route, map, and elevation data are provided by third parties; we do not guarantee accuracy. Do not use for real outdoor navigation or safety. The Operator disclaims liability for injury, loss, or damage from use of the App or its data, to the extent permitted by law.</p>
+      <h3 className={docTitle}>5. Changes</h3>
+      <p className={docBody}>Terms may be amended. Continued use after changes constitutes acceptance of the updated terms.</p>
+    </div>
   );
 }
 
 function DisclaimerContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Disclaimer</h3>
-      <p className="mb-3">
-        This app is for indoor cycling simulation and entertainment only. It is not a substitute for professional medical or fitness advice. Consult a doctor before starting or changing any exercise program.
-      </p>
-      <p className="mb-3">
-        Elevation, distance, and route data are approximate and may differ from real-world conditions. Do not rely on this app for navigation or safety-critical decisions outdoors.
-      </p>
-      <p>
-        The developers are not liable for any injury, loss, or damage arising from use of this app or the data it displays.
-      </p>
-    </>
+    <div className="pb-6">
+      <h2 className={docTitle}>Disclaimer</h2>
+      <p className={docBody}>Last updated: March 2026.</p>
+      <h3 className={docTitle}>1. Purpose and Nature of the App</h3>
+      <p className={docBody}>The App is provided only for indoor cycling route simulation and entertainment. Content is for reference, experience, and motivation; not as an official basis for real-road riding or training.</p>
+      <h3 className={docTitle}>2. Medical and Health</h3>
+      <p className={docBody}>The App is not a substitute for professional medical or exercise advice. Consult a physician before starting or changing an exercise program. If you experience dizziness, difficulty breathing, chest pain, or muscle or joint pain, stop and seek medical care. The developers accept no responsibility for such symptoms or resulting harm.</p>
+      <h3 className={docTitle}>3. Accuracy of Data</h3>
+      <p className={docBody}>Routes, distance, elevation, and time are approximations and may differ from actual conditions. Do not rely on this App alone for outdoor riding or elevation measurement.</p>
+      <h3 className={docTitle}>4. Outdoor Use and Safety</h3>
+      <p className={docBody}>Do not use the App for navigation or safety decisions on real roads. Use official navigation, maps, and traffic rules. The developers are not responsible for accidents or injury from following the App’s routes outdoors.</p>
+      <h3 className={docTitle}>5. Limitation of Liability</h3>
+      <p className={docBody}>The developers and Operator disclaim all liability, to the extent permitted by law, for bodily injury, death, property loss, or other damage from use of the App or reliance on its content. Use at your own risk.</p>
+    </div>
   );
 }
 
 function LicensesContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Open Source Licenses</h3>
-      <p className="mb-3">
-        This application uses open source software. Key components may include (depending on build):
-      </p>
-      <ul className="list-disc pl-5 space-y-1 mb-3">
-        <li>React – MIT License</li>
-        <li>Lucide React (icons) – ISC License</li>
-        <li>Vite – MIT License</li>
-        <li>Google Maps / APIs – Google Terms of Service</li>
-      </ul>
-      <p>
-        Full license texts are available in the app repository or from the respective projects. We do not claim ownership of third-party open source code; all rights remain with their authors.
-      </p>
-    </>
+    <div className="pb-6">
+      <h2 className={docTitle}>Open Source Licenses</h2>
+      <p className={docBody}>Last updated: March 2026. This App is built using open source software. Full license texts can be found in the respective project repositories or npm.</p>
+      <h3 className={docTitle}>2. Open Source Software Used</h3>
+      <p className={docBody}>Runtime: react, react-dom (MIT), lucide-react (ISC), recharts (MIT). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
+      <h3 className={docTitle}>3. Summary of Main Licenses</h3>
+      <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, see each package’s official repository or npm.</p>
+    </div>
   );
 }
 
 function ContactContent() {
   return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Contact</h3>
-      <p className="mb-3">
-        For support, feedback, or legal inquiries regarding Ride the World – Indoor Cycling, please use the contact method provided in the app store listing or the official project page.
-      </p>
-      <p>
-        We aim to respond to reasonable requests in a timely manner. Please include a clear subject and description so we can help you effectively.
-      </p>
-    </>
-  );
-}
-
-function AboutContent() {
-  return (
-    <>
-      <h3 className="font-semibold text-slate-900 mb-2">Ride the World – Indoor Cycling</h3>
-      <p className="mb-4 text-slate-700">
-        Cycling route planner and map-based ride simulator with elevation analysis.
-      </p>
-      <h3 className="font-semibold text-slate-900 mb-2">Key Features</h3>
-      <ul className="list-disc pl-5 space-y-1 mb-4">
-        <li>Cycling route planner on real-world maps</li>
-        <li>Bike route exploration with interactive map</li>
-        <li>Elevation profile for climbs and descents</li>
-        <li>Ride simulation along selected routes</li>
-      </ul>
-      <h3 className="font-semibold text-slate-900 mb-2">Who This App Is For</h3>
-      <ul className="list-disc pl-5 space-y-1 mb-4">
-        <li>Cyclists planning new bike routes</li>
-        <li>Riders exploring unfamiliar cycling areas</li>
-        <li>Users checking elevation before a ride</li>
-        <li>Anyone interested in cycling route maps</li>
-      </ul>
-      <h3 className="font-semibold text-slate-900 mb-2">Data Sources</h3>
-      <p className="mb-1 font-medium text-slate-900">Map Data</p>
-      <p className="mb-3 text-slate-700">OpenStreetMap contributors</p>
-      <p className="mb-1 font-medium text-slate-900">Routing Engine</p>
-      <p className="mb-3 text-slate-700">OSRM (Open Source Routing Machine)</p>
-      <p className="mb-1 font-medium text-slate-900">Elevation Data</p>
-      <p className="mb-3 text-slate-700">Open-Elevation API</p>
-      <p className="mb-1 font-medium text-slate-900">Map Rendering</p>
-      <p className="mb-3 text-slate-700">Leaflet JS</p>
-      <p className="mb-1 font-medium text-slate-900">Icons</p>
-      <p className="mb-4 text-slate-700">Lucide Icons</p>
-      <h3 className="font-semibold text-slate-900 mb-2">Disclaimer</h3>
-      <p className="mb-3 text-slate-700">
-        Ride the World – Indoor Cycling is provided for route exploration and simulation purposes only. Map data, routes, and elevation may contain inaccuracies. Users must follow local traffic laws and ensure their own safety. The developer assumes no responsibility for any loss, damage, or injury resulting from the use of this application.
-      </p>
-    </>
+    <div className="pb-6">
+      <h2 className={docTitle}>Contact</h2>
+      <p className={docBody}>Ride the World – Indoor Cycling is developed and operated by LiveOnSoft. Last updated: March 2026.</p>
+      <h3 className={docTitle}>1. Overview</h3>
+      <p className={docBody}>For inquiries about the App, privacy, terms, open source licenses, bugs, or suggestions, use the channels below.</p>
+      <h3 className={docTitle}>2. How to Contact</h3>
+      <p className={docBody}>In the App: Use the Contact item in the menu. Store or official page: Use the contact information on the App’s store page or LiveOnSoft’s official project or website. Project repository: For technical questions, bug reports, or feature suggestions, use the repository’s issue or contact channel (e.g. GitHub) when available. Specific email or URL may vary; refer to the latest information in the App or on the store/official page.</p>
+      <h3 className={docTitle}>3. Response</h3>
+      <p className={docBody}>We will respond when possible but do not guarantee response time or that a response will be provided. The App does not require registration or does not store account information on our servers; for account-related questions, refer to the relevant store policy.</p>
+      <p className={`${docBody} font-semibold`}>LiveOnSoft – Developer and operator of Ride the World – Indoor Cycling © 2026</p>
+    </div>
   );
 }
 
 export type MenuView =
   | "list"
   | "about"
-  | "help"
+  | "guideSimple"
+  | "guideDetail"
+  | "settings"
   | "privacy"
   | "terms"
   | "disclaimer"
@@ -193,8 +180,8 @@ interface MenuPanelProps {
   onOpenAbout: () => void;
   menuView: MenuView;
   setMenuView: (v: MenuView) => void;
-  legalExpanded: boolean;
-  setLegalExpanded: (v: boolean) => void;
+  legalExpanded?: boolean;
+  setLegalExpanded?: (v: boolean) => void;
 }
 
 export default function MenuPanel({
@@ -203,8 +190,6 @@ export default function MenuPanel({
   onOpenAbout,
   menuView,
   setMenuView,
-  legalExpanded,
-  setLegalExpanded,
 }: MenuPanelProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -222,9 +207,11 @@ export default function MenuPanel({
     setMenuView("list");
   };
 
-  const viewMap = {
+  const viewMap: Record<Exclude<MenuView, "list">, React.ReactNode> = {
     about: <AboutContent />,
-    help: <HelpContent />,
+    guideSimple: <SimpleGuideContent />,
+    guideDetail: <UserGuideContent />,
+    settings: <SettingsContent />,
     privacy: <PrivacyContent />,
     terms: <TermsContent />,
     disclaimer: <DisclaimerContent />,
@@ -287,7 +274,6 @@ export default function MenuPanel({
 
           {isList ? (
             <ul className="py-2 text-slate-800">
-
               <li>
                 <button
                   onClick={() => setMenuView("about")}
@@ -298,53 +284,80 @@ export default function MenuPanel({
                 </button>
               </li>
 
+              <li className="pt-1">
+                <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Guide</div>
+                <ul className="border-l-2 border-slate-200 ml-3 pl-4">
+                  <li>
+                    <button
+                      onClick={() => setMenuView("guideSimple")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      Simple Guide
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setMenuView("guideDetail")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      User Guide
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                </ul>
+              </li>
+
               <li>
                 <button
-                  onClick={() => setMenuView("help")}
+                  onClick={() => setMenuView("settings")}
                   className="w-full text-left px-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
                 >
-                  Help
+                  Settings
                   <ChevronRight size={18} className="text-slate-400" />
                 </button>
               </li>
 
-              {/* legal section */}
-
-              <li>
-                <button
-                  onClick={() => setLegalExpanded(!legalExpanded)}
-                  aria-expanded={legalExpanded}
-                  className="w-full text-left px-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
-                >
-                  Legal
-                  {legalExpanded ? (
-                    <ChevronDown size={18} />
-                  ) : (
-                    <ChevronRight size={18} className="text-slate-400" />
-                  )}
-                </button>
-
-                {legalExpanded && (
-                  <ul className="ml-6 border-l border-slate-200">
-
-                    {[
-                      { key: "privacy", label: "Privacy Policy" },
-                      { key: "terms", label: "Terms of Service" },
-                      { key: "disclaimer", label: "Disclaimer" },
-                      { key: "licenses", label: "Open Source Licenses" },
-                    ].map(({ key, label }) => (
-                      <li key={key}>
-                        <button
-                          onClick={() => setMenuView(key as MenuView)}
-                          className="w-full text-left pl-4 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
-                        >
-                          {label}
-                        </button>
-                      </li>
-                    ))}
-
-                  </ul>
-                )}
+              <li className="pt-1">
+                <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Legal</div>
+                <ul className="border-l-2 border-slate-200 ml-3 pl-4">
+                  <li>
+                    <button
+                      onClick={() => setMenuView("privacy")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      Privacy Policy
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setMenuView("terms")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      Terms of Service
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setMenuView("disclaimer")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      Disclaimer
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setMenuView("licenses")}
+                      className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
+                    >
+                      Open Source Licenses
+                      <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+                  </li>
+                </ul>
               </li>
 
               <li>
@@ -356,11 +369,10 @@ export default function MenuPanel({
                   <ChevronRight size={18} className="text-slate-400" />
                 </button>
               </li>
-
             </ul>
           ) : (
-            <div className="px-4 py-4 pb-8 text-sm text-slate-800 leading-relaxed">
-              {viewMap[menuView as keyof typeof viewMap]}
+            <div className="px-4 py-4 pb-8 text-slate-800 leading-relaxed overflow-y-auto">
+              {viewMap[menuView]}
             </div>
           )}
 

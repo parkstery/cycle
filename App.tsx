@@ -253,8 +253,7 @@ const App: React.FC = () => {
   const [mapType, setMapType] = useState<string>('roadmap');
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuView, setMenuView] = useState<'list' | 'help' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
-  const [legalExpanded, setLegalExpanded] = useState(false);
+  const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'settings' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
 
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -2659,15 +2658,13 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
-          legalExpanded={legalExpanded}
-          setLegalExpanded={setLegalExpanded}
         />,
         document.body
       )}
       {/* Hamburger menu - top-left (above search so always clickable) */}
       <button
         type="button"
-        onClick={() => { setMenuView('list'); setLegalExpanded(false); setMenuOpen(true); }}
+        onClick={() => { setMenuView('list'); setMenuOpen(true); }}
         title="Menu"
         className="absolute left-4 top-4 z-[85] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
         aria-label="Open menu"
