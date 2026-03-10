@@ -7,13 +7,30 @@ Last updated: March 2026
 
 ## 1. Overview
 
-This App (**Ride the World – Indoor Cycling**) is built using several open source software components. Below we list those components and their licenses. The full text of each license can be found in the respective project repository or npm package page.
+This App (**Ride the World – Indoor Cycling**) is built using several open source software components and map/data services. Below we list **map, routing, and elevation data services** and **software packages** with their applicable licenses and terms.
 
 ---
 
-## 2. Open Source Software Used
+## 2. Map & Data Services
 
-### 2.1 Runtime Dependencies (dependencies)
+Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service’s terms, copyright, and attribution requirements.
+
+| Service | Purpose | License / Terms |
+|--------|------|---------------------|
+| **OpenStreetMap (OSM)** | Map tiles, geographic data | © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). ODbL and other OSM policies apply. |
+| **Nominatim** | Address and place search (geocoding) | OSM-based. See [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/). |
+| **OSRM** (Open Source Routing Machine) | Car / bike / foot route calculation | OSM-based. Subject to the deployment or service terms. |
+| **Open-Elevation** | Elevation data along the route | Subject to the API provider’s terms and attribution. |
+| **Google Maps / Street View** | Map display, Street View imagery (when used) | © Google. [Google Maps Platform Terms](https://cloud.google.com/maps-platform/terms), [Google Privacy Policy](https://policies.google.com/privacy). Acknowledged here in addition to any on-map attribution. |
+
+- **Accuracy and availability** of map, route, and elevation data are the responsibility of the respective providers; the App operator does not guarantee them.
+- For full license text and current policies, see each service’s official site.
+
+---
+
+## 3. Open Source Software Used (Packages)
+
+### 3.1 Runtime Dependencies (dependencies)
 
 | Package | Description | License |
 |---------|------|----------|
@@ -22,7 +39,7 @@ This App (**Ride the World – Indoor Cycling**) is built using several open sou
 | lucide-react | Icon component library | ISC |
 | recharts | Chart and data visualization library | MIT |
 
-### 2.2 Development Dependencies (devDependencies)
+### 3.2 Development Dependencies (devDependencies)
 
 | Package | Description | License |
 |---------|------|----------|
@@ -37,7 +54,7 @@ This App (**Ride the World – Indoor Cycling**) is built using several open sou
 
 ---
 
-## 3. Summary of Main Licenses
+## 4. Summary of Main Licenses
 
 - **MIT**  
   Use, copy, modify, distribute, and use commercially are allowed, provided the license text and copyright notice are retained. Most of the React ecosystem uses this license.
@@ -50,7 +67,7 @@ This App (**Ride the World – Indoor Cycling**) is built using several open sou
 
 ---
 
-## 4. Notice and Compliance
+## 5. Notice and Compliance
 
 - This App complies with the above open source license terms.
 - Copyright notices and license text required by each license are satisfied as included in the respective package’s distribution or source.
@@ -58,6 +75,6 @@ This App (**Ride the World – Indoor Cycling**) is built using several open sou
 
 ---
 
-## 5. Contact
+## 6. Contact
 
 For questions about open source licenses, please contact **LiveOnSoft** or use the channels indicated in the App.
