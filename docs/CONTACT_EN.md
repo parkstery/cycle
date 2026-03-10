@@ -28,14 +28,13 @@ Specific email, form, or URL may vary by app version and distribution; **please 
 
 ## 3. Inquiries by Type
 
-| Type | Description |
+| Enquiry Type | Description |
 |----------|------|
-| **Features and usage** | How to use the App, errors, bugs, improvement ideas. The User Guide (USER_GUIDE_EN.md) may help first. |
-| **Privacy** | Collection, use, deletion, or general privacy questions. Please check the Privacy Policy (PRIVACY_POLICY_EN.md) before contacting. |
-| **Terms and disclaimer** | Interpretation of terms, disclaimer, scope of liability. See Terms of Service (TERMS_OF_SERVICE_EN.md) and Disclaimer (DISCLAIMER_EN.md). |
-| **Open source licenses** | Questions about open source software and licenses. See Open Source Licenses (OPEN_SOURCE_LICENSES_EN.md). |
-| **Other** | Partnership, collaboration, media. Use the channels above and indicate the type of inquiry in the subject. |
-
+| **Function·Usage** | App usage methods, errors·bugs, improvement suggestions, etc. Referring to the user guide first may be helpful. |
+| **Personal Information** | Collection·use·deletion·inquiry reception, etc. Please check the privacy policy before enquiring. |
+| **Terms of Service·Disclaimer** | Interpretation of terms, disclaimer, scope of liability, etc. Please refer to the Terms of Service and Disclaimer. |
+| **Open Source Licences** | Enquiries regarding open source software used and its licences. You may consult the open source licence documentation. |
+| **Other** | For partnership, collaboration, or media enquiries, please use the above channels, specifying the ‘Enquiry Type’ in the subject line. |
 ---
 
 ## 4. Response

@@ -7,7 +7,7 @@ Last updated: March 2026
 
 ## 1. App Overview
 
-**Ride the World – Indoor Cycling** lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world and experience it on your indoor bike.
+**Ride the World – Indoor Cycling** lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world (excluding certain countries and regions) and experience riding that section as if on an indoor bike.
 
 ---
 
@@ -36,10 +36,10 @@ Last updated: March 2026
 - Users who want to preview cycling routes in unfamiliar areas  
 - Users who want to check elevation before a ride  
 - Users who want to simulate routes from around the world indoors  
-
+- Users wishing to explore routes of interest in auto-pilot mode
 ---
 
-## 4. Technology Stack
+## 4. Map / Route
 
 - **Front end**  
   React 18, TypeScript, Vite, Tailwind CSS

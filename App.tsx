@@ -2182,7 +2182,7 @@ const App: React.FC = () => {
           <img src="/bike_conti-128.png" alt="Ride the World – Indoor Cycling" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold" style={{ fontSize: '1.425rem' }}>Ride the World – Indoor Cycling</p>
           {/* <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}> */}
-          <p className="absolute bottom-4 left-0 right-0 text-[16px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+          <p className="absolute bottom-2 left-0 right-0 text-[16px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             © 2026 LiveOnSoft
           </p>
         </div>
