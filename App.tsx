@@ -2334,9 +2334,9 @@ const App: React.FC = () => {
         )}
       </div>
       <div className={`absolute bottom-[25px] left-4 z-[60] flex items-end transition-all duration-300 ease-out overflow-hidden ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}>
-        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-1 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
+        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
-            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[5px] ${routeInputExpanded ? 'w-[0.8rem] h-[0.8rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={12} /> : <Waypoints size={16} className="text-blue-600" />}</button>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 ${routeInputExpanded ? 'w-[0.8rem] h-[0.8rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={12} /> : <Waypoints size={16} className="text-blue-600" />}</button>
             {routeInputExpanded && (
               <div className="flex-1 flex items-center justify-center min-h-0">
               <button onClick={() => { if (!historyExpanded && routeSettingsPanelExpanded) { setRouteInputExpanded(false); } else { setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded); } }} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-15px]" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
@@ -2356,10 +2356,10 @@ const App: React.FC = () => {
             )}
           </div>
           {routeInputExpanded && (
-            <div className="flex flex-row w-full pl-0.5 gap-1.5 items-center">
+            <div className="flex flex-row w-full pl-0.5 gap-1 items-center">
               {routeSettingsPanelExpanded && (
-              <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1.5">
-                <div className="relative flex flex-col gap-1.5">
+              <div ref={routeInputContainerRef} className="flex-none w-[232px] flex flex-col justify-center gap-1">
+                <div className="relative flex flex-col gap-1">
                   <div className="relative">
                     <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-2 h-7 bg-white shadow-sm w-full">
                       <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
@@ -2501,7 +2501,7 @@ const App: React.FC = () => {
                     <button onClick={clearMapOverlays} title="Delete Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 w-full">
+                <div className="flex items-center gap-1 w-full">
                   <div className="flex-1 min-w-0 max-w-[88px] flex items-center justify-center gap-1 bg-slate-100 border border-slate-200 rounded-lg h-7 px-1 overflow-hidden">
                     <span className="text-[10px] font-black text-slate-700 truncate">{route ? route.distance : '0.0 km'}</span>
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
