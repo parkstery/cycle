@@ -251,7 +251,7 @@ function AboutContent() {
       <h3 className={docTitle}>6. Disclaimer</h3>
       <p className={docBody}>This App is provided only for route exploration, simulation, and fitness entertainment. Map, route, and elevation information are approximate and may differ from actual roads, closures, and construction. Do not use the App for real outdoor navigation or safety decisions. Use is at your own risk; consult a physician or health/exercise professional before starting exercise if needed. For details, see the Disclaimer (DISCLAIMER_EN.md) and Terms of Service (TERMS_OF_SERVICE_EN.md).</p>
       <h3 className={docTitle}>7. Copyright</h3>
-      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling <br /> © 2026 LiveOnSoft</p>
     </div>
   );
 }
@@ -318,7 +318,7 @@ function DisclaimerContent() {
       <h3 className={docTitle}>6. Other</h3>
       <p className={docBody}>6.1 This Disclaimer applies together with the Terms of Service and Privacy Policy. If it conflicts with them, the provision more favorable to the user may prevail.</p>
       <p className={docBody}>6.2 This Disclaimer may be amended; changes will be reflected and announced in the App or documentation. Continued use of the App after changes constitutes acceptance of the updated Disclaimer.</p>
-      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling <br /> © 2026 LiveOnSoft</p>
     </div>
   );
 }
@@ -367,7 +367,7 @@ function ContactContent() {
       <p className={docBody}><strong>Contact</strong> For app-related inquiries, please contact us at the email address below. liveonsoft@gmail.com</p>
       <h3 className={docTitle}>3. Response Policy</h3>
       <p className={docBody}>We will respond to inquiries <strong>to the extent possible</strong>; we do not guarantee response time, method, or that a response will be provided. Requests related to personal information (access, correction, deletion, etc.) are handled in accordance with applicable laws and our Privacy Policy. The App <strong>does not require registration or login</strong> and does not store account information on our servers. For account-related inquiries, please refer to the relevant store (e.g. Google Play, App Store) policy.</p>
-      <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World – Indoor Cycling <br />© 2026 LiveOnSoft</p>
     </div>
   );
 }
