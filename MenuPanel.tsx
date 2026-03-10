@@ -50,27 +50,39 @@ function AboutContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>About</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Last updated: March 2026.</p>
+      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
       <h3 className={docTitle}>1. App Overview</h3>
-      <p className={docBody}>Set a route anywhere in the world and experience it on your indoor bike.</p>
+      <p className={docBody}>Ride the World – Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world (excluding certain countries and regions) and experience riding that section as if on an indoor bike.</p>
       <h3 className={docTitle}>2. Main Features</h3>
       <ul className={docList}>
-        <li>Route planning on real maps (start, end, waypoints; car, bike, foot)</li>
-        <li>Elevation analysis and chart along the route</li>
-        <li>Ride simulation with speed control</li>
-        <li>Street View along the route</li>
-        <li>AI coaching and background music (when available)</li>
+        <li><strong>Route planning on real maps</strong> — Enter or select start, end, and waypoints on the map to search for car, bike, or foot routes.</li>
+        <li><strong>Elevation analysis</strong> — View the elevation chart along the route to see climbs and descents in advance.</li>
+        <li><strong>Ride simulation</strong> — Simulate the ride indoors along the selected route while adjusting speed.</li>
+        <li><strong>Street View</strong> — Play Street View along the route to enhance the riding experience.</li>
+        <li><strong>AI coaching and background music</strong> — (When available) Use coaching and background music during the ride.</li>
       </ul>
       <h3 className={docTitle}>3. Who It's For</h3>
       <ul className={docList}>
         <li>Cyclists planning new routes</li>
-        <li>Users who want to preview routes or check elevation</li>
+        <li>Users who want to preview cycling routes in unfamiliar areas</li>
+        <li>Users who want to check elevation before a ride</li>
         <li>Users who want to simulate routes from around the world indoors</li>
+        <li>Users wishing to explore routes of interest in auto-pilot mode</li>
       </ul>
-      <h3 className={docTitle}>4. Data Sources and Credits</h3>
-      <p className={docBody}>Map data: OpenStreetMap (© OpenStreetMap contributors). Routing: OSRM. Geocoding: Nominatim. Elevation: Open-Elevation API. Street View: subject to the respective service terms. Icons: Lucide Icons.</p>
-      <h3 className={docTitle}>5. Disclaimer</h3>
-      <p className={docBody}>This App is for route exploration, simulation, and fitness entertainment only. Do not use for real outdoor navigation or safety decisions. Use at your own risk. See Disclaimer and Terms of Service in the menu.</p>
+      <h3 className={docTitle}>4. Map / Route</h3>
+      <p className={docBody}><strong>Front end</strong> — React 18, TypeScript, Vite, Tailwind CSS</p>
+      <p className={docBody}><strong>Maps and data</strong> — Map rendering (e.g. Leaflet); routes, maps, elevation, and Street View are provided via external APIs.</p>
+      <h3 className={docTitle}>5. Data Sources and Credits</h3>
+      <p className={docBody}><strong>Map data</strong> — OpenStreetMap. Map data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Routing</strong> — OSRM (Open Source Routing Machine). Data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Geocoding</strong> — Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Elevation data</strong> — Open-Elevation API</p>
+      <p className={docBody}><strong>Street View</strong> — (When used) Subject to the terms and copyright of the respective service (e.g. Google Maps Street View).</p>
+      <p className={docBody}><strong>Icons</strong> — Lucide Icons (Lucide React)</p>
+      <p className={docBody}>Terms, copyright, and disclaimers of each service follow that provider's policy.</p>
+      <h3 className={docTitle}>6. Disclaimer</h3>
+      <p className={docBody}>This App is provided only for route exploration, simulation, and fitness entertainment. Map, route, and elevation information are approximate and may differ from actual roads, closures, and construction. Do not use the App for real outdoor navigation or safety decisions. Use is at your own risk; consult a physician or health/exercise professional before starting exercise if needed. For details, see the Disclaimer (DISCLAIMER_EN.md) and Terms of Service (TERMS_OF_SERVICE_EN.md).</p>
+      <h3 className={docTitle}>7. Copyright</h3>
       <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling © 2026 LiveOnSoft</p>
     </div>
   );
