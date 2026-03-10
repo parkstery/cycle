@@ -514,7 +514,7 @@ export default function MenuPanel({
         <div className="flex-1 overflow-y-auto">
 
           {isList ? (
-            <ul className="py-2 text-slate-800 list-none ps-0">
+            <ul className="py-2 text-slate-800 list-none ps-[1ch]">
               <li>
                 <button
                   onClick={() => setMenuView("about")}
@@ -525,11 +525,11 @@ export default function MenuPanel({
                 </button>
               </li>
 
-              <li className="ps-4 pe-4 py-1.5 pt-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <li className="ps-4 pe-4 py-1.5 pt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Guide
               </li>
               <li>
-                <ul className="border-s-2 border-slate-200 ms-4 ps-6 my-0.5 list-none">
+                <ul className="border-s-2 border-slate-200 ms-4 ps-[calc(1.5rem+1ch)] my-0.5 list-none">
                   <li>
                     <button
                       onClick={() => setMenuView("guideSimple")}
@@ -561,11 +561,11 @@ export default function MenuPanel({
                 </button>
               </li>
 
-              <li className="ps-4 pe-4 py-1.5 pt-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <li className="ps-4 pe-4 py-1.5 pt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Legal
               </li>
               <li>
-                <ul className="border-s-2 border-slate-200 ms-4 ps-6 my-0.5 list-none">
+                <ul className="border-s-2 border-slate-200 ms-4 ps-[calc(1.5rem+1ch)] my-0.5 list-none">
                   <li>
                     <button
                       onClick={() => setMenuView("privacy")}
