@@ -2183,7 +2183,7 @@ const App: React.FC = () => {
           <img src="/bike_conti-128.png" alt="Ride the World – Indoor Cycling" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold" style={{ fontSize: '1.425rem' }}>Ride the World – Indoor Cycling</p>
           {/* <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}> */}
-          <p className="absolute bottom-6 left-0 right-0 text-[16px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+          <p className="absolute bottom-4 left-0 right-0 text-[16px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             © 2026 LiveOnSoft
           </p>
         </div>
@@ -2540,14 +2540,14 @@ const App: React.FC = () => {
                   <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
                 </div>
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
-                  <div key={route.id} className="group/item flex items-center justify-between w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors">
-                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 truncate text-[10px] text-slate-600 hover:text-blue-600 leading-tight">
+                  <div key={route.id} className="flex items-center justify-between w-full gap-1 rounded px-1 py-0.5 transition-colors active:bg-slate-50">
+                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-tight py-1">
                       <span className="font-bold mr-1">{route.origin}</span>
                       <span className="text-slate-400">to</span>
                       <span className="font-bold ml-1">{route.destination}</span>
                       {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
                     </button>
-                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} className="opacity-0 group-hover/item:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"><X size={10} /></button>
+                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={14} /></button>
                   </div>
                 )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
               </div>
