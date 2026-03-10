@@ -340,7 +340,8 @@ function DisclaimerContent() {
       <p className={docBody}>3.1 Routes, distance, elevation, and estimated time shown in the App are approximations and may differ from actual roads, terrain, closures, construction, and traffic.</p>
       <p className={docBody}>3.2 This data is based on information from third parties (map, route, elevation APIs, etc.) and may contain errors, delays, or be outdated. Do not rely on this App alone for real outdoor riding, climbing, hiking plans, or distance/elevation measurement.</p>
       <h3 className={docTitle}>4. Outdoor Use and Safety</h3>
-      <p className={docBody}>Do not use the App for navigation or safety decisions on real roads. Use official navigation, maps, and traffic rules. The developers are not responsible for accidents or injury from following the App’s routes outdoors.</p>
+      <p className={docBody}>4.1 The App is designed for indoor simulation. Do not use it for navigation, route guidance, or safety-related decisions on real roads, trails, or cycle paths.</p>
+      <p className={docBody}>4.2 When cycling or walking outdoors, use official navigation, maps, local signage, and traffic rules first, and ensure your own and others' safety. The developers and operators are not responsible for accidents, injury, or damage from following the App's routes outdoors.</p>
       <h3 className={docTitle}>5. Limitation of Liability</h3>
       <p className={docBody}>5.1 The developers, Operator (LiveOnSoft), and related parties disclaim all liability, to the extent permitted by law, for bodily injury, death, property loss, mental harm, indirect, incidental, special, or consequential damage resulting from use or inability to use the App or reliance on data, coaching, music, or other content in the App.</p>
       <p className={docBody}>5.2 Use of the App is at your own risk. By using the App, you are deemed to have read and agreed to the above disclaimers.</p>
