@@ -364,7 +364,7 @@ function ContactContent() {
       <h3 className={docTitle}>1. Overview</h3>
       <p className={docBody}><strong>LiveOnSoft</strong> develops and operates <strong>Ride the World – Indoor Cycling</strong> (the "App"). For inquiries about using the App, privacy, terms of service, open source licenses, bugs, or suggestions, please follow the guidance below.</p>
       <h3 className={docTitle}>2. Contact Information</h3>
-      <p className={docBody}><strong>Contact</strong> For app-related inquiries, please contact us at the email address below. liveonsoft@gmail.com</p>
+      <p className={docBody}><strong>Contact</strong> For app-related inquiries, please contact us at the email address below. <br /> liveonsoft@gmail.com</p>
       <h3 className={docTitle}>3. Response Policy</h3>
       <p className={docBody}>We will respond to inquiries <strong>to the extent possible</strong>; we do not guarantee response time, method, or that a response will be provided. Requests related to personal information (access, correction, deletion, etc.) are handled in accordance with applicable laws and our Privacy Policy. The App <strong>does not require registration or login</strong> and does not store account information on our servers. For account-related inquiries, please refer to the relevant store (e.g. Google Play, App Store) policy.</p>
       <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World – Indoor Cycling <br />© 2026 LiveOnSoft</p>
