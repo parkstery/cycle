@@ -1,7 +1,7 @@
 # Ride the World – Indoor Cycling  
 ## User Guide (English)
 
-This guide explains all features of **Ride the World – Indoor Cycling** step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and street view.
+This guide explains all features of **Ride the World – Indoor Cycling** step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and Street View.
 
 ---
 
@@ -14,10 +14,9 @@ This guide explains all features of **Ride the World – Indoor Cycling** step b
 5. [Starting a Ride and Controls](#5-starting-a-ride-and-controls)
 6. [Street View](#6-street-view)
 7. [Elevation Chart and Position](#7-elevation-chart-and-position)
-8. [AI Coaching and Music](#8-ai-coaching-and-music)
+8. [Smart Coaching and Music](#8-smart-coaching-and-music)
 9. [Place Search and Favorites](#9-place-search-and-favorites)
-10. [Menu and Information](#10-menu-and-information)
-11. [Notes and Disclaimer](#11-notes-and-disclaimer)
+10. [Map Style](#102-map-style)
 
 ---
 
@@ -170,9 +169,9 @@ When the elevation panel is open, you can use:
 
 ---
 
-## 8. AI Coaching and Music
+## 8. Smart Coaching and Music
 
-### 8.1 AI Coaching
+### 8.1 Smart Coaching
 
 - When **coaching is on**, tips (posture, resistance, intensity, etc.) are shown based on gradient and speed.
 - Use the **microphone icon** to **turn coaching on or off**.
@@ -201,44 +200,11 @@ When the elevation panel is open, you can use:
 - **Load:** Tap a route in My Routes to apply its start, end, and waypoints; the route is restored if available.
 - **Delete:** Tap the **X** next to a route (visible on hover) to remove it from favorites.
 
----
-
-## 10. Menu and Information
-
-- Tap the **menu icon (≡)** (top-left) to open the **menu panel**.
-
-### 10.1 Menu Items
-
-| Item | Description |
-|------|------|
-| **About** | App overview, features, audience, data sources, disclaimer |
-| **Help** | Summary of how to use the app and controls |
-| **Legal** | Privacy Policy, Terms of Service, Disclaimer, Open Source Licenses |
-| **Contact** | Contact and feedback |
-
-- **Back to Menu:** Return to the menu list from a sub-screen.  
-- **Back to Simulator:** Close the menu and return to the simulator.
-
 ### 10.2 Map Style
 
 - Tap the **layers icon** (top-right) to switch between **standard map** and **satellite/terrain (hybrid)**.
 
 ---
-
-## 11. Notes and Disclaimer
-
-- This app is for **indoor cycling simulation and route exploration** only.  
-  Do **not** use it for real-road navigation or safety decisions.
-- Map, route, and elevation data are **approximate** and may differ from real roads, construction, closures, and terrain.
-- Check your **health** before exercise and consult a medical professional if needed.  
-  The developer is not responsible for injury or damage from using this app.
-- For details, see **Disclaimer**, **Terms of Service**, and **Privacy Policy** in the menu.
-
----
-
-**Ride the World – Indoor Cycling**  
-© 2026 LiveOnSoft  
-Version 1.0
 
 Screens and wording may vary by app version.  
 For further questions, use **Contact** in the app or the store/official page.
