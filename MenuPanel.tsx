@@ -504,7 +504,8 @@ export default function MenuPanel({
           </div>
 
           <div className="h-12 flex items-center px-4 font-semibold text-slate-900">
-            {isList ? "Menu" : "Information"}
+            {/* {isList ? "Menu" : "Information"} */}
+            {isList ? "Menu" : ""}
           </div>
 
         </header>
