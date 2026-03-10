@@ -10,7 +10,7 @@ const docList = "list-disc pl-5 space-y-1 text-sm text-slate-700 mb-2";
 function SimpleGuideContent() {
   return (
     <div className="pb-6">
-      <h2 className={docTitle}>Simple Guide</h2>
+      <h2 className={docTitle}>Quick Guide</h2>
       <p className={docBody}>1) Select two points on the map to set the start and destination.</p>
       <p className={docBody}>2) Choose the travel mode. (Car / Bike / Foot)</p>
       <p className={docBody}>3) Press the Go! button to start the ride.</p>
@@ -21,7 +21,7 @@ function SimpleGuideContent() {
 function UserGuideContent() {
   return (
     <div className="pb-6 space-y-2">
-      <h2 className={docTitle}>User Guide</h2>
+      <h2 className={docTitle}>Detailed Guide</h2>
       <p className={docBody}>This guide explains the main features of Ride the World – Indoor Cycling. You can choose real-world routes and simulate them indoors with elevation and Street View.</p>
       <h3 className={docTitle}>1. App Overview</h3>
       <p className={docBody}>Plan bike / walk / car routes on real maps, view elevation along the route, watch Street View, and simulate the ride indoors at your chosen speed. Data: OpenStreetMap, OSRM, Open-Elevation API.</p>
@@ -273,7 +273,7 @@ export default function MenuPanel({
         <div className="flex-1 overflow-y-auto">
 
           {isList ? (
-            <ul className="py-2 text-slate-800">
+            <ul className="py-2 text-slate-800 list-none pl-0">
               <li>
                 <button
                   onClick={() => setMenuView("about")}
@@ -286,13 +286,13 @@ export default function MenuPanel({
 
               <li className="pt-1">
                 <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Guide</div>
-                <ul className="border-l-2 border-slate-200 ml-3 pl-4">
+                <ul className="border-l-2 border-slate-200 ml-4 pl-4 my-0.5 list-none">
                   <li>
                     <button
                       onClick={() => setMenuView("guideSimple")}
                       className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
-                      Simple Guide
+                      Quick Guide
                       <ChevronRight size={18} className="text-slate-400" />
                     </button>
                   </li>
@@ -301,7 +301,7 @@ export default function MenuPanel({
                       onClick={() => setMenuView("guideDetail")}
                       className="w-full text-left pl-2 pr-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
-                      User Guide
+                      Detailed Guide
                       <ChevronRight size={18} className="text-slate-400" />
                     </button>
                   </li>
@@ -320,7 +320,7 @@ export default function MenuPanel({
 
               <li className="pt-1">
                 <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Legal</div>
-                <ul className="border-l-2 border-slate-200 ml-3 pl-4">
+                <ul className="border-l-2 border-slate-200 ml-4 pl-4 my-0.5 list-none">
                   <li>
                     <button
                       onClick={() => setMenuView("privacy")}
