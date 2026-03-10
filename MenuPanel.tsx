@@ -197,7 +197,7 @@ function UserGuideContent() {
         <li><strong>Delete:</strong> Tap the <strong>X</strong> next to a route (visible on hover) to remove it from favorites.</li>
       </ul>
 
-      <h4 className={docSubtitle}>10.2 Map Style</h4>
+      <h4 className={docSubtitle}>10 Map Style</h4>
       <p className={docBody}>Tap the <strong>layers icon</strong> (top-right) to switch between <strong>standard map</strong> and <strong>satellite/terrain (hybrid)</strong>.</p>
 
       <p className={docBody}>Screens and wording may vary by app version. For further questions, use <strong>Contact</strong> in the app or the store/official page.</p>

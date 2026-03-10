@@ -200,7 +200,7 @@ When the elevation panel is open, you can use:
 - **Load:** Tap a route in My Routes to apply its start, end, and waypoints; the route is restored if available.
 - **Delete:** Tap the **X** next to a route (visible on hover) to remove it from favorites.
 
-### 10.2 Map Style
+### 10 Map Style
 
 - Tap the **layers icon** (top-right) to switch between **standard map** and **satellite/terrain (hybrid)**.
 
