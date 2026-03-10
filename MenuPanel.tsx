@@ -490,14 +490,14 @@ export default function MenuPanel({
               className="flex items-center gap-1 text-slate-700"
             >
               <ChevronLeft size={18} />
-              Back to Menu
+              Back
             </button>
 
             <button
               onClick={onClose}
               className="flex items-center gap-1 text-slate-700"
             >
-              Back to Simulator
+              Return
               <X size={18} />
             </button>
 
