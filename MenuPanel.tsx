@@ -261,7 +261,7 @@ function PrivacyContent() {
         className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors"
       >
         View Privacy Policy
-        <ChevronRight size={16} />
+        {/* <ChevronRight size={16} /> */}
       </a>
     </div>
   );
@@ -434,7 +434,7 @@ export default function MenuPanel({
         className="fixed left-0 top-0 bottom-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
-        aria-label="Contents"
+        aria-label="Menu"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
@@ -500,7 +500,8 @@ export default function MenuPanel({
                   className="border-s-2 border-slate-200 my-0.5 list-none"
                   style={{
                     marginInlineStart: "1rem",
-                    paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
@@ -532,7 +533,8 @@ export default function MenuPanel({
                   className="border-s-2 border-slate-200 my-0.5 list-none"
                   style={{
                     marginInlineStart: "1rem",
-                    paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
