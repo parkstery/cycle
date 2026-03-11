@@ -2539,14 +2539,14 @@ const App: React.FC = () => {
                   <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
                 </div>
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
-                  <div key={route.id} className="flex items-center justify-between w-full gap-1 rounded px-1 py-0.5 transition-colors active:bg-slate-50">
-                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-tight py-1">
+                  <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-0.5 transition-colors active:bg-slate-50">
+                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-tight">
                       <span className="font-bold mr-1">{route.origin}</span>
                       <span className="text-slate-400">to</span>
                       <span className="font-bold ml-1">{route.destination}</span>
                       {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
                     </button>
-                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-8 h-8 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={14} /></button>
+                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-6 h-6 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={12} /></button>
                   </div>
                 )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
               </div>
