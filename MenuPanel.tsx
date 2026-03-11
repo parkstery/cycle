@@ -261,7 +261,7 @@ function PrivacyContent() {
         className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors"
       >
         View Privacy Policy
-        <ChevronRight size={16} />
+        {/* <ChevronRight size={16} /> */}
       </a>
     </div>
   );
@@ -435,7 +435,6 @@ export default function MenuPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
-        
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
