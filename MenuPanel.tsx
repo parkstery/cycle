@@ -476,7 +476,7 @@ export default function MenuPanel({
             {/* {isList ? "Menu" : ""} */}
             {isList ? "Contents" : ""}            
           </div>
-
+{/* empty div */}
         </header>
 
         {/* content */}
