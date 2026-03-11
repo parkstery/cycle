@@ -541,7 +541,7 @@ export default function MenuPanel({
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Privacy Policy
-                      {/* <ChevronRight size={18} className="text-slate-400" /> */}
+                      <ChevronRight size={18} className="text-slate-400" />
                     </button>
                   </li>
                   <li>
