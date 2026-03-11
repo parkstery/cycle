@@ -1,6 +1,9 @@
 # Privacy Policy (English)
 
 **Ride the World – Indoor Cycling**  
+**Developer/Operator:** LiveOnSoft  
+**Contact:** liveonsoft@gmail.com  
+**App type:** Client based; the App does not store personal information on its own servers.
 Last updated: March 2026
 
 ---
@@ -8,9 +11,6 @@ Last updated: March 2026
 ## 1. Overview
 
 Ride the World – Indoor Cycling (the “App”) provides indoor cycling route simulation and map and route exploration services. This Privacy Policy describes the information the App collects, uses, and stores, and how third-party services are used.
-
-**Developer/Operator:** LiveOnSoft  
-**App type:** Client (browser/web app) based; the App does not store personal information on its own servers.
 
 ---
 
