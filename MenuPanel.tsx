@@ -434,7 +434,7 @@ export default function MenuPanel({
         className="fixed left-0 top-0 bottom-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
-        aria-label="Menu"
+        aria-label="Contents"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
