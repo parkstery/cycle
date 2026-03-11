@@ -501,7 +501,7 @@ export default function MenuPanel({
                   style={{
                     marginInlineStart: "1rem",
                     // paddingInlineStart: "calc(1.5rem + 1ch)",
-                    paddingInlineStart: "calc(1ch)",
+                    // paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
@@ -534,7 +534,7 @@ export default function MenuPanel({
                   style={{
                     marginInlineStart: "1rem",
                     // paddingInlineStart: "calc(1.5rem + 1ch)",
-                    paddingInlineStart: "calc(1ch)",
+                    // paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
