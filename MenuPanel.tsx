@@ -500,7 +500,8 @@ export default function MenuPanel({
                   className="border-s-2 border-slate-200 my-0.5 list-none"
                   style={{
                     marginInlineStart: "1rem",
-                    paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1.5rem + 1ch)",
+                    paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
@@ -532,7 +533,8 @@ export default function MenuPanel({
                   className="border-s-2 border-slate-200 my-0.5 list-none"
                   style={{
                     marginInlineStart: "1rem",
-                    paddingInlineStart: "calc(1.5rem + 1ch)",
+                    // paddingInlineStart: "calc(1.5rem + 1ch)",
+                    paddingInlineStart: "calc(1ch)",
                   }}
                 >
                   <li>
