@@ -434,8 +434,8 @@ export default function MenuPanel({
         className="fixed left-0 top-0 bottom-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
-        // aria-label="Menu"
-        aria-label="Contents"
+        aria-label="Menu"
+        
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
@@ -469,7 +469,8 @@ export default function MenuPanel({
           <div className="h-12 flex items-center px-2 font-semibold text-slate-900">
           {/* <div className="h-12 flex items-center pl-2 pr-4 font-semibold text-slate-900"> */}
             {/* {isList ? "Menu" : "Information"} */}
-            {isList ? "Menu" : ""}
+            {/* {isList ? "Menu" : ""} */}
+            {isList ? "Contents" : ""}            
           </div>
 
         </header>
