@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 
-const APP_NAME = "Ride the World – Indoor Cycling";
+const APP_NAME = "Ride the World ??Indoor Cycling";
 
 const docTitle = "text-base font-bold text-slate-900 mt-4 mb-2 first:mt-0";
 const docSubtitle = "text-sm font-bold text-slate-800 mt-3 mb-1.5";
@@ -25,8 +25,8 @@ function SimpleGuideContent() {
 function UserGuideContent() {
   return (
     <div className="pb-6 space-y-1">
-      <h2 className={docTitle}>Ride the World – Indoor Cycling — User Guide (English)</h2>
-      <p className={docBody}>This guide explains all features of <strong>Ride the World – Indoor Cycling</strong> step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and Street View.</p>
+      <h2 className={docTitle}>Ride the World ??Indoor Cycling ??User Guide (English)</h2>
+      <p className={docBody}>This guide explains all features of <strong>Ride the World ??Indoor Cycling</strong> step by step. You can choose real-world routes anywhere and simulate them indoors with elevation and Street View.</p>
 
       <h3 className={docTitle}>Table of Contents</h3>
       <ol className={`${docList} list-decimal`}>
@@ -43,7 +43,7 @@ function UserGuideContent() {
       </ol>
 
       <h3 className={docTitle}>1. App Overview</h3>
-      <p className={docBody}><strong>Ride the World – Indoor Cycling</strong> lets you:</p>
+      <p className={docBody}><strong>Ride the World ??Indoor Cycling</strong> lets you:</p>
       <ul className={docList}>
         <li>Plan <strong>bike / walk / car</strong> routes on <strong>real maps</strong></li>
         <li>View <strong>elevation</strong> along the route</li>
@@ -61,7 +61,7 @@ function UserGuideContent() {
       <p className={docBody}><strong>Method 1: Type addresses</strong></p>
       <ul className={docList}>
         <li>Enter the start in "Start" and the end in "End"; <strong>autocomplete suggestions</strong> will appear.</li>
-        <li>Select from the list or use the keyboard ↑/↓ and Enter.</li>
+        <li>Select from the list or use the keyboard ????and Enter.</li>
       </ul>
       <p className={docBody}><strong>Method 2: Click on the map</strong></p>
       <ul className={docList}>
@@ -88,25 +88,25 @@ function UserGuideContent() {
       <h4 className={docSubtitle}>3.2 Route Mode (Car / Bike / Foot)</h4>
       <p className={docBody}>After setting start and end, choose one of:</p>
       <ul className={docList}>
-        <li><strong>Car</strong> – driving route</li>
-        <li><strong>Bike</strong> – cycling route</li>
-        <li><strong>Foot</strong> – walking route</li>
+        <li><strong>Car</strong> ??driving route</li>
+        <li><strong>Bike</strong> ??cycling route</li>
+        <li><strong>Foot</strong> ??walking route</li>
       </ul>
       <p className={docBody}>Distance and time depend on the mode. Choose the mode you want <strong>before</strong> pressing <strong>Go</strong>.</p>
       <h4 className={docSubtitle}>3.3 Other Route Buttons</h4>
       <ul className={docList}>
-        <li><strong>↕ (arrows)</strong> — <strong>Swap</strong> start and end (A↔B).</li>
-        <li><strong>★ (star)</strong> — <strong>Save</strong> the current route to <strong>My Routes</strong>. If already saved, the star appears filled. Up to <strong>5</strong> routes can be saved.</li>
-        <li><strong>Trash</strong> — <strong>Clear</strong> the current route and markers. Start/end inputs are kept.</li>
+        <li><strong>??(arrows)</strong> ??<strong>Swap</strong> start and end (A?�B).</li>
+        <li><strong>??(star)</strong> ??<strong>Save</strong> the current route to <strong>My Routes</strong>. If already saved, the star appears filled. Up to <strong>5</strong> routes can be saved.</li>
+        <li><strong>Trash</strong> ??<strong>Clear</strong> the current route and markers. Start/end inputs are kept.</li>
       </ul>
       <h4 className={docSubtitle}>3.4 Distance and Time</h4>
       <p className={docBody}>When a route is calculated, <strong>distance (km)</strong> and <strong>estimated time</strong> are shown in the route area. Actual feel of duration depends on the <strong>speed</strong> you use during the ride.</p>
 
       <h3 className={docTitle}>4. Ride Mode and Speed</h3>
-      <h4 className={docSubtitle}>4.1 Speed (10–70 km/h)</h4>
+      <h4 className={docSubtitle}>4.1 Speed (10??0 km/h)</h4>
       <ul className={docList}>
         <li><strong>Numeric field:</strong> Enter a value between 10 and 70.</li>
-        <li><strong>− / + buttons:</strong> Decrease or increase by 1 km/h.</li>
+        <li><strong>??/ + buttons:</strong> Decrease or increase by 1 km/h.</li>
         <li><strong>Slider:</strong> Drag to adjust speed.</li>
       </ul>
       <p className={docBody}>This is the <strong>simulation speed</strong>. On an indoor bike, match your pedaling to this speed.</p>
@@ -115,7 +115,7 @@ function UserGuideContent() {
       <h4 className={docSubtitle}>5.1 Go Button</h4>
       <ul className={docList}>
         <li>Enter start and end so the <strong>route is shown</strong>, then press <strong>Go</strong>.</li>
-        <li><strong>First time for a route:</strong> Route is fetched → Street View prepared → <strong>3, 2, 1, Start!</strong> countdown, then the ride starts.</li>
+        <li><strong>First time for a route:</strong> Route is fetched ??Street View prepared ??<strong>3, 2, 1, Start!</strong> countdown, then the ride starts.</li>
         <li><strong>Same route again:</strong> Only countdown, then the ride starts.</li>
       </ul>
       <h4 className={docSubtitle}>5.2 Controls During the Ride (in the elevation panel)</h4>
@@ -125,10 +125,10 @@ function UserGuideContent() {
           <tr><th className={docTableTh}>Button</th><th className={docTableTh}>Action</th></tr>
         </thead>
         <tbody>
-          <tr><td className={docTableTd}><strong>▶ (Play)</strong></td><td className={docTableTd}>Start or resume the ride</td></tr>
-          <tr><td className={docTableTd}><strong>⏸ (Pause)</strong></td><td className={docTableTd}>Pause the ride</td></tr>
-          <tr><td className={docTableTd}><strong>↺ (Restart)</strong></td><td className={docTableTd}>Restart from the beginning of the route</td></tr>
-          <tr><td className={docTableTd}><strong>■ (Stop)</strong></td><td className={docTableTd}>Stop the ride (position and time reset)</td></tr>
+          <tr><td className={docTableTd}><strong>??(Play)</strong></td><td className={docTableTd}>Start or resume the ride</td></tr>
+          <tr><td className={docTableTd}><strong>??(Pause)</strong></td><td className={docTableTd}>Pause the ride</td></tr>
+          <tr><td className={docTableTd}><strong>??(Restart)</strong></td><td className={docTableTd}>Restart from the beginning of the route</td></tr>
+          <tr><td className={docTableTd}><strong>??(Stop)</strong></td><td className={docTableTd}>Stop the ride (position and time reset)</td></tr>
         </tbody>
       </table>
       <ul className={docList}>
@@ -192,7 +192,7 @@ function UserGuideContent() {
       <ul className={docList}>
         <li>With the <strong>route panel</strong> open, widen it to the right to see <strong>My Routes</strong>.</li>
         <li>Up to <strong>5</strong> routes can be saved.</li>
-        <li><strong>Save:</strong> Set start and end (and waypoints), create the route, then tap <strong>★</strong>.</li>
+        <li><strong>Save:</strong> Set start and end (and waypoints), create the route, then tap <strong>◀ / ▶</strong>.</li>
         <li><strong>Load:</strong> Tap a route in My Routes to apply its start, end, and waypoints; the route is restored if available.</li>
         <li><strong>Delete:</strong> Tap the <strong>X</strong> next to a route (visible on hover) to remove it from favorites.</li>
       </ul>
@@ -209,16 +209,16 @@ function AboutContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>About</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
+      <p className={docBody}>Ride the World ??Indoor Cycling. Last updated: March 2026.</p>
       <h3 className={docTitle}>1. App Overview</h3>
-      <p className={docBody}>Ride the World – Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world (excluding certain countries and regions) and experience riding that section as if on an indoor bike.</p>
+      <p className={docBody}>Ride the World ??Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world (excluding certain countries and regions) and experience riding that section as if on an indoor bike.</p>
       <h3 className={docTitle}>2. Main Features</h3>
       <ul className={docList}>
-        <li><strong>Route planning on real maps</strong> — Enter or select start, end, and waypoints on the map to search for car, bike, or foot routes.</li>
-        <li><strong>Elevation analysis</strong> — View the elevation chart along the route to see climbs and descents in advance.</li>
-        <li><strong>Ride simulation</strong> — Simulate the ride indoors along the selected route while adjusting speed.</li>
-        <li><strong>Street View</strong> — Play Street View along the route to enhance the riding experience.</li>
-        <li><strong>AI coaching and background music</strong> — (When available) Use coaching and background music during the ride.</li>
+        <li><strong>Route planning on real maps</strong> ??Enter or select start, end, and waypoints on the map to search for car, bike, or foot routes.</li>
+        <li><strong>Elevation analysis</strong> ??View the elevation chart along the route to see climbs and descents in advance.</li>
+        <li><strong>Ride simulation</strong> ??Simulate the ride indoors along the selected route while adjusting speed.</li>
+        <li><strong>Street View</strong> ??Play Street View along the route to enhance the riding experience.</li>
+        <li><strong>AI coaching and background music</strong> ??(When available) Use coaching and background music during the ride.</li>
       </ul>
       <h3 className={docTitle}>3. Who It's For</h3>
       <ul className={docList}>
@@ -229,20 +229,20 @@ function AboutContent() {
         <li>Users wishing to explore routes of interest in auto-pilot mode</li>
       </ul>
       <h3 className={docTitle}>4. Map / Route</h3>
-      <p className={docBody}><strong>Front end</strong> — React 18, TypeScript, Vite, Tailwind CSS</p>
-      <p className={docBody}><strong>Maps and data</strong> — Map rendering (e.g. Leaflet); routes, maps, elevation, and Street View are provided via external APIs.</p>
+      <p className={docBody}><strong>Front end</strong> ??React 18, TypeScript, Vite, Tailwind CSS</p>
+      <p className={docBody}><strong>Maps and data</strong> ??Map rendering (e.g. Leaflet); routes, maps, elevation, and Street View are provided via external APIs.</p>
       <h3 className={docTitle}>5. Data Sources and Credits</h3>
-      <p className={docBody}><strong>Map data</strong> — OpenStreetMap. Map data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Routing</strong> — OSRM (Open Source Routing Machine). Data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Geocoding</strong> — Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Elevation data</strong> — Open-Elevation API</p>
-      <p className={docBody}><strong>Street View</strong> — (When used) Subject to the terms and copyright of the respective service (e.g. Google Maps Street View).</p>
-      <p className={docBody}><strong>Icons</strong> — Lucide Icons (Lucide React)</p>
+      <p className={docBody}><strong>Map data</strong> ??OpenStreetMap. Map data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Routing</strong> ??OSRM (Open Source Routing Machine). Data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Geocoding</strong> ??Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Elevation data</strong> ??Open-Elevation API</p>
+      <p className={docBody}><strong>Street View</strong> ??(When used) Subject to the terms and copyright of the respective service (e.g. Google Maps Street View).</p>
+      <p className={docBody}><strong>Icons</strong> ??Lucide Icons (Lucide React)</p>
       <p className={docBody}>Terms, copyright, and disclaimers of each service follow that provider's policy.</p>
       <h3 className={docTitle}>6. Disclaimer</h3>
       <p className={docBody}>This App is provided only for route exploration, simulation, and fitness entertainment. Map, route, and elevation information are approximate and may differ from actual roads, closures, and construction. Do not use the App for real outdoor navigation or safety decisions. Use is at your own risk; consult a physician or health/exercise professional before starting exercise if needed. For details, see the Disclaimer (DISCLAIMER_EN.md) and Terms of Service (TERMS_OF_SERVICE_EN.md).</p>
       <h3 className={docTitle}>7. Copyright</h3>
-      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling <br /> © 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}>Ride the World ??Indoor Cycling <br /> © 2026 LiveOnSoft</p>
     </div>
   );
 }
@@ -273,11 +273,11 @@ function TermsContent() {
       <h2 className={docTitle}>Terms of Service</h2>
       <p className={docBody}>Last updated: March 2026.</p>
       <h3 className={docTitle}>1. Application and Acceptance</h3>
-      <p className={docBody}>These Terms govern the relationship between LiveOnSoft (“Operator”) and users of Ride the World – Indoor Cycling. Using the App constitutes acceptance. No registration or login required.</p>
+      <p className={docBody}>These Terms govern the relationship between LiveOnSoft (?�Operator?? and users of Ride the World ??Indoor Cycling. Using the App constitutes acceptance. No registration or login required.</p>
       <h3 className={docTitle}>2. Definition of the Service</h3>
       <p className={docBody}>The App provides indoor cycling route simulation and map and route exploration (route search, elevation, ride simulation, Street View, saved routes, AI coaching, etc.). Content and scope may change without notice. The Operator does not guarantee continuity, completeness, or accuracy.</p>
       <h3 className={docTitle}>3. Eligibility and Use Restrictions</h3>
-      <p className={docBody}>Use only for personal, non-commercial purposes. Commercial use, reverse engineering, crawling, and use that violates laws or others’ rights are prohibited.</p>
+      <p className={docBody}>Use only for personal, non-commercial purposes. Commercial use, reverse engineering, crawling, and use that violates laws or others??rights are prohibited.</p>
       <h3 className={docTitle}>4. Third-Party Data and Liability</h3>
       <p className={docBody}>Route, map, and elevation data are provided by third parties; we do not guarantee accuracy. Do not use for real outdoor navigation or safety. The Operator disclaims liability for injury, loss, or damage from use of the App or its data, to the extent permitted by law.</p>
       <h3 className={docTitle}>5. Changes</h3>
@@ -290,9 +290,9 @@ function DisclaimerContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Disclaimer</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
+      <p className={docBody}>Ride the World ??Indoor Cycling. Last updated: March 2026.</p>
       <h3 className={docTitle}>1. Purpose and Nature of the App</h3>
-      <p className={docBody}>1.1 Ride the World – Indoor Cycling (the "App") is provided only for indoor cycling route simulation and entertainment.</p>
+      <p className={docBody}>1.1 Ride the World ??Indoor Cycling (the "App") is provided only for indoor cycling route simulation and entertainment.</p>
       <p className={docBody}>1.2 Maps, routes, elevation, Street View, ride simulation, and other content in the App are for reference, experience, and motivation. They must not be used as an official basis or recommendation for real-road riding, racing, or training plans.</p>
       <h3 className={docTitle}>2. Medical and Health Disclaimer</h3>
       <p className={docBody}>2.1 The App is not a substitute for professional medical, health, or exercise advice. Coaching, resistance, intensity, and similar content in the App are for general reference only and are not exercise prescriptions tailored to your health, conditions, age, or fitness.</p>
@@ -310,7 +310,7 @@ function DisclaimerContent() {
       <h3 className={docTitle}>6. Other</h3>
       <p className={docBody}>6.1 This Disclaimer applies together with the Terms of Service and Privacy Policy. If it conflicts with them, the provision more favorable to the user may prevail.</p>
       <p className={docBody}>6.2 This Disclaimer may be amended; changes will be reflected and announced in the App or documentation. Continued use of the App after changes constitutes acceptance of the updated Disclaimer.</p>
-      <p className={`${docBody} font-semibold`}>Ride the World – Indoor Cycling <br /> © 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}>Ride the World ??Indoor Cycling <br /> © 2026 LiveOnSoft</p>
     </div>
   );
 }
@@ -322,7 +322,7 @@ function LicensesContent() {
       <p className={docBody}>Last updated: March 2026. This App is built using open source software and map/data services. Below we list map, routing, and elevation data services and software packages with their applicable licenses and terms.</p>
 
       <h3 className={docTitle}>2. Map & Data Services</h3>
-      <p className={docBody}>Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service’s terms, copyright, and attribution requirements.</p>
+      <p className={docBody}>Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service?�s terms, copyright, and attribution requirements.</p>
       <table className={docTable}>
         <thead>
           <tr><th className={docTableTh}>Service</th><th className={docTableTh}>Purpose</th><th className={docTableTh}>License / Terms</th></tr>
@@ -331,19 +331,19 @@ function LicensesContent() {
           <tr><td className={docTableTd}><strong>OpenStreetMap (OSM)</strong></td><td className={docTableTd}>Map tiles, geographic data</td><td className={docTableTd}>© OpenStreetMap contributors. ODbL and other OSM policies apply.</td></tr>
           <tr><td className={docTableTd}><strong>Nominatim</strong></td><td className={docTableTd}>Address and place search (geocoding)</td><td className={docTableTd}>OSM-based. See Nominatim usage policy.</td></tr>
           <tr><td className={docTableTd}><strong>OSRM</strong></td><td className={docTableTd}>Car / bike / foot route calculation</td><td className={docTableTd}>OSM-based. Subject to the deployment or service terms.</td></tr>
-          <tr><td className={docTableTd}><strong>Open-Elevation</strong></td><td className={docTableTd}>Elevation data along the route</td><td className={docTableTd}>Subject to the API provider’s terms and attribution.</td></tr>
+          <tr><td className={docTableTd}><strong>Open-Elevation</strong></td><td className={docTableTd}>Elevation data along the route</td><td className={docTableTd}>Subject to the API provider?�s terms and attribution.</td></tr>
           <tr><td className={docTableTd}><strong>Google Maps / Street View</strong></td><td className={docTableTd}>Map display, Street View imagery (when used)</td><td className={docTableTd}>© Google. Google Maps Platform Terms, Google Privacy Policy. Acknowledged here in addition to any on-map attribution.</td></tr>
         </tbody>
       </table>
       <ul className={docList}>
         <li><strong>Accuracy and availability</strong> of map, route, and elevation data are the responsibility of the respective providers; the App operator does not guarantee them.</li>
-        <li>For full license text and current policies, see each service’s official site.</li>
+        <li>For full license text and current policies, see each service?�s official site.</li>
       </ul>
 
       <h3 className={docTitle}>3. Open Source Software Used (Packages)</h3>
       <p className={docBody}>Runtime: react, react-dom (MIT), lucide-react (ISC), recharts (MIT). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
       <h3 className={docTitle}>4. Summary of Main Licenses</h3>
-      <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, see each package’s official repository or npm.</p>
+      <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, see each package?�s official repository or npm.</p>
     </div>
   );
 }
@@ -352,14 +352,14 @@ function ContactContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Contact</h2>
-      <p className={docBody}><strong>Ride the World – Indoor Cycling</strong> Last updated: March 2026.</p>
+      <p className={docBody}><strong>Ride the World ??Indoor Cycling</strong> Last updated: March 2026.</p>
       <h3 className={docTitle}>1. Overview</h3>
-      <p className={docBody}><strong>LiveOnSoft</strong> develops and operates <strong>Ride the World – Indoor Cycling</strong> (the "App"). For inquiries about using the App, privacy, terms of service, open source licenses, bugs, or suggestions, please follow the guidance below.</p>
+      <p className={docBody}><strong>LiveOnSoft</strong> develops and operates <strong>Ride the World ??Indoor Cycling</strong> (the "App"). For inquiries about using the App, privacy, terms of service, open source licenses, bugs, or suggestions, please follow the guidance below.</p>
       <h3 className={docTitle}>2. Contact Information</h3>
       <p className={docBody}><strong>Contact</strong> For app-related inquiries, please contact us at the email address below. <br /> liveonsoft@gmail.com</p>
       <h3 className={docTitle}>3. Response Policy</h3>
       <p className={docBody}>We will respond to inquiries <strong>to the extent possible</strong>; we do not guarantee response time, method, or that a response will be provided. Requests related to personal information (access, correction, deletion, etc.) are handled in accordance with applicable laws and our Privacy Policy. The App <strong>does not require registration or login</strong> and does not store account information on our servers. For account-related inquiries, please refer to the relevant store (e.g. Google Play, App Store) policy.</p>
-      <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World – Indoor Cycling <br />© 2026 LiveOnSoft</p>
+      <p className={`${docBody} font-semibold`}><strong>LiveOnSoft</strong> Developer and operator of Ride the World ??Indoor Cycling <br />© 2026 LiveOnSoft</p>
     </div>
   );
 }
@@ -434,12 +434,7 @@ export default function MenuPanel({
         className="fixed left-0 top-0 bottom-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
-<<<<<<< HEAD
         aria-label="Contents"
-=======
-        aria-label="Menu"
-        
->>>>>>> dev
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
