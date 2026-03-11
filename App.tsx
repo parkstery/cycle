@@ -2665,7 +2665,7 @@ const App: React.FC = () => {
       <button
         type="button"
         onClick={() => { setMenuView('list'); setMenuOpen(true); }}
-        title="Menu"
+        title="App Info"
         className="absolute left-4 top-4 z-[85] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
         aria-label="Open menu"
       >
