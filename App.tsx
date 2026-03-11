@@ -330,8 +330,9 @@ const App: React.FC = () => {
   const [modeButtonPulseIndex, setModeButtonPulseIndex] = useState<-1 | 0 | 1 | 2>(-1);
   const hasShownModePulseRef = useRef(false);
 
-  // 경로(car/bike/foot) 선택 시 Go 버튼 1초간 20% 확대 유도
+  // 경로(car/bike/foot) 선택 시 Go 버튼 1초간 20% 확대 유도 (의도한 UX만: 새 경로 계산 완료 시에만, autoStart 아닐 때)
   const [goButtonPulse, setGoButtonPulse] = useState(false);
+  const goButtonPulseTimeoutsRef = useRef<number[]>([]);
 
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
@@ -798,19 +799,6 @@ const App: React.FC = () => {
     timeouts.push(window.setTimeout(() => setModeButtonPulseIndex(-1), 3000));
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
-
-  // route 선택 시 Go 버튼 0.4초간 20% 확대 후 원래대로 → 2회 반복 (car/bike/foot 경로 선택 시)
-  const prevRouteRef = useRef<RouteInfo | null>(null);
-  useEffect(() => {
-    if (!route) return;
-    if (route === prevRouteRef.current) return;
-    prevRouteRef.current = route;
-    setGoButtonPulse(true);
-    const t1 = window.setTimeout(() => setGoButtonPulse(false), 400);
-    const t2 = window.setTimeout(() => setGoButtonPulse(true), 800);
-    const t3 = window.setTimeout(() => setGoButtonPulse(false), 1200);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [route]);
 
   // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
   useEffect(() => {
@@ -1908,6 +1896,17 @@ const App: React.FC = () => {
         lastDisplayedPanoPathIndexRef.current = -1;
         lastSvDisplayUpdateRef.current = 0;
         lastCoachedIndex.current = -1;
+
+        // 의도한 UX만: Car/Bike/Foot으로 새 경로 계산된 경우에만 Go 버튼 펄스 (주행 중·Go 클릭 시에는 미동작)
+        if (!autoStart) {
+          goButtonPulseTimeoutsRef.current.forEach((t) => clearTimeout(t));
+          goButtonPulseTimeoutsRef.current = [];
+          setGoButtonPulse(true);
+          goButtonPulseTimeoutsRef.current.push(window.setTimeout(() => setGoButtonPulse(false), 400));
+          goButtonPulseTimeoutsRef.current.push(window.setTimeout(() => setGoButtonPulse(true), 800));
+          goButtonPulseTimeoutsRef.current.push(window.setTimeout(() => setGoButtonPulse(false), 1200));
+        }
+
         // (방안 2) 새 경로 시작점으로 거리뷰 즉시 이동 — 이전 경로 화면에 멈춰 보이는 시간 제거
         if (densifiedPath.length > 0) {
           const startPos = densifiedPath[0];
