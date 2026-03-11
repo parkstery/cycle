@@ -473,7 +473,8 @@ export default function MenuPanel({
 
           </div>
 
-          <div className="h-12 flex items-center px-4 font-semibold text-slate-900">
+          {/* <div className="h-12 flex items-center px-4 font-semibold text-slate-900"> */}
+          <div className="h-12 flex items-center pl-2 pr-4 font-semibold text-slate-900"></div>
             {/* {isList ? "Menu" : "Information"} */}
             {isList ? "Menu" : ""}
           </div>
