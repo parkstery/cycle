@@ -454,15 +454,17 @@ export default function MenuPanel({
         {/* navigation */}
         <header className="border-b border-slate-200">
 
-          <div className="flex items-center justify-between px-4 h-10 text-sm">
+          <div className={`flex items-center px-4 h-10 text-sm ${isList ? "justify-end" : "justify-between"}`}>
 
-            <button
-              onClick={backToMenu}
-              className="flex items-center gap-1 text-slate-700"
-            >
-              <ChevronLeft size={18} />
-              Back
-            </button>
+            {!isList && (
+              <button
+                onClick={backToMenu}
+                className="flex items-center gap-1 text-slate-700"
+              >
+                <ChevronLeft size={18} />
+                Back
+              </button>
+            )}
 
             <button
               onClick={onClose}
