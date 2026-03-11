@@ -205,15 +205,6 @@ function UserGuideContent() {
   );
 }
 
-function SettingsContent() {
-  return (
-    <div className="pb-6">
-      <h2 className={docTitle}>Settings</h2>
-      <p className={docBody}>Settings screen will be available here in a future update.</p>
-    </div>
-  );
-}
-
 function AboutContent() {
   return (
     <div className="pb-6">
@@ -378,7 +369,6 @@ export type MenuView =
   | "about"
   | "guideSimple"
   | "guideDetail"
-  | "settings"
   | "privacy"
   | "terms"
   | "disclaimer"
@@ -422,7 +412,6 @@ export default function MenuPanel({
     about: <AboutContent />,
     guideSimple: <SimpleGuideContent />,
     guideDetail: <UserGuideContent />,
-    settings: <SettingsContent />,
     privacy: <PrivacyContent />,
     terms: <TermsContent />,
     disclaimer: <DisclaimerContent />,
@@ -532,16 +521,6 @@ export default function MenuPanel({
                     </button>
                   </li>
                 </ul>
-              </li>
-
-              <li>
-                <button
-                  onClick={() => setMenuView("settings")}
-                  className="w-full text-left ps-4 pe-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
-                >
-                  Settings
-                  <ChevronRight size={18} className="text-slate-400" />
-                </button>
               </li>
 
               <li className="ps-4 pe-4 py-1.5 pt-2 text-base font-medium text-slate-800 uppercase tracking-wider">

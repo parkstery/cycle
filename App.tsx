@@ -253,7 +253,7 @@ const App: React.FC = () => {
   const [mapType, setMapType] = useState<string>('roadmap');
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'settings' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
+  const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
 
   // Independent Timer States for Elevation Chart
   const [elapsedTime, setElapsedTime] = useState(0);
