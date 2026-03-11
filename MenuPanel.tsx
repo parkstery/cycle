@@ -256,21 +256,22 @@ function AboutContent() {
   );
 }
 
+const PRIVACY_POLICY_URL = "https://liveonsoft.github.io/ridetheworld/policy/";
+
 function PrivacyContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>Privacy Policy</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
-      <h3 className={docTitle}>1. Overview</h3>
-      <p className={docBody}>The App provides indoor cycling route simulation and map and route exploration. Developer: LiveOnSoft. The App does not store personal information on its own servers.</p>
-      <h3 className={docTitle}>2. Information Collected and Used</h3>
-      <p className={docBody}>Route search input (start, end, waypoints) and place search terms are used for route search, map display, and elevation. Location may be used once with your consent to set the map center; not sent to our servers. We do not collect name, email, phone, account, or payment information. No login or registration required.</p>
-      <h3 className={docTitle}>3. Stored Data (On Device)</h3>
-      <p className={docBody}>favorite_routes: saved routes for My Routes. recent_places: recent search terms. Stored only in your browser (localStorage). Clearing storage removes this data.</p>
-      <h3 className={docTitle}>4. Third-Party Services</h3>
-      <p className={docBody}>OpenStreetMap/Nominatim, OSRM, Open-Elevation, Google Maps/Street View are used. Search terms, coordinates, and IP may be sent to those services under their policies. We do not sell or share data with ad networks or data brokers.</p>
-      <h3 className={docTitle}>5. Your Rights and Policy Changes</h3>
-      <p className={docBody}>You can delete saved routes in My Routes and revoke location in browser/device settings. This policy may be updated; continued use constitutes acceptance.</p>
+      <p className={docBody}>The Privacy Policy is available at the link below. It opens in a new tab.</p>
+      <a
+        href={PRIVACY_POLICY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg transition-colors"
+      >
+        View Privacy Policy
+        <ChevronRight size={16} />
+      </a>
     </div>
   );
 }
