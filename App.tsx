@@ -264,6 +264,8 @@ const App: React.FC = () => {
   const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
   const lastValidUntilFetched = useRef<number>(-1);
+  /** 캐시된 세그먼트 진입 시 음성 한 번만 재생하기 위해, 마지막으로 speak한 세그먼트의 validUntilPathIndex */
+  const lastSpokenValidUntilPathIndex = useRef<number | null>(null);
 
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -1216,6 +1218,7 @@ const App: React.FC = () => {
       console.log('[SIMULATION_STOP] reason=end_of_route');
       setSimulation(prev => ({ ...prev, isActive: false }));
       setAppPhase('IDLE');
+      lastSpokenValidUntilPathIndex.current = null;
       getRideEncouragement(routeData, { distance: routeData.distance, duration: routeData.duration }).then(speak);
       return () => clearTimeout(0);
     }
@@ -1304,6 +1307,11 @@ const App: React.FC = () => {
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
       if (currentCached) {
         setCoachData(currentCached.coaching);
+        // 세그먼트 진입 시 해당 멘트 음성 1회 재생 (캐시만으로 텍스트만 바뀌고 음성이 안 나오는 문제 방지)
+        if (lastSpokenValidUntilPathIndex.current !== currentCached.validUntilPathIndex) {
+          speak(currentCached.coaching.tip);
+          lastSpokenValidUntilPathIndex.current = currentCached.validUntilPathIndex;
+        }
         const lastValid = cached?.length ? cached[cached.length - 1]?.validUntilPathIndex ?? 0 : 0;
         if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && elevation.length > 0) {
           lastValidUntilFetched.current = lastValid;
@@ -1317,8 +1325,6 @@ const App: React.FC = () => {
             getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, speedKmH, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
                 setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
-                setCoachData(coaching);
-                speak(coaching.tip);
               })
               .finally(() => setIsCoachThinking(false));
           }
@@ -1429,19 +1435,32 @@ const App: React.FC = () => {
   const speak = (text: string) => {
     if (!coachingOn || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice =>
-      voice.lang.startsWith('en') &&
-      (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
-    );
-    if (preferredVoice) utterance.voice = preferredVoice;
-    utterance.rate = 1.0;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    // cancel 직후 즉시 speak 시 일부 브라우저에서 재생이 누락되는 문제 방지
+    const scheduleSpeak = () => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice =>
+        voice.lang.startsWith('en') &&
+        (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
+      );
+      if (preferredVoice) utterance.voice = preferredVoice;
+      utterance.rate = 1.0;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    };
+    window.setTimeout(scheduleSpeak, 50);
   };
+
+  // Speech Synthesis voices 로드 촉진 (Chrome 등에서 getVoices()가 초기에 빈 배열인 문제 완화)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const onVoicesChanged = () => { window.speechSynthesis.getVoices(); };
+    window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+    onVoicesChanged();
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+  }, []);
 
   const createCustomMarker = (latLng: any, label: string, color: string): google.maps.Marker => {
     const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
@@ -1620,6 +1639,7 @@ const App: React.FC = () => {
     if (route && route.path.length > 0) {
       setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
       lastCoachedIndex.current = -1;
+      lastSpokenValidUntilPathIndex.current = null;
       setElapsedTime(0);
       setCoveredDistance(0);
 
@@ -1652,6 +1672,7 @@ const App: React.FC = () => {
 
     setIsCoachThinking(false);
     setCoachData(null);
+    lastSpokenValidUntilPathIndex.current = null;
     window.speechSynthesis.cancel();
   };
 
@@ -1936,6 +1957,8 @@ const App: React.FC = () => {
                   const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
                   setCoachData(coaching);
                   setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
+                  speak(coaching.tip);
+                  lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
                   getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
                 } finally {
                   setIsCoachThinking(false);
@@ -1988,6 +2011,8 @@ const App: React.FC = () => {
         const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
+        speak(coaching.tip);
+        lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
         getCourseBriefing(currentRoute).then(speak);
       } finally {
         setIsCoachThinking(false);
