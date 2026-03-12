@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
   const GOOGLE_MAPS_API_KEY = env.GOOGLE_MAPS_API_KEY;
 
   return {
+    // Android/Capacitor: file:// 환경에서 리소스 로드 위해 상대 경로 사용 (절대경로 / 시 흰 화면)
+    base: './',
     plugins: [
       react(),
       {
