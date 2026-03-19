@@ -1043,6 +1043,51 @@ const App: React.FC = () => {
     document.head.appendChild(script);
   }, []);
 
+  // Android WebView에서 간헐적으로 발생하는 Google Maps event race를 방어/계측
+  useEffect(() => {
+    const g = (window as any).google;
+    const eventApi = g?.maps?.event;
+    if (!isMapsApiLoaded || !eventApi || eventApi.__cyclePatched) return;
+
+    const originalTrigger = typeof eventApi.trigger === 'function' ? eventApi.trigger.bind(eventApi) : null;
+    const originalRemoveListener = typeof eventApi.removeListener === 'function'
+      ? eventApi.removeListener.bind(eventApi)
+      : null;
+
+    if (originalTrigger) {
+      eventApi.trigger = (instance: any, eventName: string, ...args: any[]) => {
+        if (!instance) {
+          console.warn('[GMapsEventPatch] skip trigger: missing instance', { eventName });
+          return;
+        }
+        try {
+          return originalTrigger(instance, eventName, ...args);
+        } catch (e) {
+          console.warn('[GMapsEventPatch] trigger failed', {
+            eventName,
+            hasGetDiv: typeof instance?.getDiv === 'function',
+            error: e,
+          });
+          return;
+        }
+      };
+    }
+
+    if (originalRemoveListener) {
+      eventApi.removeListener = (listener: any) => {
+        if (!listener) return;
+        try {
+          return originalRemoveListener(listener);
+        } catch (e) {
+          console.warn('[GMapsEventPatch] removeListener failed', e);
+          return;
+        }
+      };
+    }
+
+    eventApi.__cyclePatched = true;
+  }, [isMapsApiLoaded]);
+
   // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
   useEffect(() => {
     if (cyclingMarkerDataUrlRef.current) return;

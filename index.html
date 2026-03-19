@@ -33,6 +33,37 @@
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    // Android WebView first-start race: prevent known transient Google triggerEvent crash from blanking screen.
+    (function () {
+      function isKnownTransientError(message) {
+        return typeof message === 'string' && message.indexOf("reading 'triggerEvent'") !== -1;
+      }
+      window.addEventListener('error', function (event) {
+        var msg = String((event && event.message) || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] suppressed transient triggerEvent error:', msg);
+          event.preventDefault();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        var msg = String((event && event.reason && (event.reason.message || event.reason)) || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] suppressed transient triggerEvent rejection:', msg);
+          event.preventDefault();
+        }
+      });
+      window.onerror = function (message) {
+        var msg = String(message || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] window.onerror suppressed:', msg);
+          return true;
+        }
+        return false;
+      };
+    })();
+  </script>
   
   <script type="module" src="/index.tsx"></script>
   
