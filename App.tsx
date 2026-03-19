@@ -238,8 +238,15 @@ const App: React.FC = () => {
     const targetMap = map ?? googleMapRef.current;
     const eventApi = (window as any).google?.maps?.event;
     if (!eventApi || !targetMap) return false;
-    eventApi.trigger(targetMap, 'resize');
-    return true;
+    // WebView timing race: map 인스턴스가 해제/전환 중이면 trigger 내부에서 예외가 날 수 있다.
+    if (typeof (targetMap as any).getDiv !== 'function') return false;
+    try {
+      eventApi.trigger(targetMap, 'resize');
+      return true;
+    } catch (e) {
+      console.warn('[Map] resize trigger skipped due to transient map state:', e);
+      return false;
+    }
   }, []);
 
   // App Core State
@@ -517,6 +524,19 @@ const App: React.FC = () => {
 
   // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지). onSwapDone 호출 시 스왑 완료(첫 거리뷰 디스플레이 보장용).
   const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void, onSwapDone?: () => void) => {
+    const safelyRemoveListener = (listener: any) => {
+      if (!listener) return;
+      try {
+        if (typeof listener.remove === 'function') {
+          listener.remove();
+          return;
+        }
+        const eventApi = (window as any).google?.maps?.event;
+        if (eventApi?.removeListener) eventApi.removeListener(listener);
+      } catch (e) {
+        console.warn('[SV] listener remove skipped due to transient state:', e);
+      }
+    };
     const runSwap = () => {
       doSwap();
       onSwapDone?.();
@@ -534,12 +554,12 @@ const App: React.FC = () => {
     let listener: any = null;
     pendingSwapFallbackRef.current = setTimeout(() => {
       pendingSwapFallbackRef.current = null;
-      if (listener) google.maps.event.removeListener(listener);
+      safelyRemoveListener(listener);
       runSwap();
     }, FALLBACK_MS);
     listener = nextPano.addListener('status_changed', () => {
       if (nextPano.getStatus() !== 'OK') return;
-      if (listener) { google.maps.event.removeListener(listener); listener = null; }
+      if (listener) { safelyRemoveListener(listener); listener = null; }
       if (pendingSwapFallbackRef.current) { clearTimeout(pendingSwapFallbackRef.current); pendingSwapFallbackRef.current = null; }
       pendingSwapTimeoutRef.current = setTimeout(doSwapWithDelay, DELAY_AFTER_OK_MS);
     });
