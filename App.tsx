@@ -234,6 +234,13 @@ const App: React.FC = () => {
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
   const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => { });
+  const triggerMapResize = useCallback((map?: google.maps.Map | null) => {
+    const targetMap = map ?? googleMapRef.current;
+    const eventApi = (window as any).google?.maps?.event;
+    if (!eventApi || !targetMap) return false;
+    eventApi.trigger(targetMap, 'resize');
+    return true;
+  }, []);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
@@ -950,11 +957,11 @@ const App: React.FC = () => {
     const el = mapRef.current;
     if (!el || !googleMapRef.current) return;
     const ro = new ResizeObserver(() => {
-      google.maps.event.trigger(googleMapRef.current!, 'resize');
+      triggerMapResize();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mapRevealed, isMapReady]);
+  }, [mapRevealed, isMapReady, triggerMapResize]);
 
   // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)
   useEffect(() => {
@@ -1061,10 +1068,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map || !isSvFullScreen) return;
-    const t1 = setTimeout(() => google.maps.event.trigger(map, 'resize'), 100);
-    const t2 = setTimeout(() => google.maps.event.trigger(map, 'resize'), 600);
+    const t1 = setTimeout(() => triggerMapResize(map), 100);
+    const t2 = setTimeout(() => triggerMapResize(map), 600);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [isSvFullScreen]);
+  }, [isSvFullScreen, triggerMapResize]);
 
   // 도로(Road)는 항상 표시. 켜고 끄는 대상이 아님.
   useEffect(() => {
@@ -2292,7 +2299,7 @@ const App: React.FC = () => {
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
-          if (map) google.maps.event.trigger(map, 'resize');
+          triggerMapResize(map);
         }}
       />
       {mapRevealed && (
