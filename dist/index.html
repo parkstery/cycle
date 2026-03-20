@@ -5,9 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Ride the World – Indoor Cycling</title>
-  <link rel="icon" href="/icon-512.png" type="image/png">
+  <link rel="icon" href="./icon-512.png" type="image/png">
   <!-- PWA Configuration -->
-  <link rel="manifest" href="/assets/manifest-Q8WfQvtU.json?v=3">
+  <link rel="manifest" href="./assets/manifest-Q8WfQvtU.json?v=3">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,11 +31,42 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-BVosAjR2.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-9Uf9ckMp.css">
+  <script type="module" crossorigin src="./assets/index-TZ0ZJAJN.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-9Uf9ckMp.css">
 </head>
 <body>
   <div id="root"></div>
+  <script>
+    // Android WebView first-start race: prevent known transient Google triggerEvent crash from blanking screen.
+    (function () {
+      function isKnownTransientError(message) {
+        return typeof message === 'string' && message.indexOf("reading 'triggerEvent'") !== -1;
+      }
+      window.addEventListener('error', function (event) {
+        var msg = String((event && event.message) || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] suppressed transient triggerEvent error:', msg);
+          event.preventDefault();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        var msg = String((event && event.reason && (event.reason.message || event.reason)) || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] suppressed transient triggerEvent rejection:', msg);
+          event.preventDefault();
+        }
+      });
+      window.onerror = function (message) {
+        var msg = String(message || '');
+        if (isKnownTransientError(msg)) {
+          console.warn('[BootstrapGuard] window.onerror suppressed:', msg);
+          return true;
+        }
+        return false;
+      };
+    })();
+  </script>
   
   
   <!-- 화면 방향: 회전 잠금 해제 (세로/가로 기기 방향에 따라 전환) -->
