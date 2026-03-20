@@ -1043,6 +1043,12 @@ const App: React.FC = () => {
       console.warn('[GoogleMaps] GOOGLE_MAPS_API_KEY is missing. maps script not loaded.');
       return;
     }
+    // Google이 키/제한/과금 문제로 지도 로드를 거부할 때 호출됨 → Logcat에서 원인 추적용
+    (window as any).gm_authFailure = () => {
+      console.error(
+        '[GoogleMaps] gm_authFailure: Cloud Console에서 (1) Maps JavaScript API·Street View 활성화 (2) 결제 연결 (3) 앱 키 제한에 https://localhost/* 추가 를 확인하세요. (Capacitor WebView 출처는 보통 localhost)'
+      );
+    };
     const callbackName = '__cycleSvApiReady';
     (window as any)[callbackName] = () => {
       (window as any)[callbackName] = null;
