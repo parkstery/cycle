@@ -1030,15 +1030,26 @@ const App: React.FC = () => {
       setIsMapsApiLoaded(true);
       return;
     }
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
+    // Vite의 `define` 주입이 Android 빌드 과정에서 누락될 수 있어,
+    // 런타임(윈도우/메타태그)에서 2차로 키를 찾도록 보강합니다.
+    const apiKey =
+      (process.env as any)?.GOOGLE_MAPS_API_KEY
+      ?? (window as any).__GOOGLE_MAPS_API_KEY__
+      ?? (typeof document !== 'undefined'
+        ? (document.querySelector('meta[name="GOOGLE_MAPS_API_KEY"]') as HTMLMetaElement | null)?.content
+        : undefined)
+      ?? '';
+    if (!apiKey) {
+      console.warn('[GoogleMaps] GOOGLE_MAPS_API_KEY is missing. maps script not loaded.');
+      return;
+    }
     const callbackName = '__cycleSvApiReady';
     (window as any)[callbackName] = () => {
       (window as any)[callbackName] = null;
       setIsMapsApiLoaded(true);
     };
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&callback=${callbackName}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}`;
     script.async = true;
     document.head.appendChild(script);
   }, []);
