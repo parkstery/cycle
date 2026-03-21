@@ -5,10 +5,14 @@
  * @see https://operations.osmfoundation.org/policies/nominatim/
  */
 
+import { Capacitor } from '@capacitor/core';
 import * as plusCode from './plusCode';
 
-/** 브라우저 CORS 회피: 같은 출처의 /api 프록시 사용 (Vercel serverless 또는 Vite proxy) */
-const USE_PROXY = typeof window !== 'undefined';
+/**
+ * 웹(Vite dev / Vercel 등): /api 프록시 사용.
+ * Capacitor 네이티브: 정적 호스트에 프록시 없음 → Nominatim 직접 호출.
+ */
+const USE_PROXY = !Capacitor.isNativePlatform();
 const USER_AGENT = 'FitnessProCycleSimulator/1.0 (https://github.com/your-org/cycle)';
 const MIN_INTERVAL_MS = 1100;
 
