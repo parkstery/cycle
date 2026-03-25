@@ -383,7 +383,14 @@ interface MenuPanelProps {
   setMenuView: (v: MenuView) => void;
   legalExpanded?: boolean;
   setLegalExpanded?: (v: boolean) => void;
+  /** Match main map bottom inset (e.g. native banner reserve) so panel does not overlap the ad strip */
+  bannerReservedPx?: number;
 }
+
+const appInfoBottomStyle = (bannerReservedPx: number) =>
+  ({
+    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+  }) as const;
 
 export default function MenuPanel({
   open,
@@ -391,6 +398,7 @@ export default function MenuPanel({
   onOpenAbout,
   menuView,
   setMenuView,
+  bannerReservedPx = 0,
 }: MenuPanelProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -423,21 +431,23 @@ export default function MenuPanel({
     <>
       {/* backdrop */}
       <div
-        className="fixed inset-0 z-[10001] bg-black/40"
+        className="fixed left-0 right-0 top-0 z-[10001] bg-black/40"
+        style={appInfoBottomStyle(bannerReservedPx)}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
       />
 
-      {/* panel */}
+      {/* panel — same vertical extent as map (above banner strip) */}
       <div
-        className="fixed left-0 top-0 bottom-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="fixed left-0 top-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
+          ...appInfoBottomStyle(bannerReservedPx),
         }}
       >
         {/* navigation */}

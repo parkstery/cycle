@@ -3331,9 +3331,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* About Page */}
+      {/* About Page — height aligned with map (stops above banner strip on native) */}
       {showAbout && (
-        <div className="fixed inset-0 z-[1100] overflow-y-auto">
+        <div
+          className="fixed left-0 right-0 top-0 z-[1100] overflow-y-auto bg-white"
+          style={{
+            bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+          }}
+        >
           <About
             onClose={() => setShowAbout(false)}
             onBackToMenu={() => { setShowAbout(false); setMenuOpen(true); }}
@@ -3347,6 +3352,7 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
+          bannerReservedPx={bannerReservedPx}
         />,
         document.body
       )}

@@ -12,7 +12,7 @@ const HEADER_HEIGHT = 52;
 const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
   return (
     <div
-      className="min-h-screen bg-white box-border"
+      className="min-h-full bg-white box-border"
       style={{
         paddingLeft: "max(16px, env(safe-area-inset-left))",
         paddingRight: "max(16px, env(safe-area-inset-right))",
