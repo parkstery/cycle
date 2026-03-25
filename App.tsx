@@ -12,7 +12,7 @@ import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor } from '@capacitor/core';
-import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
+import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem } from '@capacitor-community/admob';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 // 자동배포문제....
@@ -22,6 +22,15 @@ const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/'
 // AdMob Units (Ride the World)
 const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
+// Rewarded video ad (replace with production ad unit when ready)
+const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
+
+// Ride distance policy
+const DEFAULT_RIDE_LIMIT_KM = 5;
+const MAX_RIDE_LIMIT_KM = 50;
+const DEFAULT_RIDE_LIMIT_M = DEFAULT_RIDE_LIMIT_KM * 1000;
+const MAX_RIDE_LIMIT_M = MAX_RIDE_LIMIT_KM * 1000;
+const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
 
 const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=j2c1r10f&dl=1",
@@ -362,6 +371,25 @@ const App: React.FC = () => {
   const interstitialShownRef = useRef(false);
   const interstitialPreparedRef = useRef(false);
   const interstitialPreparePromiseRef = useRef<Promise<void> | null>(null);
+
+  // Rewarded ad flow (ride extension)
+  const rewardPreparedRef = useRef(false);
+  const rewardPreparePromiseRef = useRef<Promise<void> | null>(null);
+  const rewardAdInFlightRef = useRef(false);
+
+  const rideAllowedLimitMetersRef = useRef<number>(DEFAULT_RIDE_LIMIT_M);
+  const rideTargetMetersRef = useRef<number>(DEFAULT_RIDE_LIMIT_M);
+  const rewardGrantedForRideRef = useRef(false);
+  const rewardFirstDeclinedRef = useRef(false);
+  const rewardSecondDeclinedRef = useRef(false);
+  const rewardSecondOfferShownRef = useRef(false);
+  const rideStoppedByLimitRef = useRef(false);
+
+  const rewardPendingRouteRef = useRef<RouteInfo | null>(null);
+  const [rewardOfferModalStage, setRewardOfferModalStage] = useState<'FIRST' | 'SECOND' | null>(null);
+  const [rewardOfferTargetKm, setRewardOfferTargetKm] = useState<number>(0);
+  const [rideLimitMessage, setRideLimitMessage] = useState<string | null>(null);
+  const [maxRideLimitMessage, setMaxRideLimitMessage] = useState<string | null>(null);
 
   const lastPanToTime = useRef<number>(0);
   /** 주행 중 속도가 SPEED_THRESHOLD_KMH 미만 → 이상으로 올랐을 때 확장 prefetch 트리거용 */
@@ -1276,6 +1304,32 @@ const App: React.FC = () => {
     }
   }, [admobReady, appPhase, simulation.isActive]);
 
+  // Rewarded video: 미리 로드(지연 최소화)
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await AdMob.prepareRewardVideoAd({
+          adId: ADMOB_REWARD_VIDEO_AD_UNIT_ID,
+        } satisfies RewardAdOptions);
+        if (cancelled) return;
+        rewardPreparedRef.current = true;
+      } catch (e) {
+        if (cancelled) return;
+        rewardPreparedRef.current = false;
+        console.warn('[AdMob] rewarded prepare failed', e);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [admobReady]);
+
   // route 상태 변경 시 routeRef 동기화 (stale closure 방지)
   useEffect(() => {
     routeRef.current = route;
@@ -1590,6 +1644,47 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [simulation.isActive, route, speedKmH]);
 
+  // Rewarded ad policy: 5km default limit + second offer before the limit.
+  useEffect(() => {
+    if (!simulation.isActive) return;
+    if (!route) return;
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (rewardAdInFlightRef.current) return;
+    if (rewardOfferModalStage) return; // don't auto-stop / prompt while modal is open
+
+    const allowedLimit = rideAllowedLimitMetersRef.current;
+    if (!allowedLimit || allowedLimit <= 0) return;
+
+    // Second offer right before reaching the default 5km cap.
+    const isStillDefaultCap = allowedLimit <= DEFAULT_RIDE_LIMIT_M + 1;
+    const secondOfferThreshold = DEFAULT_RIDE_LIMIT_M - SECOND_REWARD_OFFER_BEFORE_M;
+    if (
+      isStillDefaultCap &&
+      rewardFirstDeclinedRef.current &&
+      !rewardGrantedForRideRef.current &&
+      !rewardSecondOfferShownRef.current &&
+      coveredDistance >= secondOfferThreshold
+    ) {
+      rewardSecondOfferShownRef.current = true;
+      // Pause ride while user chooses (avoid reaching the limit while modal is open).
+      setSimulation(prev => ({ ...prev, isActive: false }));
+      setRewardOfferModalStage('SECOND');
+      setRewardOfferTargetKm(rideTargetMetersRef.current / 1000);
+      return;
+    }
+
+    // Stop ride only for the default 5km cap (routes <= 5km should not be interrupted).
+    const hitDefaultCap = isStillDefaultCap && rewardFirstDeclinedRef.current && !rewardGrantedForRideRef.current;
+    if (!rideStoppedByLimitRef.current && hitDefaultCap && coveredDistance >= allowedLimit) {
+      rideStoppedByLimitRef.current = true;
+      setSimulation(prev => ({ ...prev, isActive: false }));
+      setAppPhase('IDLE');
+
+      setRideLimitMessage('You have reached the 5 km limit.');
+    }
+  }, [coveredDistance, simulation.isActive, route, rewardOfferModalStage, admobReady]);
+
   const fadeAudio = (targetVolume: number, duration: number = 2000, onComplete?: () => void) => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
@@ -1840,6 +1935,17 @@ const App: React.FC = () => {
   const clearMapOverlays = () => {
     setAppPhase('IDLE');
     setPreparingProgress(null);
+    setRewardOfferModalStage(null);
+    setRewardOfferTargetKm(0);
+    setRideLimitMessage(null);
+    setMaxRideLimitMessage(null);
+    rewardGrantedForRideRef.current = false;
+    rewardFirstDeclinedRef.current = false;
+    rewardSecondDeclinedRef.current = false;
+    rewardSecondOfferShownRef.current = false;
+    rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+    rideTargetMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+    rideStoppedByLimitRef.current = false;
     if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
     googleMarkersRef.current.forEach(m => m.setMap(null));
     googleMarkersRef.current = [];
@@ -1873,6 +1979,12 @@ const App: React.FC = () => {
 
   const restartSimulation = () => {
     if (route && route.path.length > 0) {
+      setRewardOfferModalStage(null);
+      setRideLimitMessage(null);
+      setMaxRideLimitMessage(null);
+      rewardSecondDeclinedRef.current = false;
+      rewardSecondOfferShownRef.current = false;
+      rideStoppedByLimitRef.current = false;
       setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
       lastCoachedIndex.current = -1;
       lastSpokenValidUntilPathIndex.current = null;
@@ -1894,6 +2006,10 @@ const App: React.FC = () => {
 
   const handleStopSimulation = () => {
     console.log('[SIMULATION_STOP] reason=user_stop');
+    setRewardOfferModalStage(null);
+    setRewardOfferTargetKm(0);
+    setRideLimitMessage(null);
+    setMaxRideLimitMessage(null);
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
@@ -2187,39 +2303,8 @@ const App: React.FC = () => {
 
           if (autoStart) {
             countdownDoneRef.current = async () => {
-              // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작. 무한 대기 방지로 타임아웃 시에도 주행은 시작됨.
-              const firstPano = panoData.length > 0 ? panoData[0] : null;
-              if (firstPano) {
-                await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-              } else {
-                // 출발지 주변에 거리뷰 없음 → 지도 기반 주행. 사전 안내 표시 후 setPanoramaView(타임아웃 보장) 호출.
-                setShowSvWarning(true);
-                const startPos = densifiedPath[0];
-                const heading = computeHeading(startPos, densifiedPath.length > 1 ? densifiedPath[1] : startPos);
-                await setPanoramaView(startPos, heading);
-              }
-              setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
-              setAppPhase('RUNNING');
-              setIsSvFullScreen(true);
-              setIsSvActive(true);
-              const pathLen = densifiedPath.length;
-              const elevLen = elevationRes.results.length;
-              const segmentSize = Math.min(20, elevLen);
-              const upcomingSlice = elevationRes.results.slice(0, segmentSize);
-              if (upcomingSlice.length > 0) {
-                setIsCoachThinking(true);
-                try {
-                  const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
-                  setCoachData(coaching);
-                  setRoute((prev) => prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null);
-                  speak(coaching.tip);
-                  lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
-                  getCourseBriefing({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results }).then(speak);
-                } finally {
-                  setIsCoachThinking(false);
-                }
-              }
-              lastCoachedIndex.current = 0;
+              const r = routeRef.current;
+              if (r) await startSimulationOnly(r);
             };
             setCountdown(3);
           }
@@ -2237,13 +2322,20 @@ const App: React.FC = () => {
     finally { setLoading(false); }
   }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
 
-  /** Start simulation using existing route (no Directions/Elevation). Used when Go is clicked after 경로탐색 with same inputs. */
-  const startSimulationOnly = useCallback(async (currentRoute: RouteInfo) => {
+  /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
+  const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
+    setRideLimitMessage(null);
+    setMaxRideLimitMessage(null);
+    setRewardOfferModalStage(null);
+    setIsCoachThinking(false);
+
     setElapsedTime(0);
     setCoveredDistance(0);
+    rideStoppedByLimitRef.current = false;
     lastCoachedIndex.current = -1;
+
     const pathLen = currentRoute.path.length;
-    // [시니어 방안] 변경된 경로의 첫 거리뷰가 디스플레이된 뒤에만 주행 시작. 무한 대기 방지로 타임아웃 시에도 주행은 시작됨.
+    // Start after first StreetView (or map fallback) is visible.
     const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
     if (firstPano) {
       await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
@@ -2253,10 +2345,12 @@ const App: React.FC = () => {
       const heading = pathLen > 1 ? computeHeading(startPos, currentRoute.path[1]) : 0;
       await setPanoramaView(startPos, heading);
     }
+
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
     setIsSvFullScreen(true);
     setIsSvActive(true);
+
     const elevLen = currentRoute.elevation.length;
     const segmentSize = Math.min(20, elevLen);
     const upcomingSlice = currentRoute.elevation.slice(0, segmentSize);
@@ -2275,6 +2369,145 @@ const App: React.FC = () => {
     }
     lastCoachedIndex.current = 0;
   }, [speedKmH, setPanoramaView, setPanoramaViewByPanoId]);
+
+  /** Start simulation using existing route. Applies rewarded video extension rules. */
+  const startSimulationOnly = useCallback(async (currentRoute: RouteInfo) => {
+    setRideLimitMessage(null);
+    setMaxRideLimitMessage(null);
+
+    // Reset per-ride reward flags (reward can be granted during modal choices).
+    rewardPendingRouteRef.current = currentRoute;
+    rewardGrantedForRideRef.current = false;
+    rewardFirstDeclinedRef.current = false;
+    rewardSecondDeclinedRef.current = false;
+    rewardSecondOfferShownRef.current = false;
+    rideStoppedByLimitRef.current = false;
+
+    const routeKm = (() => {
+      const n = parseFloat(currentRoute.distance || '');
+      return Number.isFinite(n) ? n : 0;
+    })();
+    const routeMeters = routeKm * 1000;
+
+    rideTargetMetersRef.current = routeMeters;
+    rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+
+    // <= 5km: no reward gating
+    if (routeMeters <= DEFAULT_RIDE_LIMIT_M) {
+      setRewardOfferTargetKm(0);
+      rideAllowedLimitMetersRef.current = routeMeters;
+      await startSimulationCore(currentRoute);
+      return;
+    }
+
+    // > 50km: not available yet (future paid service)
+    if (routeMeters > MAX_RIDE_LIMIT_M) {
+      setMaxRideLimitMessage('Routes longer than 50 km are not available yet.');
+      return;
+    }
+
+    // 5km < distance <= 50km: offer rewarded ad
+    if (!admobReady || !Capacitor.isNativePlatform()) {
+      // Fallback: ads unavailable → allow default 5km ride.
+      rewardFirstDeclinedRef.current = true;
+      rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+      await startSimulationCore(currentRoute);
+      return;
+    }
+
+    setRewardOfferTargetKm(routeKm);
+    setRewardOfferModalStage('FIRST');
+  }, [startSimulationCore, admobReady]);
+
+  const grantRideExtensionFromRewardedAd = useCallback(async (): Promise<boolean> => {
+    if (!admobReady) return false;
+    if (!Capacitor.isNativePlatform()) return false;
+    if (rewardAdInFlightRef.current) return false;
+
+    rewardAdInFlightRef.current = true;
+    try {
+      if (!rewardPreparedRef.current) {
+        if (!rewardPreparePromiseRef.current) {
+          rewardPreparePromiseRef.current = AdMob.prepareRewardVideoAd({
+            adId: ADMOB_REWARD_VIDEO_AD_UNIT_ID,
+          } satisfies RewardAdOptions)
+            .then(() => { rewardPreparedRef.current = true; })
+            .catch((e) => {
+              rewardPreparedRef.current = false;
+              console.warn('[AdMob] rewarded prepare failed', e);
+            })
+            .finally(() => { rewardPreparePromiseRef.current = null; });
+        }
+        await rewardPreparePromiseRef.current;
+      }
+
+      // If this resolves, user has earned the reward.
+      const rewardItem = await AdMob.showRewardVideoAd();
+      if (!rewardItem) return false;
+
+      rewardGrantedForRideRef.current = true;
+      rideAllowedLimitMetersRef.current = rideTargetMetersRef.current;
+      return true;
+    } catch (e) {
+      console.warn('[AdMob] rewarded ad failed', e);
+      return false;
+    } finally {
+      rewardAdInFlightRef.current = false;
+      rewardPreparedRef.current = false;
+
+      // Best-effort re-prepare for a future second attempt.
+      void AdMob.prepareRewardVideoAd({
+        adId: ADMOB_REWARD_VIDEO_AD_UNIT_ID,
+      } satisfies RewardAdOptions)
+        .then(() => { rewardPreparedRef.current = true; })
+        .catch(() => { rewardPreparedRef.current = false; });
+    }
+  }, [admobReady]);
+
+  const handleRewardWatchFirst = useCallback(async () => {
+    const r = rewardPendingRouteRef.current;
+    if (!r) return;
+    setRewardOfferModalStage(null);
+
+    const granted = await grantRideExtensionFromRewardedAd();
+    if (!granted) {
+      // Fallback: start normally with the default 5 km cap.
+      rewardFirstDeclinedRef.current = true;
+      rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+    }
+    await startSimulationCore(r);
+  }, [grantRideExtensionFromRewardedAd, startSimulationCore]);
+
+  const handleRewardStartWithDefault = useCallback(async () => {
+    const r = rewardPendingRouteRef.current;
+    if (!r) return;
+    setRewardOfferModalStage(null);
+
+    rewardFirstDeclinedRef.current = true;
+    rewardGrantedForRideRef.current = false;
+    rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
+    await startSimulationCore(r);
+  }, [startSimulationCore]);
+
+  const handleRewardWatchSecond = useCallback(async () => {
+    setRewardOfferModalStage(null);
+
+    const granted = await grantRideExtensionFromRewardedAd();
+    // Even if ad fails, resume ride with the current allowance cap.
+    if (granted) {
+      // rideAllowedLimitMetersRef is already extended by grantRideExtensionFromRewardedAd()
+    }
+
+    setAppPhase('RUNNING');
+    setSimulation(prev => ({ ...prev, isActive: true }));
+  }, [grantRideExtensionFromRewardedAd]);
+
+  const handleRewardDeclineSecond = useCallback(() => {
+    setRewardOfferModalStage(null);
+    rewardSecondDeclinedRef.current = true;
+    setAppPhase('RUNNING');
+    setSimulation(prev => ({ ...prev, isActive: true }));
+  }, []);
 
   const handleSetStart = () => {
     if (clickedLocation) {
@@ -2520,6 +2753,100 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
           <div className="text-white text-[120px] font-black tracking-tighter drop-shadow-2xl animate-pulse">
             {countdown === 'start' ? 'Start!' : countdown}
+          </div>
+        </div>
+      )}
+
+      {/* Rewarded Ad Offer (FIRST/SECOND) */}
+      {rewardOfferModalStage && (
+        <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl p-4 w-[92%] max-w-[420px]">
+            <div className="text-slate-900 font-extrabold text-[16px]">
+              {rewardOfferModalStage === 'FIRST' ? 'Rewarded Ad Opportunity' : 'Extend Your Ride'}
+            </div>
+            <div className="text-slate-700 text-[13px] mt-2 leading-snug">
+              {rewardOfferModalStage === 'FIRST' ? (
+                <>
+                  Your route is <span className="font-bold">{rewardOfferTargetKm.toFixed(1)} km</span>.
+                  Watch a rewarded ad to extend your ride from <span className="font-bold">5 km</span> up to{' '}
+                  <span className="font-bold">{rewardOfferTargetKm.toFixed(1)} km</span>.
+                </>
+              ) : (
+                <>
+                  Want to extend your ride? Watch a rewarded ad to ride up to{' '}
+                  <span className="font-bold">{rewardOfferTargetKm.toFixed(1)} km</span>.
+                </>
+              )}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={rewardOfferModalStage === 'FIRST' ? handleRewardWatchFirst : handleRewardWatchSecond}
+                disabled={rewardAdInFlightRef.current}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {rewardAdInFlightRef.current ? 'Loading...' : 'Watch Ad'}
+              </button>
+
+              {rewardOfferModalStage === 'FIRST' ? (
+                <button
+                  type="button"
+                  onClick={handleRewardStartWithDefault}
+                  disabled={rewardAdInFlightRef.current}
+                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Start with 5 km
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRewardDeclineSecond}
+                  disabled={rewardAdInFlightRef.current}
+                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  No thanks
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Max ride message */}
+      {maxRideLimitMessage && (
+        <div className="absolute inset-0 z-[2001] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl p-4 w-[92%] max-w-[420px]">
+            <div className="text-slate-900 font-extrabold text-[16px]">Unavailable</div>
+            <div className="text-slate-700 text-[13px] mt-2 leading-snug">{maxRideLimitMessage}</div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button
+                type="button"
+                onClick={() => { setMaxRideLimitMessage(null); }}
+                className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl px-4 py-2"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ride limit reached message */}
+      {rideLimitMessage && (
+        <div className="absolute inset-0 z-[2002] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl p-4 w-[92%] max-w-[420px]">
+            <div className="text-slate-900 font-extrabold text-[16px]">Ride Ended</div>
+            <div className="text-slate-700 text-[13px] mt-2 leading-snug">{rideLimitMessage}</div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button
+                type="button"
+                onClick={() => { setRideLimitMessage(null); }}
+                className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl px-4 py-2"
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}
