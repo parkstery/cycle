@@ -1219,13 +1219,23 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Banner: driving 여부와 무관하게 항상 표시되도록 유지.
+  // Banner: App info(메뉴/About) 오버레이가 열려 있으면 네이티브 배너가 WebView 위에 겹치므로 숨김.
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
 
+    const appInfoOverlayOpen = menuOpen || showAbout;
+
     const run = async () => {
       try {
+        if (appInfoOverlayOpen) {
+          if (bannerEverShownRef.current && !bannerHiddenRef.current) {
+            await AdMob.hideBanner();
+            bannerHiddenRef.current = true;
+          }
+          return;
+        }
+
         if (!bannerEverShownRef.current) {
           await AdMob.showBanner({
             adId: ADMOB_BANNER_AD_UNIT_ID,
@@ -1236,7 +1246,6 @@ const App: React.FC = () => {
           bannerEverShownRef.current = true;
           bannerHiddenRef.current = false;
         } else {
-          // 이미 표시된 상태여도 resume은 배너를 "보이는 상태"로 유지하는 용도다.
           await AdMob.resumeBanner();
           bannerHiddenRef.current = false;
         }
@@ -1246,7 +1255,7 @@ const App: React.FC = () => {
     };
 
     void run();
-  }, [admobReady, simulation.isActive]);
+  }, [admobReady, simulation.isActive, menuOpen, showAbout]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
