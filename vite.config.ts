@@ -21,7 +21,11 @@ export default defineConfig(({ mode }) => {
   // Load explicit keys for better security separation
   const GOOGLE_MAPS_API_KEY =
     env.GOOGLE_MAPS_API_KEY
+    ?? env.VITE_GOOGLE_MAPS_API_KEY
+    ?? env.GOOGLE_MAS_API_KEY
+    ?? env.google_mas_api_key
     ?? process.env.GOOGLE_MAPS_API_KEY
+    ?? process.env.VITE_GOOGLE_MAPS_API_KEY
     // Android/CI에서 오타로 들어올 수 있는 대체 후보(레거시/환경차 대응)
     ?? process.env.GOOGLE_MAS_API_KEY
     ?? process.env.google_mas_api_key
@@ -106,9 +110,10 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      // Expose keys securely to the client-side code
-      'process.env.GOOGLE_MAPS_API_KEY': JSON.stringify(GOOGLE_MAPS_API_KEY),
-      'process.env': {}
+      // Ensure process.env access in client code keeps GOOGLE_MAPS_API_KEY value.
+      'process.env': JSON.stringify({
+        GOOGLE_MAPS_API_KEY,
+      }),
     }
   };
 });

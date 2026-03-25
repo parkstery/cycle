@@ -12,24 +12,45 @@ import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor } from '@capacitor/core';
+import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 // 자동배포문제....
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
-const PLAYLIST = [
-  "https://www.dropbox.com/scl/fi/nos19xptw7q0382wcnriw/1.mp3?rlkey=sp99hg4ts7ua84sx7pvhccdry&st=doi4yle7&raw=1",
-  "https://www.dropbox.com/scl/fi/q3igovjmmbqbyiel5fokw/.mp3?rlkey=oq6rkatit6tkb3ytqj0ms741c&st=qosipdkd&raw=1",
-  "https://www.dropbox.com/scl/fi/qduirdh7mt24ucms1jn32/.mp3?rlkey=09o1232kpdahjlsns95ppbhrc&st=0yoqhu3j&raw=1",
-  "https://www.dropbox.com/scl/fi/n5e0qtpcvjld4wrzxc36d/.mp3?rlkey=phd4mfmn96cmuj3wpcfz1a335&st=n0b0ry7i&raw=1",
-  "https://www.dropbox.com/scl/fi/s6fqpav6yuy8jt7i5kz9d/.mp3?rlkey=gtvqcypwwmltf1wfk6m5nwfht&st=frbfcugt&raw=1",
-  "https://www.dropbox.com/scl/fi/j1hzv2yx22uc0xl9redbj/1.mp3?rlkey=vjay2iyw06u84gygzxcoatz9w&st=mwjojmqh&raw=1",
-  "https://www.dropbox.com/scl/fi/2avdaszs6csfvocofa9l9/.mp3?rlkey=ssqfzfmapfa3kkrqdifazbmoj&st=e7jcjswl&raw=1",
-  "https://www.dropbox.com/scl/fi/5rlpfefbfqz94zhqcahgn/1.mp3?rlkey=v393xy7ky2xq26ilyq37z7bks&st=cnbklsql&raw=1",
-  "https://www.dropbox.com/scl/fi/y4hep3u8j0b3f9w9el5ww/.mp3?rlkey=6khecb5dsfie7n9snis93b7ir&st=c11jnyod&raw=1",
-];
+// AdMob Units (Ride the World)
+const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
+const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 
+const PLAYLIST = [
+  "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=j2c1r10f&dl=1",
+  "https://www.dropbox.com/scl/fi/41z8m3j4oamnay0h1ko2q/.mp3?rlkey=sa31hghtq0vg3tdxdkis5cvx4&st=m6gdy8bm&dl=1",
+  "https://www.dropbox.com/scl/fi/rddws4820sfalj9bud9jw/.mp3?rlkey=4i2hyocb0vdjgsf68a72wqynv&st=9yx51ecq&dl=1", 
+  "https://www.dropbox.com/scl/fi/9xfhtlv2fmyuwfoozx6c8/.mp3?rlkey=e5xywf9kmdx8zrr7ey6r72k71&st=zcuh6t4i&dl=1",  
+  "https://www.dropbox.com/scl/fi/k976v42zddy340k2wu7fm/Remastered-1.mp3?rlkey=mxg7f8oyw62xyq16p4jw419yh&st=srt4wprc&dl=1",
+  "https://www.dropbox.com/scl/fi/5oseee6wc35asvchg0m7f/Remastered.mp3?rlkey=c82cv94wq00jj8o5ohyr6zcik&st=kb5elxvj&dl=1",
+  "https://www.dropbox.com/scl/fi/85bufii77zwieqnwl5vnj/Barracuda.mp3?rlkey=zwbkccimpz8by24wrsesah2zh&st=5rbgjxoe&dl=1",
+  "https://www.dropbox.com/scl/fi/xmstjc33yractfy18k7g1/Brushing-Teeth-in-the-Morning.mp3?rlkey=0ie50ur6z2hr1t3cekreokqbm&st=i80opat8&dl=1",
+  "https://www.dropbox.com/scl/fi/5qo335fustmx9xb1j1pbi/Cha-Cha-Motion.mp3?rlkey=7057pslf8bkhj8e6rgpix4icc&st=cfwmmkyb&dl=1",
+  "https://www.dropbox.com/scl/fi/tc0qkixfvj4rq2ulwtcw4/Fast-Recorder-Play.mp3?rlkey=7xp82nfkd0df16cj4l7e6vc95&st=6koyp5hi&dl=1",
+  "https://www.dropbox.com/scl/fi/essqj2xo5fflpqg8vky2d/Hyperdrive-Circuit.mp3?rlkey=14v0r13v9z6uvcjo0vcjmpmk5&st=ws9ei5gz&dl=1",
+  "https://www.dropbox.com/scl/fi/if7c1yzc9uviz415sz7jw/Let-s-Go-on-a-Trip-1.mp3?rlkey=uduy9c77kdgllj4o6jh9azh2v&st=ojhdbte7&dl=1",
+  "https://www.dropbox.com/scl/fi/tpoiae5vy3pdoeagjq6b9/Let-s-Have-a-Blast.mp3?rlkey=wi50njh9e7w7x46zkh53ksr72&st=cdjtix7u&dl=1",
+  "https://www.dropbox.com/scl/fi/mesj3f65rvyhze24eo3u0/Magyar-T-zek-1.mp3?rlkey=90kersx42m4kxdavyk6pawjwq&st=xeekrec4&dl=1",
+  "https://www.dropbox.com/scl/fi/1law34bbpncjpfqxtzisd/Magyar-T-zek.mp3?rlkey=s1rpoxyr3pb9dq2t8euxtg117&st=moa3trjr&dl=1",
+  "https://www.dropbox.com/scl/fi/8oamnm7hzpu3kybzgku7t/Polka-Floor-Frenzy.mp3?rlkey=1v2il2mjojtx9pq5kudesq13r&st=ywvy79py&dl=1",
+  "https://www.dropbox.com/scl/fi/4bjre6b3bx2nuj960utg5/Race-of-Victory.mp3?rlkey=d7x0r0eyh5rl13rw8t565rr0n&st=ys8a9y6p&dl=1",
+  "https://www.dropbox.com/scl/fi/8o3j5y59doe85gbhau1vf/Russian-Dancer.mp3?rlkey=4x3a0oiidowwjwy3comxqowhj&st=3fihcue5&dl=1",
+  "https://www.dropbox.com/scl/fi/dm60xi68ybtorg2h5sykh/Speed-Circuit.mp3?rlkey=2pw90ceqj5tz9mapi89cxrl32&st=tm3dnsmn&dl=1",
+  "https://www.dropbox.com/scl/fi/d23ffdceriocdvez7olye/Starlight-Circuit.mp3?rlkey=o4h1c1n42x9n0ryz1k9no4acr&st=ej2o3ax1&dl=1",
+  "https://www.dropbox.com/scl/fi/v7rjtkj4slu6brt01780p/Top-Speed.mp3?rlkey=51qi29dl8nq1z0f7rs57e4yto&st=8gw60pft&dl=1",
+  "https://www.dropbox.com/scl/fi/ubpo1uf2qqcfa1y0sam8s/Traveling-Is-Fun-1.mp3?rlkey=c81h5upejn30itjp27trayutf&st=uj8nxn72&dl=1",
+  "https://www.dropbox.com/scl/fi/neqzwt2hw4eaubt23ecye/Traveling-Is-Fun.mp3?rlkey=ftv50scvsjgrxfutqg3l0fel9&st=vvr1lapw&dl=1",
+  "https://www.dropbox.com/scl/fi/2maxm34hi9rivbq2w40ee/Tuna-Run.mp3?rlkey=emhzumrrheaqhl525msc3na8f&st=7zgm7g9g&dl=1", 
+  "https://www.dropbox.com/scl/fi/il8sqs0hqux9zmd1p25ql/Whirlwind-Rhythm.mp3?rlkey=oz1ntnk8gjn6t137cx4o2v0gq&st=knjzvsb0&dl=1"  
+];
+  
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
 const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
 
@@ -331,6 +352,17 @@ const App: React.FC = () => {
   // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
   const [preparingProgress, setPreparingProgress] = useState<{ k: number; n: number } | null>(null);
+
+  // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
+  const [admobReady, setAdmobReady] = useState(false);
+  const bannerEverShownRef = useRef(false);
+  const bannerHiddenRef = useRef(false);
+  const lastAppPhaseRef = useRef<AppPhase>(appPhase);
+  const lastSimulationActiveRef = useRef<boolean>(simulation.isActive);
+  const interstitialShownRef = useRef(false);
+  const interstitialPreparedRef = useRef(false);
+  const interstitialPreparePromiseRef = useRef<Promise<void> | null>(null);
+
   const lastPanToTime = useRef<number>(0);
   /** 주행 중 속도가 SPEED_THRESHOLD_KMH 미만 → 이상으로 올랐을 때 확장 prefetch 트리거용 */
   const prevSpeedKmHRef = useRef(20);
@@ -1143,6 +1175,107 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
+  // Initialize AdMob (Android only). Manifest already has APPLICATION_ID.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!Capacitor.isNativePlatform()) return;
+      try {
+        await AdMob.initialize();
+        if (cancelled) return;
+        setAdmobReady(true);
+      } catch (e) {
+        console.warn('[AdMob] initialize failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Banner: driving 여부와 무관하게 항상 표시되도록 유지.
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+
+    const run = async () => {
+      try {
+        if (!bannerEverShownRef.current) {
+          await AdMob.showBanner({
+            adId: ADMOB_BANNER_AD_UNIT_ID,
+            adSize: BannerAdSize.ADAPTIVE_BANNER,
+            position: BannerAdPosition.BOTTOM_CENTER,
+            margin: 0,
+          });
+          bannerEverShownRef.current = true;
+          bannerHiddenRef.current = false;
+        } else {
+          // 이미 표시된 상태여도 resume은 배너를 "보이는 상태"로 유지하는 용도다.
+          await AdMob.resumeBanner();
+          bannerHiddenRef.current = false;
+        }
+      } catch (e) {
+        console.warn('[AdMob] banner control failed', e);
+      }
+    };
+
+    void run();
+  }, [admobReady, simulation.isActive]);
+
+  // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+
+    const prevSimActive = lastSimulationActiveRef.current;
+    lastSimulationActiveRef.current = simulation.isActive;
+    lastAppPhaseRef.current = appPhase;
+
+    // Session start: prepare (주행 시작 시)
+    if (simulation.isActive && !prevSimActive) {
+      interstitialShownRef.current = false;
+      interstitialPreparedRef.current = false;
+      interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_AD_UNIT_ID })
+        .then(() => { interstitialPreparedRef.current = true; })
+        .catch((e) => {
+          interstitialPreparePromiseRef.current = null;
+          interstitialPreparedRef.current = false;
+          console.warn('[AdMob] interstitial prepare failed', e);
+        });
+    }
+
+    // Session end: show only if 실제로 주행하다가(simActive=true) 멈추고, appPhase가 IDLE로 종료됐을 때
+    if (!simulation.isActive && prevSimActive && appPhase === 'IDLE' && !interstitialShownRef.current) {
+      const run = async () => {
+        try {
+          if (!interstitialPreparedRef.current) {
+            // If prepare is still in-flight, wait for it; otherwise try once more.
+            if (interstitialPreparePromiseRef.current) {
+              await interstitialPreparePromiseRef.current;
+            }
+
+            if (!interstitialPreparedRef.current) {
+              interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_AD_UNIT_ID })
+                .then(() => { interstitialPreparedRef.current = true; })
+                .catch((e) => {
+                  interstitialPreparePromiseRef.current = null;
+                  interstitialPreparedRef.current = false;
+                  console.warn('[AdMob] interstitial prepare (end) failed', e);
+                });
+              await interstitialPreparePromiseRef.current;
+            }
+          }
+
+          await AdMob.showInterstitial();
+          interstitialShownRef.current = true;
+        } catch (e) {
+          console.warn('[AdMob] interstitial failed', e);
+        } finally {
+          interstitialPreparePromiseRef.current = null;
+        }
+      };
+      void run();
+    }
+  }, [admobReady, appPhase, simulation.isActive]);
+
   // route 상태 변경 시 routeRef 동기화 (stale closure 방지)
   useEffect(() => {
     routeRef.current = route;
@@ -1511,14 +1644,33 @@ const App: React.FC = () => {
     }
   }, [simulation.isActive, musicOn]);
 
+  const getSpeechSynthesisSafe = () => {
+    if (typeof window === 'undefined') return null;
+    const synth = window.speechSynthesis;
+    if (!synth || typeof synth.cancel !== 'function' || typeof synth.speak !== 'function') return null;
+    return synth;
+  };
+
+  const safeSpeechCancel = () => {
+    const synth = getSpeechSynthesisSafe();
+    if (!synth) return;
+    try {
+      synth.cancel();
+    } catch (e) {
+      console.warn('[SpeechGuard] cancel failed', e);
+    }
+  };
+
   const speak = (text: string) => {
-    if (!coachingOn || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (!coachingOn) return;
+    const synth = getSpeechSynthesisSafe();
+    if (!synth) return;
+    safeSpeechCancel();
     // cancel 직후 즉시 speak 시 일부 브라우저에서 재생이 누락되는 문제 방지
     const scheduleSpeak = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
-      const voices = window.speechSynthesis.getVoices();
+      const voices = synth.getVoices();
       const preferredVoice = voices.find(voice =>
         voice.lang.startsWith('en') &&
         (voice.name.includes('Female') || voice.name.includes('Google US English') || voice.name.includes('Samantha'))
@@ -1527,18 +1679,23 @@ const App: React.FC = () => {
       utterance.rate = 1.0;
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+      try {
+        synth.speak(utterance);
+      } catch (e) {
+        console.warn('[SpeechGuard] speak failed', e);
+      }
     };
     window.setTimeout(scheduleSpeak, 50);
   };
 
   // Speech Synthesis voices 로드 촉진 (Chrome 등에서 getVoices()가 초기에 빈 배열인 문제 완화)
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const onVoicesChanged = () => { window.speechSynthesis.getVoices(); };
-    window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+    const synth = getSpeechSynthesisSafe();
+    if (!synth || typeof synth.addEventListener !== 'function' || typeof synth.removeEventListener !== 'function') return;
+    const onVoicesChanged = () => { synth.getVoices(); };
+    synth.addEventListener('voiceschanged', onVoicesChanged);
     onVoicesChanged();
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+    return () => synth.removeEventListener('voiceschanged', onVoicesChanged);
   }, []);
 
   const createCustomMarker = (latLng: any, label: string, color: string): google.maps.Marker => {
@@ -1752,7 +1909,7 @@ const App: React.FC = () => {
     setIsCoachThinking(false);
     setCoachData(null);
     lastSpokenValidUntilPathIndex.current = null;
-    window.speechSynthesis.cancel();
+    safeSpeechCancel();
   };
 
   const handleToggleSimulation = () => {
@@ -1892,7 +2049,7 @@ const App: React.FC = () => {
         };
         console.log('[ELEVATION_API_CALL]', JSON.stringify(elevationCallInfo, null, 2));
 
-        let elevationRes: { results: Array<{ location: any; elevation: number; resolution?: number }> };
+        let elevationRes: { results: Array<{ location: any; elevation: number; resolution: number }> };
         try {
           const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
           elevationRes = {
@@ -1902,9 +2059,17 @@ const App: React.FC = () => {
               resolution: 0
             }))
           };
-        } catch {
-          setLoading(false);
-          return;
+        } catch (e) {
+          console.warn('[ELEVATION_ERROR] fallback_to_flat_profile', e);
+          // Elevation API 실패(안드로이드 WebView TLS/네트워크 등) 시에도
+          // OSRM 경로 자체는 유효하므로 평지(고도 0)로 진행한다.
+          elevationRes = {
+            results: path.map((p: any) => ({
+              elevation: 0,
+              location: p,
+              resolution: 0
+            }))
+          };
         }
 
         // Duration: Car, Bike, Foot 모두 선택 속도(speedKmH) + 경사 보정으로 동일 계산 (실내 사이클 사용자 경로 선택 일관성)
@@ -2113,7 +2278,11 @@ const App: React.FC = () => {
 
   const handleSetStart = () => {
     if (clickedLocation) {
-      const newOrigin = clickedLocation.name || clickedLocation.address;
+      const resolvedName =
+        clickedLocation.name && clickedLocation.name !== 'Loading...'
+          ? clickedLocation.name
+          : clickedLocation.address;
+      const newOrigin = resolvedName || `${clickedLocation.lat.toFixed(4)}, ${clickedLocation.lng.toFixed(4)}`;
       originJustSelectedRef.current = true;
       originSetFromMapClickRef.current = true;
       setOrigin(newOrigin);
@@ -2131,7 +2300,11 @@ const App: React.FC = () => {
 
   const handleSetEnd = () => {
     if (clickedLocation) {
-      const newDest = clickedLocation.name || clickedLocation.address;
+      const resolvedName =
+        clickedLocation.name && clickedLocation.name !== 'Loading...'
+          ? clickedLocation.name
+          : clickedLocation.address;
+      const newDest = resolvedName || `${clickedLocation.lat.toFixed(4)}, ${clickedLocation.lng.toFixed(4)}`;
       destJustSelectedRef.current = true;
       destSetFromMapClickRef.current = true;
       setDestination(newDest);
@@ -2287,7 +2460,21 @@ const App: React.FC = () => {
     if (googleMapRef.current) googleMapRef.current.setMapTypeId(next);
   };
 
+  // Android WebView에서 일부 터치가 click으로 승격되지 않는 경우가 있어,
+  // 상단 핵심 버튼은 touchend에서도 동일 액션을 실행하도록 보강.
+  const stopPointerPropagation = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
+  const activateFromTouchEnd = (e: React.TouchEvent, action: () => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    action();
+  };
+
   const isSaved = isCurrentRouteSaved();
+  // 배너가 항상 보이는 하단 전용 영역을 주행 중에도 계속 확보한다.
+  const bannerReservedPx = (admobReady && Capacitor.isNativePlatform()) ? 72 : 0;
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
@@ -2375,11 +2562,12 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute inset-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute bottom-0 left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
+          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` : undefined,
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
@@ -2392,7 +2580,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: '10px' }}
+          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
@@ -2408,16 +2596,44 @@ const App: React.FC = () => {
 
 
       {/* Map Style Button - Moved Left (80% size) */}
-      <div className="absolute right-16 top-4 z-[1000] pointer-events-auto">
-        <button onClick={handleToggleMapType} title="Change Map Style" className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}>
-          <Layers size={19} />
+      <div
+        className="fixed z-[1000] pointer-events-auto"
+        style={{
+          right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        }}
+      >
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapType)}
+          onClick={handleToggleMapType}
+          title="Change Map Style"
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
+        >
+          <Layers size={19} className="pointer-events-none" />
         </button>
       </div>
 
       {/* Main Control Group - Shifted Up (80% size) */}
-      <div className="absolute right-4 top-4 z-[1000] flex flex-col gap-1.5 pointer-events-auto">
-        <button onClick={() => setShowCoverage(!showCoverage)} title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
-          <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} />
+      <div
+        className="fixed z-[1000] flex flex-col gap-1.5 pointer-events-auto"
+        style={{
+          right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        }}
+      >
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => activateFromTouchEnd(e, () => setShowCoverage((v) => !v))}
+          onClick={() => setShowCoverage(!showCoverage)}
+          title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}
+        >
+          <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className="pointer-events-none" />
         </button>
         <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
           <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
@@ -2429,9 +2645,25 @@ const App: React.FC = () => {
         )}
       </div>
 
-      <div className={`absolute top-4 left-[calc(1rem+2.4rem+6px)] z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}>
+      <div
+        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
+        style={{
+          left: 'calc(env(safe-area-inset-left, 0px) + 1rem + 2.4rem + 6px)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        }}
+      >
         <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
-          <button onClick={() => setSearchExpanded(!searchExpanded)} title="Search Places" className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600">{searchExpanded ? <ChevronLeft size={16} /> : <Search size={16} />}</button>
+          <button
+            type="button"
+            onPointerDown={stopPointerPropagation}
+            onTouchStart={stopPointerPropagation}
+            onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
+            onClick={() => setSearchExpanded(!searchExpanded)}
+            title="Search Places"
+            className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
+          >
+            {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
+          </button>
           <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
           {searchTerm && (
             <button onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
@@ -2448,7 +2680,10 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <div className={`absolute bottom-[25px] left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}>
+      <div
+        className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
+        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+      >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[6px] ${routeInputExpanded ? 'w-[1rem] h-[1rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={14} /> : <Waypoints size={16} className="text-blue-600" />}</button>
@@ -2670,7 +2905,10 @@ const App: React.FC = () => {
         </div>
       </div>
       {route && (
-        <div className={`absolute bottom-[25px] z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'right-4 w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}>
+        <div
+          className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'right-4 w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'right-16 w-[2.4rem] h-[2.4rem] group'}`}
+          style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
           <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
@@ -2779,12 +3017,19 @@ const App: React.FC = () => {
       {/* Hamburger menu - top-left (above search so always clickable) */}
       <button
         type="button"
+        onPointerDown={stopPointerPropagation}
+        onTouchStart={stopPointerPropagation}
+        onTouchEnd={(e) => activateFromTouchEnd(e, () => { setMenuView('list'); setMenuOpen(true); })}
         onClick={() => { setMenuView('list'); setMenuOpen(true); }}
         title="App Info"
-        className="absolute left-4 top-4 z-[1000] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto"
+        className="fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation"
+        style={{
+          left: 'calc(env(safe-area-inset-left, 0px) + 1rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        }}
         aria-label="Open menu"
       >
-        <Menu size={20} />
+        <Menu size={20} className="pointer-events-none" />
       </button>
 
     </div>
