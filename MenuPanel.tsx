@@ -440,7 +440,7 @@ export default function MenuPanel({
 
       {/* panel — same vertical extent as map (above banner strip) */}
       <div
-        className="fixed left-0 top-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="fixed left-0 top-0 z-[10002] w-[88%] max-w-[360px] bg-white shadow-2xl flex flex-col min-h-0 overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
@@ -484,8 +484,8 @@ export default function MenuPanel({
 {/* empty div */}
         </header>
 
-        {/* content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* content — min-h-0 so flex child can shrink and scroll */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
 
           {isList ? (
             <ul

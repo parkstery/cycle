@@ -1219,23 +1219,13 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Banner: App info(메뉴/About) 오버레이가 열려 있으면 네이티브 배너가 WebView 위에 겹치므로 숨김.
+  // Banner: App info 영역은 맵과 동일 bottom inset으로 배너와 분리되므로, 메뉴/About 열림과 관계없이 표시.
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
 
-    const appInfoOverlayOpen = menuOpen || showAbout;
-
     const run = async () => {
       try {
-        if (appInfoOverlayOpen) {
-          if (bannerEverShownRef.current && !bannerHiddenRef.current) {
-            await AdMob.hideBanner();
-            bannerHiddenRef.current = true;
-          }
-          return;
-        }
-
         if (!bannerEverShownRef.current) {
           await AdMob.showBanner({
             adId: ADMOB_BANNER_AD_UNIT_ID,
@@ -1255,7 +1245,7 @@ const App: React.FC = () => {
     };
 
     void run();
-  }, [admobReady, simulation.isActive, menuOpen, showAbout]);
+  }, [admobReady, simulation.isActive]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
@@ -3331,10 +3321,10 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* About Page — height aligned with map (stops above banner strip on native) */}
+      {/* About Page — same vertical extent as map; inner scroll (About uses flex + overflow-y-auto) */}
       {showAbout && (
         <div
-          className="fixed left-0 right-0 top-0 z-[1100] overflow-y-auto bg-white"
+          className="fixed left-0 right-0 top-0 z-[1100] flex flex-col overflow-hidden bg-white"
           style={{
             bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
           }}

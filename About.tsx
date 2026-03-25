@@ -12,18 +12,15 @@ const HEADER_HEIGHT = 52;
 const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
   return (
     <div
-      className="min-h-full bg-white box-border"
+      className="h-full min-h-0 flex flex-col bg-white box-border overflow-hidden"
       style={{
         paddingLeft: "max(16px, env(safe-area-inset-left))",
         paddingRight: "max(16px, env(safe-area-inset-right))",
-        paddingBottom: "max(24px, env(safe-area-inset-bottom))",
       }}
     >
-      {/* Header */}
       <header
-        className="fixed left-0 right-0 flex items-center justify-between gap-2 z-20 px-4 bg-white border-b border-slate-200"
+        className="shrink-0 flex items-center justify-between gap-2 z-20 px-4 bg-white border-b border-slate-200"
         style={{
-          top: 0,
           minHeight: HEADER_HEIGHT,
           paddingTop: "env(safe-area-inset-top, 0px)",
           paddingBottom: 12,
@@ -52,24 +49,15 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
         </div>
       </header>
 
-      {/* Spacer */}
-      <div
-        aria-hidden
-        style={{
-          minHeight: HEADER_HEIGHT,
-          paddingTop: "env(safe-area-inset-top, 0px)",
-          paddingBottom: 12,
-        }}
-      />
-
-      {/* Content */}
-      <main
-        className="max-w-[720px] mx-auto pt-4 pb-12 text-slate-900 leading-relaxed"
-        style={{
-          paddingLeft: 24,
-          paddingRight: 24,
-        }}
-      >
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <main
+          className="max-w-[720px] mx-auto pt-4 pb-12 text-slate-900 leading-relaxed"
+          style={{
+            paddingLeft: 24,
+            paddingRight: 24,
+            paddingBottom: "max(24px, env(safe-area-inset-bottom))",
+          }}
+        >
         {/* Title */}
         <h1 className="text-2xl font-bold mb-2">
           Ride the World – Indoor Cycling
@@ -147,7 +135,8 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
         <p className="text-sm text-slate-600 text-center mt-12">
           © 2026 LiveOnSoft
         </p>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
