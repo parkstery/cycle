@@ -49,7 +49,6 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/mesj3f65rvyhze24eo3u0/Magyar-T-zek-1.mp3?rlkey=90kersx42m4kxdavyk6pawjwq&st=xeekrec4&dl=1",
   "https://www.dropbox.com/scl/fi/1law34bbpncjpfqxtzisd/Magyar-T-zek.mp3?rlkey=s1rpoxyr3pb9dq2t8euxtg117&st=moa3trjr&dl=1",
   "https://www.dropbox.com/scl/fi/8oamnm7hzpu3kybzgku7t/Polka-Floor-Frenzy.mp3?rlkey=1v2il2mjojtx9pq5kudesq13r&st=ywvy79py&dl=1",
-  "https://www.dropbox.com/scl/fi/4bjre6b3bx2nuj960utg5/Race-of-Victory.mp3?rlkey=d7x0r0eyh5rl13rw8t565rr0n&st=ys8a9y6p&dl=1",
   "https://www.dropbox.com/scl/fi/8o3j5y59doe85gbhau1vf/Russian-Dancer.mp3?rlkey=4x3a0oiidowwjwy3comxqowhj&st=3fihcue5&dl=1",
   "https://www.dropbox.com/scl/fi/dm60xi68ybtorg2h5sykh/Speed-Circuit.mp3?rlkey=2pw90ceqj5tz9mapi89cxrl32&st=tm3dnsmn&dl=1",
   "https://www.dropbox.com/scl/fi/d23ffdceriocdvez7olye/Starlight-Circuit.mp3?rlkey=o4h1c1n42x9n0ryz1k9no4acr&st=ej2o3ax1&dl=1",
@@ -1782,6 +1781,13 @@ const App: React.FC = () => {
     window.setTimeout(scheduleSpeak, 50);
   };
 
+  useEffect(() => {
+    if (!coachingOn) {
+      safeSpeechCancel();
+      setIsSpeaking(false);
+    }
+  }, [coachingOn]);
+
   // Speech Synthesis voices 로드 촉진 (Chrome 등에서 getVoices()가 초기에 빈 배열인 문제 완화)
   useEffect(() => {
     const synth = getSpeechSynthesisSafe();
@@ -2911,7 +2917,7 @@ const App: React.FC = () => {
           © OpenStreetMap contributors
         </a>
       )}
-      {simulation.isActive && coachingOn && coachData && coachingMentVisible && (
+      {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
@@ -3244,7 +3250,7 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "코칭 멘트 텍스트 숨기기" : "코칭 멘트 텍스트 표시"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
+                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                         <MessageSquare size={16} />
                       </button>
                       <div className="flex flex-col justify-center items-start leading-none ml-1">
@@ -3263,7 +3269,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="h-10 w-full flex items-stretch gap-1">
                   <div className="flex flex-col justify-center gap-1 shrink-0">
-                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Disable coaching" : "Enable coaching"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
+                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
                       <Mic size={16} />
                     </button>
                     <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
