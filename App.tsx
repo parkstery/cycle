@@ -360,8 +360,11 @@ const App: React.FC = () => {
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
+  const [bannerReservedPx, setBannerReservedPx] = useState(0);
   const bannerEverShownRef = useRef(false);
   const bannerHiddenRef = useRef(false);
+  const bannerSizeMeasuredRef = useRef(false);
+  const bannerListenerHandlesRef = useRef<any[]>([]);
   const lastAppPhaseRef = useRef<AppPhase>(appPhase);
   const lastSimulationActiveRef = useRef<boolean>(simulation.isActive);
   const interstitialShownRef = useRef(false);
@@ -1219,6 +1222,46 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+
+    const onBannerSize = (info: any) => {
+      const rawHeight = Number(info?.height ?? info?.adHeight ?? info?.size?.height ?? info?.adSize?.height);
+      if (!Number.isFinite(rawHeight) || rawHeight <= 0) return;
+      bannerSizeMeasuredRef.current = true;
+      setBannerReservedPx(Math.max(0, Math.round(rawHeight)));
+    };
+
+    const attach = async () => {
+      const handles: any[] = [];
+      const eventNames = ['onAdSize', 'onBannerAdSizeChanged', 'onAdSizeChanged'];
+      for (const eventName of eventNames) {
+        try {
+          const handle = await (AdMob as any).addListener(eventName, onBannerSize);
+          if (handle?.remove) handles.push(handle);
+        } catch {
+          // 플러그인 버전별 이벤트명이 달라 실패할 수 있으므로 무시하고 다음 이벤트를 시도한다.
+        }
+      }
+      if (cancelled) {
+        await Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
+        return;
+      }
+      bannerListenerHandlesRef.current = handles;
+    };
+
+    void attach();
+    return () => {
+      cancelled = true;
+      const handles = bannerListenerHandlesRef.current;
+      bannerListenerHandlesRef.current = [];
+      void Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
+    };
+  }, [admobReady]);
+
   // Banner: App info 영역은 맵과 동일 bottom inset으로 배너와 분리되므로, 메뉴/About 열림과 관계없이 표시.
   useEffect(() => {
     if (!admobReady) return;
@@ -1226,6 +1269,10 @@ const App: React.FC = () => {
 
     const run = async () => {
       try {
+        // 사이즈 이벤트 수신 전에는 보수적으로 예약해 중첩을 방지한다.
+        if (!bannerSizeMeasuredRef.current && bannerReservedPx <= 0) {
+          setBannerReservedPx(72);
+        }
         if (!bannerEverShownRef.current) {
           await AdMob.showBanner({
             adId: ADMOB_BANNER_AD_UNIT_ID,
@@ -1245,7 +1292,7 @@ const App: React.FC = () => {
     };
 
     void run();
-  }, [admobReady, simulation.isActive]);
+  }, [admobReady, simulation.isActive, bannerReservedPx]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
@@ -2873,8 +2920,6 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 배너가 항상 보이는 하단 전용 영역을 주행 중에도 계속 확보한다.
-  const bannerReservedPx = (admobReady && Capacitor.isNativePlatform()) ? 72 : 0;
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
