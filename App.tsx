@@ -33,30 +33,22 @@ const MAX_RIDE_LIMIT_M = MAX_RIDE_LIMIT_KM * 1000;
 const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
 
 const PLAYLIST = [
-  "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=j2c1r10f&dl=1",
-  "https://www.dropbox.com/scl/fi/41z8m3j4oamnay0h1ko2q/.mp3?rlkey=sa31hghtq0vg3tdxdkis5cvx4&st=m6gdy8bm&dl=1",
-  "https://www.dropbox.com/scl/fi/rddws4820sfalj9bud9jw/.mp3?rlkey=4i2hyocb0vdjgsf68a72wqynv&st=9yx51ecq&dl=1", 
-  "https://www.dropbox.com/scl/fi/9xfhtlv2fmyuwfoozx6c8/.mp3?rlkey=e5xywf9kmdx8zrr7ey6r72k71&st=zcuh6t4i&dl=1",  
-  "https://www.dropbox.com/scl/fi/k976v42zddy340k2wu7fm/Remastered-1.mp3?rlkey=mxg7f8oyw62xyq16p4jw419yh&st=srt4wprc&dl=1",
-  "https://www.dropbox.com/scl/fi/5oseee6wc35asvchg0m7f/Remastered.mp3?rlkey=c82cv94wq00jj8o5ohyr6zcik&st=kb5elxvj&dl=1",
-  "https://www.dropbox.com/scl/fi/85bufii77zwieqnwl5vnj/Barracuda.mp3?rlkey=zwbkccimpz8by24wrsesah2zh&st=5rbgjxoe&dl=1",
-  "https://www.dropbox.com/scl/fi/xmstjc33yractfy18k7g1/Brushing-Teeth-in-the-Morning.mp3?rlkey=0ie50ur6z2hr1t3cekreokqbm&st=i80opat8&dl=1",
-  "https://www.dropbox.com/scl/fi/5qo335fustmx9xb1j1pbi/Cha-Cha-Motion.mp3?rlkey=7057pslf8bkhj8e6rgpix4icc&st=cfwmmkyb&dl=1",
-  "https://www.dropbox.com/scl/fi/tc0qkixfvj4rq2ulwtcw4/Fast-Recorder-Play.mp3?rlkey=7xp82nfkd0df16cj4l7e6vc95&st=6koyp5hi&dl=1",
-  "https://www.dropbox.com/scl/fi/essqj2xo5fflpqg8vky2d/Hyperdrive-Circuit.mp3?rlkey=14v0r13v9z6uvcjo0vcjmpmk5&st=ws9ei5gz&dl=1",
-  "https://www.dropbox.com/scl/fi/if7c1yzc9uviz415sz7jw/Let-s-Go-on-a-Trip-1.mp3?rlkey=uduy9c77kdgllj4o6jh9azh2v&st=ojhdbte7&dl=1",
-  "https://www.dropbox.com/scl/fi/tpoiae5vy3pdoeagjq6b9/Let-s-Have-a-Blast.mp3?rlkey=wi50njh9e7w7x46zkh53ksr72&st=cdjtix7u&dl=1",
-  "https://www.dropbox.com/scl/fi/mesj3f65rvyhze24eo3u0/Magyar-T-zek-1.mp3?rlkey=90kersx42m4kxdavyk6pawjwq&st=xeekrec4&dl=1",
-  "https://www.dropbox.com/scl/fi/1law34bbpncjpfqxtzisd/Magyar-T-zek.mp3?rlkey=s1rpoxyr3pb9dq2t8euxtg117&st=moa3trjr&dl=1",
-  "https://www.dropbox.com/scl/fi/8oamnm7hzpu3kybzgku7t/Polka-Floor-Frenzy.mp3?rlkey=1v2il2mjojtx9pq5kudesq13r&st=ywvy79py&dl=1",
-  "https://www.dropbox.com/scl/fi/8o3j5y59doe85gbhau1vf/Russian-Dancer.mp3?rlkey=4x3a0oiidowwjwy3comxqowhj&st=3fihcue5&dl=1",
-  "https://www.dropbox.com/scl/fi/dm60xi68ybtorg2h5sykh/Speed-Circuit.mp3?rlkey=2pw90ceqj5tz9mapi89cxrl32&st=tm3dnsmn&dl=1",
-  "https://www.dropbox.com/scl/fi/d23ffdceriocdvez7olye/Starlight-Circuit.mp3?rlkey=o4h1c1n42x9n0ryz1k9no4acr&st=ej2o3ax1&dl=1",
-  "https://www.dropbox.com/scl/fi/v7rjtkj4slu6brt01780p/Top-Speed.mp3?rlkey=51qi29dl8nq1z0f7rs57e4yto&st=8gw60pft&dl=1",
-  "https://www.dropbox.com/scl/fi/ubpo1uf2qqcfa1y0sam8s/Traveling-Is-Fun-1.mp3?rlkey=c81h5upejn30itjp27trayutf&st=uj8nxn72&dl=1",
-  "https://www.dropbox.com/scl/fi/neqzwt2hw4eaubt23ecye/Traveling-Is-Fun.mp3?rlkey=ftv50scvsjgrxfutqg3l0fel9&st=vvr1lapw&dl=1",
-  "https://www.dropbox.com/scl/fi/2maxm34hi9rivbq2w40ee/Tuna-Run.mp3?rlkey=emhzumrrheaqhl525msc3na8f&st=7zgm7g9g&dl=1", 
-  "https://www.dropbox.com/scl/fi/il8sqs0hqux9zmd1p25ql/Whirlwind-Rhythm.mp3?rlkey=oz1ntnk8gjn6t137cx4o2v0gq&st=knjzvsb0&dl=1"  
+  "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=3i57ybqu&dl=1",
+  "https://www.dropbox.com/scl/fi/41z8m3j4oamnay0h1ko2q/.mp3?rlkey=sa31hghtq0vg3tdxdkis5cvx4&st=tv5kecjg&dl=1",
+  "https://www.dropbox.com/scl/fi/k976v42zddy340k2wu7fm/Remastered-1.mp3?rlkey=mxg7f8oyw62xyq16p4jw419yh&st=woegl8g9&dl=1", 
+  "https://www.dropbox.com/scl/fi/5oseee6wc35asvchg0m7f/Remastered.mp3?rlkey=c82cv94wq00jj8o5ohyr6zcik&st=cmk2189q&dl=1",  
+  "https://www.dropbox.com/scl/fi/xmstjc33yractfy18k7g1/Brushing-Teeth-in-the-Morning.mp3?rlkey=0ie50ur6z2hr1t3cekreokqbm&st=lmn7p261&dl=1",
+  "https://www.dropbox.com/scl/fi/tc0qkixfvj4rq2ulwtcw4/Fast-Recorder-Play.mp3?rlkey=7xp82nfkd0df16cj4l7e6vc95&st=bkuxlebh&dl=1",
+  "https://www.dropbox.com/scl/fi/essqj2xo5fflpqg8vky2d/Hyperdrive-Circuit.mp3?rlkey=14v0r13v9z6uvcjo0vcjmpmk5&st=nnq8e6fh&dl=1",
+  "https://www.dropbox.com/scl/fi/if7c1yzc9uviz415sz7jw/Let-s-Go-on-a-Trip-1.mp3?rlkey=uduy9c77kdgllj4o6jh9azh2v&st=4opmjfqc&dl=1",
+  "https://www.dropbox.com/scl/fi/tpoiae5vy3pdoeagjq6b9/Let-s-Have-a-Blast.mp3?rlkey=wi50njh9e7w7x46zkh53ksr72&st=7zhyvib0&dl=1",
+  "https://www.dropbox.com/scl/fi/1law34bbpncjpfqxtzisd/Magyar-T-zek.mp3?rlkey=s1rpoxyr3pb9dq2t8euxtg117&st=n0lbq087&dl=1",
+  "https://www.dropbox.com/scl/fi/dm60xi68ybtorg2h5sykh/Speed-Circuit.mp3?rlkey=2pw90ceqj5tz9mapi89cxrl32&st=b7jqmkeb&dl=1",
+  "https://www.dropbox.com/scl/fi/d23ffdceriocdvez7olye/Starlight-Circuit.mp3?rlkey=o4h1c1n42x9n0ryz1k9no4acr&st=lod15q5b&dl=1",
+  "https://www.dropbox.com/scl/fi/v7rjtkj4slu6brt01780p/Top-Speed.mp3?rlkey=51qi29dl8nq1z0f7rs57e4yto&st=ormm9kyh&dl=1",
+  "https://www.dropbox.com/scl/fi/ubpo1uf2qqcfa1y0sam8s/Traveling-Is-Fun-1.mp3?rlkey=c81h5upejn30itjp27trayutf&st=ucsbn0ux&dl=1",
+  "https://www.dropbox.com/scl/fi/neqzwt2hw4eaubt23ecye/Traveling-Is-Fun.mp3?rlkey=ftv50scvsjgrxfutqg3l0fel9&st=u4iecrmb&dl=1",
+  "https://www.dropbox.com/scl/fi/2maxm34hi9rivbq2w40ee/Tuna-Run.mp3?rlkey=emhzumrrheaqhl525msc3na8f&st=sz1umr9f&dl=1"   
 ];
   
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
