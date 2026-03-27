@@ -386,11 +386,13 @@ interface MenuPanelProps {
   setLegalExpanded?: (v: boolean) => void;
   /** Match main map bottom inset (e.g. native banner reserve) so panel does not overlap the ad strip */
   bannerReservedPx?: number;
+  /** Extra lift so map Google / attribution row stays visible under the left drawer */
+  attributionClearancePx?: number;
 }
 
-const appInfoBottomStyle = (bannerReservedPx: number) =>
+const appInfoBottomStyle = (bannerReservedPx: number, attributionClearancePx: number) =>
   ({
-    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px + ${attributionClearancePx}px)`,
   }) as const;
 
 export default function MenuPanel({
@@ -400,6 +402,7 @@ export default function MenuPanel({
   menuView,
   setMenuView,
   bannerReservedPx = 0,
+  attributionClearancePx = 48,
 }: MenuPanelProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -433,7 +436,7 @@ export default function MenuPanel({
       {/* backdrop */}
       <div
         className="fixed left-0 right-0 top-0 z-[10001] bg-black/40"
-        style={appInfoBottomStyle(bannerReservedPx)}
+        style={appInfoBottomStyle(bannerReservedPx, attributionClearancePx)}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -448,7 +451,7 @@ export default function MenuPanel({
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
-          ...appInfoBottomStyle(bannerReservedPx),
+          ...appInfoBottomStyle(bannerReservedPx, attributionClearancePx),
         }}
       >
         {/* navigation */}

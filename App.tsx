@@ -26,6 +26,9 @@ const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 
+/** 맵 하단 Google 로고·약관 등 필수 표시가 UI에 가려지지 않도록 올려 둔 여유(px). */
+const MAP_ATTRIBUTION_CLEARANCE_PX = 48;
+
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
 const MAX_RIDE_LIMIT_KM = 50;
@@ -361,6 +364,7 @@ const App: React.FC = () => {
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
   const [bannerReservedPx, setBannerReservedPx] = useState(0);
+  const [isTextInputActive, setIsTextInputActive] = useState(false);
   const bannerEverShownRef = useRef(false);
   const bannerHiddenRef = useRef(false);
   const bannerSizeMeasuredRef = useRef(false);
@@ -1276,6 +1280,43 @@ const App: React.FC = () => {
     };
   }, [admobReady, getBannerFallbackPx]);
 
+  // 텍스트 입력 중에는 배너를 숨겨 키보드/패널/저작권 겹침 및 빈 reserve 영역을 방지한다.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const isEditableTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName?.toLowerCase();
+      if (tag === 'textarea') return true;
+      if (tag !== 'input') return false;
+      const type = ((el as HTMLInputElement).type || 'text').toLowerCase();
+      return !['button', 'checkbox', 'radio', 'range', 'file', 'submit', 'reset', 'color', 'image'].includes(type);
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (!isEditableTarget(e.target)) return;
+      setIsTextInputActive(true);
+    };
+
+    const onFocusOut = () => {
+      // 다음 포커스 이동(입력→입력) 시 깜빡임 방지를 위해 짧게 지연 평가
+      window.setTimeout(() => {
+        const active = document.activeElement as HTMLElement | null;
+        if (active && isEditableTarget(active)) return;
+        setIsTextInputActive(false);
+      }, 30);
+    };
+
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+    };
+  }, []);
+
   // Banner: App info 영역은 맵과 동일 bottom inset으로 배너와 분리되므로, 메뉴/About 열림과 관계없이 표시.
   useEffect(() => {
     if (!admobReady) return;
@@ -1283,6 +1324,15 @@ const App: React.FC = () => {
 
     const run = async () => {
       try {
+        if (isTextInputActive) {
+          if (!bannerHiddenRef.current) {
+            await AdMob.hideBanner();
+            bannerHiddenRef.current = true;
+          }
+          setBannerReservedPx(0);
+          return;
+        }
+
         if (!bannerEverShownRef.current) {
           await AdMob.showBanner({
             adId: ADMOB_BANNER_AD_UNIT_ID,
@@ -1293,8 +1343,12 @@ const App: React.FC = () => {
           bannerEverShownRef.current = true;
           bannerHiddenRef.current = false;
         } else {
+          // 입력 모드에서 hide된 배너를 동일 위치(BOTTOM_CENTER)로 복귀시킨다.
           await AdMob.resumeBanner();
           bannerHiddenRef.current = false;
+          if (!bannerSizeMeasuredRef.current && bannerReservedPx <= 0) {
+            setBannerReservedPx(getBannerFallbackPx());
+          }
         }
       } catch (e) {
         console.warn('[AdMob] banner control failed', e);
@@ -1302,7 +1356,7 @@ const App: React.FC = () => {
     };
 
     void run();
-  }, [admobReady, simulation.isActive]);
+  }, [admobReady, simulation.isActive, isTextInputActive, bannerReservedPx, getBannerFallbackPx]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
@@ -3129,7 +3183,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+          style={{ bottom: `calc(${10 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
@@ -3231,7 +3285,7 @@ const App: React.FC = () => {
       </div>
       <div
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        style={{ bottom: `calc(${25 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3458,7 +3512,7 @@ const App: React.FC = () => {
           className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{
             right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+            bottom: `calc(${25 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
@@ -3569,6 +3623,7 @@ const App: React.FC = () => {
           menuView={menuView}
           setMenuView={setMenuView}
           bannerReservedPx={bannerReservedPx}
+          attributionClearancePx={MAP_ATTRIBUTION_CLEARANCE_PX}
         />,
         document.body
       )}
