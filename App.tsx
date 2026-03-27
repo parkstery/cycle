@@ -26,8 +26,8 @@ const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 
-/** 맵 하단 Google 로고·약관 등 필수 표시가 UI에 가려지지 않도록 올려 둔 여유(px). */
-const MAP_ATTRIBUTION_CLEARANCE_PX = 48;
+/** Contents(앱 정보) 좌측 드로어만 맵 하단 Google 표시와 겹치지 않게 올릴 때 사용(px). 라우트·고도 패널에는 적용하지 않음. */
+const MENU_PANEL_ATTRIBUTION_CLEARANCE_PX = 48;
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
@@ -3183,7 +3183,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(${10 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
@@ -3285,7 +3285,7 @@ const App: React.FC = () => {
       </div>
       <div
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: `calc(${25 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3512,7 +3512,7 @@ const App: React.FC = () => {
           className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{
             right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-            bottom: `calc(${25 + MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
@@ -3623,7 +3623,7 @@ const App: React.FC = () => {
           menuView={menuView}
           setMenuView={setMenuView}
           bannerReservedPx={bannerReservedPx}
-          attributionClearancePx={MAP_ATTRIBUTION_CLEARANCE_PX}
+          attributionClearancePx={MENU_PANEL_ATTRIBUTION_CLEARANCE_PX}
         />,
         document.body
       )}
