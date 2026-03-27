@@ -2046,6 +2046,51 @@ const App: React.FC = () => {
     });
   };
 
+  const handleToggleStreetView = useCallback(() => {
+    const nextActive = !isSvActive;
+
+    // Hide일 때는 Street View 전용 레이아웃 상태도 함께 정리해 map-only 화면을 보장한다.
+    if (!nextActive) {
+      setIsSvActive(false);
+      setIsSvFullScreen(false);
+      return;
+    }
+
+    setIsSvActive(true);
+    if (!route?.path?.length) return;
+
+    const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
+    const currentPos = route.path[currentIdx];
+    if (!currentPos) return;
+
+    const syncCurrentStreetView = async () => {
+      if (route.panoData?.length) {
+        const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
+        if (panoItem) {
+          svDisplayPathIndexRef.current = currentIdx;
+          lastSvDisplayUpdateRef.current = Date.now();
+          lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+          await setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+          setShowSvWarning(false);
+          return;
+        }
+      }
+
+      const nextPos = route.path[Math.min(currentIdx + 1, route.path.length - 1)] || currentPos;
+      const heading = computeHeading(currentPos, nextPos);
+      await setPanoramaView(currentPos, heading);
+    };
+
+    void syncCurrentStreetView();
+  }, [
+    getPanoDataForIndex,
+    isSvActive,
+    route,
+    setPanoramaView,
+    setPanoramaViewByPanoId,
+    simulation.currentIndex,
+  ]);
+
   /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/거리뷰/표고는 기존 effect가 동기화. */
   const jumpToRouteIndex = (targetIndex: number) => {
     if (!route?.path?.length) return;
@@ -2959,7 +3004,7 @@ const App: React.FC = () => {
         >
           <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className="pointer-events-none" />
         </button>
-        <button onClick={() => setIsSvActive(!isSvActive)} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+        <button onClick={handleToggleStreetView} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
           <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
         </button>
         {isSvActive && (

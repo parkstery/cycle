@@ -337,13 +337,14 @@ function LicensesContent() {
       </table>
       <ul className={docList}>
         <li><strong>Accuracy and availability</strong> of map, route, and elevation data are the responsibility of the respective providers; the App operator does not guarantee them.</li>
-        <li>For full license text and current policies, see each service?�s official site.</li>
+        <li>For full license text and current policies, check please the official websites for each service.</li>
       </ul>
 
       <h3 className={docTitle}>3. Open Source Software Used (Packages)</h3>
       <p className={docBody}>Runtime: react, react-dom (MIT), lucide-react (ISC), recharts (MIT). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
       <h3 className={docTitle}>4. Summary of Main Licenses</h3>
-      <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, see each package?�s official repository or npm.</p>
+      
+      <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, please refer to the official repository for each package or npm.</p>
     </div>
   );
 }
