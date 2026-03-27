@@ -1176,7 +1176,7 @@ const App: React.FC = () => {
   // Street View init (Panorama + Service) when Google loaded and SV divs exist
   useEffect(() => {
     if (!isMapsApiLoaded || !svRef1.current || !svRef2.current || panorama1.current) return;
-    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: true, motionTrackingControl: true, pov: { heading: 0, pitch: 0, zoom: 0 } };
+    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: false, motionTrackingControl: false, pov: { heading: 0, pitch: 0, zoom: 0 } };
     panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
     panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
     svServiceRef.current = new google.maps.StreetViewService();
