@@ -253,6 +253,8 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<number | null>(null);
   const simulationActiveRef = useRef(false);
+  const musicOnRef = useRef(true);
+  const pendingAudioPauseRef = useRef(false);
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
@@ -1194,6 +1196,10 @@ const App: React.FC = () => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
 
+  useEffect(() => {
+    musicOnRef.current = musicOn;
+  }, [musicOn]);
+
   // Initialize AdMob (Android only). Manifest already has APPLICATION_ID.
   useEffect(() => {
     let cancelled = false;
@@ -1690,6 +1696,7 @@ const App: React.FC = () => {
       audio.volume = newVolume;
       if (newVolume === targetVolume) {
         if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
         if (onComplete) onComplete();
       }
     }, stepTime);
@@ -1697,6 +1704,11 @@ const App: React.FC = () => {
 
   const playRandomMusic = () => {
     if (!audioRef.current) return;
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+    pendingAudioPauseRef.current = false;
     const track = PLAYLIST[Math.floor(Math.random() * PLAYLIST.length)];
     audioRef.current.src = track;
     audioRef.current.volume = 0;
@@ -1721,10 +1733,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (simulation.isActive && musicOn) {
-      if (audioRef.current && audioRef.current.paused) { playRandomMusic(); }
+      if (audioRef.current && (audioRef.current.paused || pendingAudioPauseRef.current)) {
+        playRandomMusic();
+      }
     } else {
       if (audioRef.current && !audioRef.current.paused) {
-        fadeAudio(0, 2000, () => { audioRef.current?.pause(); });
+        pendingAudioPauseRef.current = true;
+        fadeAudio(0, 2000, () => {
+          const shouldKeepPlaying = simulationActiveRef.current && musicOnRef.current;
+          if (shouldKeepPlaying) {
+            playRandomMusic();
+            return;
+          }
+          audioRef.current?.pause();
+          pendingAudioPauseRef.current = false;
+        });
       }
     }
   }, [simulation.isActive, musicOn]);
