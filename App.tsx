@@ -13,6 +13,7 @@ import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor } from '@capacitor/core';
 import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem } from '@capacitor-community/admob';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 declare var google: any;
 // 자동배포문제....
@@ -253,6 +254,8 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeIntervalRef = useRef<number | null>(null);
   const simulationActiveRef = useRef(false);
+  const speechStartTimeoutRef = useRef<number | null>(null);
+  const speechRequestIdRef = useRef(0);
   const musicOnRef = useRef(true);
   const pendingAudioPauseRef = useRef(false);
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
@@ -1759,24 +1762,96 @@ const App: React.FC = () => {
     return synth;
   };
 
-  const safeSpeechCancel = () => {
-    const synth = getSpeechSynthesisSafe();
-    if (!synth) return;
+  const stopNativeSpeech = useCallback(async () => {
+    if (!Capacitor.isNativePlatform()) return;
     try {
-      synth.cancel();
+      await TextToSpeech.stop();
     } catch (e) {
-      console.warn('[SpeechGuard] cancel failed', e);
+      console.warn('[SpeechGuard] native stop failed', e);
     }
-  };
+  }, []);
 
-  const speak = (text: string) => {
-    if (!coachingOn) return;
+  const safeSpeechCancel = useCallback(() => {
+    if (speechStartTimeoutRef.current) {
+      clearTimeout(speechStartTimeoutRef.current);
+      speechStartTimeoutRef.current = null;
+    }
     const synth = getSpeechSynthesisSafe();
-    if (!synth) return;
+    if (synth) {
+      try {
+        synth.cancel();
+      } catch (e) {
+        console.warn('[SpeechGuard] cancel failed', e);
+      }
+    }
+    void stopNativeSpeech();
+  }, [stopNativeSpeech]);
+
+  const speak = useCallback((text: string) => {
+    if (!coachingOn) return;
+    const normalizedText = (text || '').trim();
+    if (!normalizedText) return;
+    const requestId = ++speechRequestIdRef.current;
+    const isNativePlatform = Capacitor.isNativePlatform();
+
+    const synth = getSpeechSynthesisSafe();
     safeSpeechCancel();
+
+    const speakNative = async (reason: string) => {
+      if (!isNativePlatform) return;
+      const run = async (lang: string) => {
+        await TextToSpeech.speak({
+          text: normalizedText,
+          lang,
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+        });
+      };
+      try {
+        if (speechRequestIdRef.current !== requestId) return;
+        setIsSpeaking(true);
+        await run('en-US');
+      } catch (e) {
+        console.warn(`[SpeechGuard] native fallback failed (${reason}, en-US)`, e);
+        try {
+          if (speechRequestIdRef.current !== requestId) return;
+          await run('ko-KR');
+        } catch (e2) {
+          console.warn(`[SpeechGuard] native fallback failed (${reason}, ko-KR)`, e2);
+        }
+      } finally {
+        if (speechRequestIdRef.current === requestId) {
+          setIsSpeaking(false);
+        }
+      }
+    };
+
+    if (!synth) {
+      void speakNative('web_unavailable');
+      return;
+    }
+
     // cancel 직후 즉시 speak 시 일부 브라우저에서 재생이 누락되는 문제 방지
     const scheduleSpeak = () => {
-      const utterance = new SpeechSynthesisUtterance(text);
+      let webStarted = false;
+      let fallbackTriggered = false;
+
+      const fallbackToNative = (reason: string) => {
+        if (!isNativePlatform || fallbackTriggered) return;
+        fallbackTriggered = true;
+        if (speechStartTimeoutRef.current) {
+          clearTimeout(speechStartTimeoutRef.current);
+          speechStartTimeoutRef.current = null;
+        }
+        try {
+          synth.cancel();
+        } catch {
+          // no-op
+        }
+        void speakNative(reason);
+    };
+      const utterance = new SpeechSynthesisUtterance(normalizedText);
       utterance.lang = 'en-US';
       const voices = synth.getVoices();
       const preferredVoice = voices.find(voice =>
@@ -1785,16 +1860,43 @@ const App: React.FC = () => {
       );
       if (preferredVoice) utterance.voice = preferredVoice;
       utterance.rate = 1.0;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
+      utterance.onstart = () => {
+        if (speechRequestIdRef.current !== requestId) return;
+        webStarted = true;
+        if (speechStartTimeoutRef.current) {
+          clearTimeout(speechStartTimeoutRef.current);
+          speechStartTimeoutRef.current = null;
+        }
+        setIsSpeaking(true);
+      };
+      utterance.onend = () => {
+        if (speechRequestIdRef.current !== requestId) return;
+        setIsSpeaking(false);
+      };
+      utterance.onerror = (e) => {
+        if (speechRequestIdRef.current !== requestId) return;
+        console.warn('[SpeechGuard] web speech error', e);
+        setIsSpeaking(false);
+        fallbackToNative('web_error');
+      };
       try {
         synth.speak(utterance);
+        if (isNativePlatform) {
+          speechStartTimeoutRef.current = window.setTimeout(() => {
+            if (speechRequestIdRef.current !== requestId) return;
+            if (!webStarted) {
+              console.warn('[SpeechGuard] web speech start timeout; fallback to native');
+              fallbackToNative('web_start_timeout');
+            }
+          }, 1200);
+        }
       } catch (e) {
-        console.warn('[SpeechGuard] speak failed', e);
+        console.warn('[SpeechGuard] web speak failed', e);
+        fallbackToNative('web_speak_exception');
       }
     };
     window.setTimeout(scheduleSpeak, 50);
-  };
+  }, [coachingOn, safeSpeechCancel]);
 
   useEffect(() => {
     if (!coachingOn) {
