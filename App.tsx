@@ -1222,17 +1222,31 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const getBannerFallbackPx = useCallback(() => {
+    if (!Capacitor.isNativePlatform()) return 0;
+    if (typeof window === 'undefined') return 50;
+    const vw = window.innerWidth || 0;
+    if (vw >= 728) return 90;
+    if (vw >= 468) return 60;
+    return 50;
+  }, []);
+
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
     let cancelled = false;
 
+    // 이벤트가 늦거나 누락돼도 과대 여백(72px) 대신 화면 폭 기반 최소 예약으로 시작한다.
+    setBannerReservedPx(getBannerFallbackPx());
+
     const onBannerSize = (info: any) => {
       const rawHeight = Number(info?.height ?? info?.adHeight ?? info?.size?.height ?? info?.adSize?.height);
       if (!Number.isFinite(rawHeight) || rawHeight <= 0) return;
+      // 일부 기기/버전에서 safe-area 포함 과대값이 들어올 수 있어 banner 실높이 범위(50/60/90)로 정규화한다.
+      const normalized = Math.max(50, Math.min(90, Math.round(rawHeight)));
       bannerSizeMeasuredRef.current = true;
-      setBannerReservedPx(Math.max(0, Math.round(rawHeight)));
+      setBannerReservedPx(normalized);
     };
 
     const attach = async () => {
@@ -1260,7 +1274,7 @@ const App: React.FC = () => {
       bannerListenerHandlesRef.current = [];
       void Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
     };
-  }, [admobReady]);
+  }, [admobReady, getBannerFallbackPx]);
 
   // Banner: App info 영역은 맵과 동일 bottom inset으로 배너와 분리되므로, 메뉴/About 열림과 관계없이 표시.
   useEffect(() => {
@@ -1269,10 +1283,6 @@ const App: React.FC = () => {
 
     const run = async () => {
       try {
-        // 사이즈 이벤트 수신 전에는 보수적으로 예약해 중첩을 방지한다.
-        if (!bannerSizeMeasuredRef.current && bannerReservedPx <= 0) {
-          setBannerReservedPx(72);
-        }
         if (!bannerEverShownRef.current) {
           await AdMob.showBanner({
             adId: ADMOB_BANNER_AD_UNIT_ID,
@@ -1292,7 +1302,7 @@ const App: React.FC = () => {
     };
 
     void run();
-  }, [admobReady, simulation.isActive, bannerReservedPx]);
+  }, [admobReady, simulation.isActive]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
