@@ -20,7 +20,8 @@ import com.getcapacitor.BridgeActivity;
 
 /**
  * 시스템 내비·상태바 영역까지 WebView 콘텐츠가 그려지지 않도록 인셋을 적용한다.
- * Capacitor는 content 아래 자식에 WebView를 붙이므로, 가능하면 WebView의 부모에 패딩을 준다.
+ * 인셋은 WebView 자체에만 패딩으로 준다. 부모에 bottom 패딩을 주면 AdMob 배너가
+ * 동일한 내비 인셋을 margin으로 한 번 더 적용해 세로 모드에서 배너와 내비 사이에 빈 공간이 생긴다.
  * SOFT_INPUT_ADJUST_PAN 유지 → 키보드/배너 관련 기존 동작 보존.
  */
 public class MainActivity extends BridgeActivity {
@@ -85,7 +86,20 @@ public class MainActivity extends BridgeActivity {
         ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            v.setPadding(0, 0, 0, 0);
+            WebView wv = null;
+            try {
+                Bridge bridge = getBridge();
+                if (bridge != null) {
+                    wv = bridge.getWebView();
+                }
+            } catch (Throwable ignored) {
+            }
+            if (wv != null) {
+                wv.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            } else {
+                v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            }
             return WindowInsetsCompat.CONSUMED;
         });
         ViewCompat.requestApplyInsets(getWindow().getDecorView());
