@@ -1250,20 +1250,31 @@ const App: React.FC = () => {
     const bump = () => setLayoutOrientationTick((t) => t + 1);
     window.addEventListener('resize', bump);
     window.addEventListener('orientationchange', bump);
-    const mq = window.matchMedia?.('(orientation: portrait)');
-    mq?.addEventListener?.('change', bump);
     return () => {
       window.removeEventListener('resize', bump);
       window.removeEventListener('orientationchange', bump);
-      mq?.removeEventListener?.('change', bump);
     };
   }, []);
 
+  /**
+   * 세로 판별은 뷰포트 크기만 사용한다. Android WebView에서 matchMedia(orientation)이 가로로 오판하는 사례가 있어
+   * rootBottomBannerPadPx가 항상 0이 되고 배너 여백이 전혀 적용되지 않았다.
+   */
   const isPortraitLayout = useCallback(() => {
     if (typeof window === 'undefined') return true;
-    const mm = window.matchMedia?.('(orientation: portrait)');
-    if (mm && typeof mm.matches === 'boolean') return mm.matches;
-    return window.innerHeight >= window.innerWidth;
+    const h = window.innerHeight;
+    const w = window.innerWidth;
+    if (w <= 0 || h <= 0) return true;
+    try {
+      const t = typeof screen !== 'undefined' ? screen.orientation?.type : '';
+      if (typeof t === 'string') {
+        if (t.includes('portrait')) return true;
+        if (t.includes('landscape')) return false;
+      }
+    } catch {
+      /* ignore */
+    }
+    return h >= w;
   }, []);
 
   /**
@@ -1282,9 +1293,9 @@ const App: React.FC = () => {
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
-   * 네이티브 세로 전용: 루트에 padding-bottom을 주면 absolute 자식의 기준이 패딩 안쪽이 되어
-   * bottom만 calc로 주는 방식보다 맵/거리뷰가 배너 위에 안정적으로 맞춰진다(WebView+Maps 조합).
-   * 가로에서는 0 — 레이아웃 변경 없음.
+   * 네이티브 세로 전용: fixed 루트의 bottom을 뷰포트에서 올려 전체 앱 높이를 줄인다.
+   * padding-bottom은 일부 WebView에서 absolute 자식·Maps 크기 계산에 반영되지 않는 경우가 있었다.
+   * 가로에서는 0(bottom:0과 동일) — 레이아웃 유지.
    */
   const rootBottomBannerPadPx = useMemo(() => {
     if (isTextInputActive) return 0;
@@ -1295,7 +1306,7 @@ const App: React.FC = () => {
     return Math.max(bannerReservedPx, getBannerFallbackPx());
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
-  /** 루트 패딩으로 이미 비운 만큼은 자식 bottom calc에서 중복 적용하지 않는다. */
+  /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
   const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
@@ -3050,8 +3061,8 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900 overflow-hidden font-sans"
-      style={rootBottomBannerPadPx > 0 ? { paddingBottom: rootBottomBannerPadPx } : undefined}
+      className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
+      style={{ bottom: rootBottomBannerPadPx }}
     >
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
