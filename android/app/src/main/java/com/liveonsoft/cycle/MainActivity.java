@@ -57,7 +57,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         mainHandler.removeCallbacks(applyInsetsRunnable);
         super.onDestroy();
     }
