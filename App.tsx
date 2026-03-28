@@ -3127,8 +3127,20 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
-      <div ref={svContainerRef} className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute inset-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}>
+      {/* Street View Container — 배너·safe-area 위 영역만 사용(전체/분할 공통). 맵과 하단 기준 정합. */}
+      <div
+        ref={svContainerRef}
+        className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute left-0 right-0 top-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}
+        style={
+          isSvActive
+            ? isSvFullScreen
+              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }
+              : {
+                  height: `calc((100% - env(safe-area-inset-bottom, 0px) - ${bannerReservedPx}px) / 2)`,
+                }
+            : undefined
+        }
+      >
         <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
         <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
       </div>
@@ -3165,12 +3177,16 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
           bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` : undefined,
+          top:
+            isSvActive && !isSvFullScreen
+              ? `calc((100% - env(safe-area-inset-bottom, 0px) - ${bannerReservedPx}px) / 2)`
+              : undefined,
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
