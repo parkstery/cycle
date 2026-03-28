@@ -1250,10 +1250,20 @@ const App: React.FC = () => {
     const bump = () => setLayoutOrientationTick((t) => t + 1);
     window.addEventListener('resize', bump);
     window.addEventListener('orientationchange', bump);
+    const mq = window.matchMedia?.('(orientation: portrait)');
+    mq?.addEventListener?.('change', bump);
     return () => {
       window.removeEventListener('resize', bump);
       window.removeEventListener('orientationchange', bump);
+      mq?.removeEventListener?.('change', bump);
     };
+  }, []);
+
+  const isPortraitLayout = useCallback(() => {
+    if (typeof window === 'undefined') return true;
+    const mm = window.matchMedia?.('(orientation: portrait)');
+    if (mm && typeof mm.matches === 'boolean') return mm.matches;
+    return window.innerHeight >= window.innerWidth;
   }, []);
 
   /**
@@ -1265,14 +1275,28 @@ const App: React.FC = () => {
     if (!Capacitor.isNativePlatform()) return bannerReservedPx;
     if (typeof window === 'undefined') return bannerReservedPx;
     void layoutOrientationTick;
-    const vw = window.innerWidth || 0;
-    const vh = window.innerHeight || 0;
-    const portrait = vh >= vw;
-    if (portrait) {
+    if (isPortraitLayout()) {
       return Math.max(bannerReservedPx, getBannerFallbackPx());
     }
     return bannerReservedPx;
-  }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive]);
+  }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
+
+  /**
+   * 네이티브 세로 전용: 루트에 padding-bottom을 주면 absolute 자식의 기준이 패딩 안쪽이 되어
+   * bottom만 calc로 주는 방식보다 맵/거리뷰가 배너 위에 안정적으로 맞춰진다(WebView+Maps 조합).
+   * 가로에서는 0 — 레이아웃 변경 없음.
+   */
+  const rootBottomBannerPadPx = useMemo(() => {
+    if (isTextInputActive) return 0;
+    if (!Capacitor.isNativePlatform()) return 0;
+    if (typeof window === 'undefined') return 0;
+    void layoutOrientationTick;
+    if (!isPortraitLayout()) return 0;
+    return Math.max(bannerReservedPx, getBannerFallbackPx());
+  }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
+
+  /** 루트 패딩으로 이미 비운 만큼은 자식 bottom calc에서 중복 적용하지 않는다. */
+  const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
@@ -3025,7 +3049,10 @@ const App: React.FC = () => {
   const isSaved = isCurrentRouteSaved();
 
   return (
-    <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
+    <div
+      className="fixed inset-0 bg-slate-900 overflow-hidden font-sans"
+      style={rootBottomBannerPadPx > 0 ? { paddingBottom: rootBottomBannerPadPx } : undefined}
+    >
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3173,9 +3200,12 @@ const App: React.FC = () => {
         style={
           isSvActive
             ? isSvFullScreen
-              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }
+              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }
               : {
-                  height: `calc((100% - env(safe-area-inset-bottom, 0px) - ${bottomBannerClearancePx}px) / 2)`,
+                  height:
+                    rootBottomBannerPadPx > 0
+                      ? 'calc(50% - 1px)'
+                      : `calc((100% - env(safe-area-inset-bottom, 0px) - ${stackBannerPadPx}px) / 2)`,
                 }
             : undefined
         }
@@ -3221,10 +3251,12 @@ const App: React.FC = () => {
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
-          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` : undefined,
+          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` : undefined,
           top:
             isSvActive && !isSvFullScreen
-              ? `calc((100% - env(safe-area-inset-bottom, 0px) - ${bottomBannerClearancePx}px) / 2)`
+              ? rootBottomBannerPadPx > 0
+                ? 'calc(50% + 1px)'
+                : `calc((100% - env(safe-area-inset-bottom, 0px) - ${stackBannerPadPx}px) / 2)`
               : undefined,
         }}
         onTransitionEnd={() => {
@@ -3238,7 +3270,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }}
+          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
@@ -3340,7 +3372,7 @@ const App: React.FC = () => {
       </div>
       <div
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }}
+        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3567,7 +3599,7 @@ const App: React.FC = () => {
           className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{
             right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)`,
+            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)`,
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
