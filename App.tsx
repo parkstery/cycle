@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
@@ -1242,6 +1242,37 @@ const App: React.FC = () => {
     if (vw >= 468) return 60;
     return 50;
   }, []);
+
+  /** 회전·리사이즈 시 세로/가로 판별 갱신 */
+  const [layoutOrientationTick, setLayoutOrientationTick] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bump = () => setLayoutOrientationTick((t) => t + 1);
+    window.addEventListener('resize', bump);
+    window.addEventListener('orientationchange', bump);
+    return () => {
+      window.removeEventListener('resize', bump);
+      window.removeEventListener('orientationchange', bump);
+    };
+  }, []);
+
+  /**
+   * 네이티브 세로: 배너 크기 이벤트가 늦거나 0이면 맵·거리뷰가 배너와 겹친다.
+   * 세로에서만 max(상태, 폭 기반 폴백)으로 최소 예약을 보장한다. 가로는 기존 bannerReservedPx만 사용(요청대로 가로 레이아웃 유지).
+   */
+  const bottomBannerClearancePx = useMemo(() => {
+    if (isTextInputActive) return 0;
+    if (!Capacitor.isNativePlatform()) return bannerReservedPx;
+    if (typeof window === 'undefined') return bannerReservedPx;
+    void layoutOrientationTick;
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    const portrait = vh >= vw;
+    if (portrait) {
+      return Math.max(bannerReservedPx, getBannerFallbackPx());
+    }
+    return bannerReservedPx;
+  }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive]);
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
@@ -3142,9 +3173,9 @@ const App: React.FC = () => {
         style={
           isSvActive
             ? isSvFullScreen
-              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }
+              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }
               : {
-                  height: `calc((100% - env(safe-area-inset-bottom, 0px) - ${bannerReservedPx}px) / 2)`,
+                  height: `calc((100% - env(safe-area-inset-bottom, 0px) - ${bottomBannerClearancePx}px) / 2)`,
                 }
             : undefined
         }
@@ -3190,10 +3221,10 @@ const App: React.FC = () => {
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
-          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` : undefined,
+          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` : undefined,
           top:
             isSvActive && !isSvFullScreen
-              ? `calc((100% - env(safe-area-inset-bottom, 0px) - ${bannerReservedPx}px) / 2)`
+              ? `calc((100% - env(safe-area-inset-bottom, 0px) - ${bottomBannerClearancePx}px) / 2)`
               : undefined,
         }}
         onTransitionEnd={() => {
@@ -3207,7 +3238,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
@@ -3309,7 +3340,7 @@ const App: React.FC = () => {
       </div>
       <div
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)` }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3536,7 +3567,7 @@ const App: React.FC = () => {
           className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{
             right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)`,
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
@@ -3630,7 +3661,7 @@ const App: React.FC = () => {
         <div
           className="fixed left-0 right-0 top-0 z-[1100] flex flex-col overflow-hidden bg-white"
           style={{
-            bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+            bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomBannerClearancePx}px)`,
           }}
         >
           <About
@@ -3646,7 +3677,7 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
-          bannerReservedPx={bannerReservedPx}
+          bannerReservedPx={bottomBannerClearancePx}
           attributionClearancePx={MENU_PANEL_ATTRIBUTION_CLEARANCE_PX}
         />,
         document.body
