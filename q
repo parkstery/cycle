@@ -1,0 +1,442 @@
+[33mcommit f3a018d0ebd4fd243223ea869fcd77e5281e0e86[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev[m[33m, [m[1;31morigin/dev[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 22:25:50 2026 +0900
+
+    fix: 세로 맵 하단 118px 하한(구글 푸터), 가로 배너 예약 60px 상한(검은 띠)
+    
+    Made-with: Cursor
+
+[33mcommit c5f5b48c92c4a47fc9895370da8d2c776b1dd4dc[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 21:58:43 2026 +0900
+
+    fix(portrait native): 세로만 90px 하한+뷰포트 판별, 가로 mapSvOsm 하한 제거
+    
+    Made-with: Cursor
+
+[33mcommit d5500f94e872d874284a741f34c1f9d41f665324[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 21:31:36 2026 +0900
+
+    fix: 가로만 맵·SV·OSM 하단 여백 하한(64px)으로 저작권 표시, 세로는 stack 유지
+    
+    Made-with: Cursor
+
+[33mcommit bdac001cdc828c4c1ba918548eddad6ac86ddb78[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 21:10:06 2026 +0900
+
+    fix(portrait banner): screen.orientation 오판 제거, 세로 최소 90px 예약(468x60 대응)
+    
+    Made-with: Cursor
+
+[33mcommit 96fa21308591e01e62e84c5f53b6ea14bd14fa0e[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 21:02:47 2026 +0900
+
+    fix(Android portrait): orientation는 뷰포트+screen만 사용, 루트는 bottom inset으로 배너 구역 확보
+    
+    Made-with: Cursor
+
+[33mcommit 7ad6c639dbb721e45d39f8c5ceef5b8afbc4f520[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 20:51:55 2026 +0900
+
+    fix(Android portrait): 루트 padding-bottom으로 맵·거리뷰·패널과 네이티브 배너 영역 분리
+    
+    Made-with: Cursor
+
+[33mcommit 745d596ab31ad027b8162a6c80d9cf97e9c7fe54[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 20:38:29 2026 +0900
+
+    fix(Android portrait): 세로에서 배너 하단 여백 최소 보장으로 맵·거리뷰·패널과 광고 분리
+    
+    Made-with: Cursor
+
+[33mcommit 29112fda90062f0681a4166a94b7180fc7b6e3bf[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 12:59:34 2026 +0900
+
+    fix: 인셋은 부모 LTR + WebView 하단만, 배너 예약 높이 가로 32px 반영
+    
+    Made-with: Cursor
+
+[33mcommit 2356bef3b9cedc17ffe74a74fa263ccf5df27843[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 11:56:41 2026 +0900
+
+    fix(Android): apply system insets on WebView only to fix banner-nav double offset
+    
+    Made-with: Cursor
+
+[33mcommit dbfcba2f237f85e67d97cfa22e5b82450f52f23c[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 11:31:00 2026 +0900
+
+    Align Street View and split map with banner strip above system nav.
+    
+    Use shared bottom inset; split mode uses half of usable height for SV and map; fullscreen SV no longer uses inset-0 over the ad area.
+    
+    Made-with: Cursor
+
+[33mcommit 68b7e83496aa94a8f5548ca631f6f2d0c65f5ba8[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 10:43:50 2026 +0900
+
+    Fix MainActivity.onDestroy visibility for BridgeActivity override.
+    
+    Use public onDestroy to match parent; Java disallows weaker access on override.
+    
+    Made-with: Cursor
+
+[33mcommit 731019fd32f43d232c2fe6c9556bd0bdde563d47[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 10:35:38 2026 +0900
+
+    Apply system bar insets on WebView parent for portrait and landscape.
+    
+    Resolve Capacitor WebView parent for padding, debounce delayed reapply after rotation/late attach, keep SOFT_INPUT_ADJUST_PAN for keyboard and banner behavior.
+    
+    Made-with: Cursor
+
+[33mcommit f8d1b7bf36326b5ca14c787461c991c2c06d0974[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 08:50:01 2026 +0900
+
+    Fix map under navigation bar on Samsung WebView (S22 class devices).
+    
+    Apply system bar padding on android.R.id.content with decorFitsSystemWindows(false), and remove viewport-fit=cover so layout is not forced into the gesture/nav bar region.
+    
+    Made-with: Cursor
+
+[33mcommit 5e27f3e001a834cdfd040f42da15d068ad84654e[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 08:28:00 2026 +0900
+
+    Restore system navigation bar inset for map and Street View.
+    
+    Opt out edge-to-edge on application AppTheme for API 35+ and re-apply decor fits system windows after postCreate and onResume so WebView does not draw under the nav bar.
+    
+    Made-with: Cursor
+
+[33mcommit ef6e011dd30d9a4bd4db31012806e5081ce781a2[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 07:58:36 2026 +0900
+
+    Revert clearance lift on route, elevation, OSM link; keep menu drawer only.
+    
+    Only MenuPanel uses bottom attribution clearance; restore original bottom offsets for route settings, elevation profile, and OpenStreetMap label.
+    
+    Made-with: Cursor
+
+[33mcommit 38dc1fb2e5aeb83e4e42ff6de2817733da13ffca[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 07:35:13 2026 +0900
+
+    Lift bottom UI so Google map attribution stays visible.
+    
+    Add MAP_ATTRIBUTION_CLEARANCE_PX for route/elevation panels, OSM link, and MenuPanel drawer bottom inset.
+    
+    Made-with: Cursor
+
+[33mcommit a086c64e3c3f1cfe2d01b4c8507efcf594d179fd[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 00:58:40 2026 +0900
+
+    Fix Android keyboard resize behavior so banner stays bottom-anchored.
+    
+    Set soft input mode to adjustPan and disable Capacitor Keyboard resize to prevent banner jumping over search input panel in portrait typing mode.
+    
+    Made-with: Cursor
+
+[33mcommit 09587afe814581770ed80060c262d795b7342e8d[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 28 00:17:39 2026 +0900
+
+    Fix banner reserve oversizing that caused visible black gap.
+    
+    Use width-based fallback (50/60/90) and clamp runtime banner size events to valid banner heights so map/ad separation remains without oversized empty band.
+    
+    Made-with: Cursor
+
+[33mcommit c9196b441c5cefda097220b8a8eb4aded39b9884[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 23:59:59 2026 +0900
+
+    Sync banner reserve height with runtime AdMob size events.
+    
+    Replace fixed 72px bottom reserve with measured banner height to keep map and ad separated without persistent black gap.
+    
+    Made-with: Cursor
+
+[33mcommit f065d98d36a458a6befb2f03c2cf9be18173aba9[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 23:29:06 2026 +0900
+
+    Banner ad and Map overlap cancelation
+
+[33mcommit 91e290dbfd57a70978f169d6a5b17e2be82df68f[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 17:56:30 2026 +0900
+
+    landscape profile location move
+
+[33mcommit b159cef85cb1ec3ba6468592239c6f395c6afa6c[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 16:56:32 2026 +0900
+
+    speech TTS edit in app.tsx but not know it worked
+
+[33mcommit 652b8a01b6ba3105bf91586bdfa805f5ed8cf327[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 15:03:12 2026 +0900
+
+    elevation profile move to right 16 -> 4
+
+[33mcommit da1a93b22099d360267730100dd53dd39b625457[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 14:45:44 2026 +0900
+
+    motion tracking off
+
+[33mcommit 957be19e57a94a7a431b7296257869ab6ef21482[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 14:12:51 2026 +0900
+
+    music pause replay mute error fix
+
+[33mcommit d23d260b692e74e677287e5754c15e38cb3cd1ed[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 13:44:44 2026 +0900
+
+    Error fix - hide street view change to Map & refer to each official sites
+
+[33mcommit 41da3a32954ffcff6a875d57c41a43ad6797a173[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 27 12:35:58 2026 +0900
+
+    music list and menupanel edited
+
+[33mcommit 7c765a6ee8f3b46300341bd3b43d9c6f1bee57ae[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 26 11:01:14 2026 +0900
+
+    fix: App info 대시 문자 복구
+    
+    Made-with: Cursor
+
+[33mcommit 6eea4a07ab3827c32f5dcf6787633571fe78afa5[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 26 07:41:54 2026 +0900
+
+    fix: mute coaching voice only, keep text on speech bubble toggle
+    
+    Made-with: Cursor
+
+[33mcommit fd9edc2617854ff3660d4354c196cd3910b8fb07[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 26 06:48:38 2026 +0900
+
+    fix(ui): app info scroll + keep banner visible when menu open
+    
+    Made-with: Cursor
+
+[33mcommit bb799c7f98f92a85cc6fa17046ab0cfb09746cd0[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 26 06:22:09 2026 +0900
+
+    fix(ui): align App info height with map above banner strip
+    
+    Made-with: Cursor
+
+[33mcommit 26910164e36116554ab5837aba4bd7d5dcd9d591[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 26 06:14:12 2026 +0900
+
+    fix(admob): hide banner while menu or About is open
+    
+    Made-with: Cursor
+
+[33mcommit f99aa9132be3ef3b22b7e5f080319e8c4444e8ed[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Wed Mar 25 23:46:24 2026 +0900
+
+    chore(assets): update Android launcher icons (webp)
+    
+    Made-with: Cursor
+
+[33mcommit 2e50602367b2430c42986e89cabb9c28fbdc54fc[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Wed Mar 25 23:42:02 2026 +0900
+
+    feat(admob): rewarded ad 선택형 5km 제한(2회 제안)
+    
+    Made-with: Cursor
+
+[33mcommit 7cdd47bea8cb3cb6c91ddb3b2168f02744866152[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Wed Mar 25 21:07:16 2026 +0900
+
+    feat(admob): 주행 배너 하단 고정 및 주행 종료 전면 광고
+    
+    Made-with: Cursor
+
+[33mcommit 17805f994cb02e160cdc4f45b784338853d1b475[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Wed Mar 25 08:05:44 2026 +0900
+
+    feat(android): AdMob APPLICATION_ID meta-data for Ride the World
+    
+    Made-with: Cursor
+
+[33mcommit c895d8fd9be1cbd1a3aeab438ba5b54c9185c6d3[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 21 10:45:47 2026 +0900
+
+    chore: Report GOOGLE_MAPS Capacitor 가이드 파일명 정리
+    
+    Made-with: Cursor
+
+[33mcommit cf95e7b5209caa3bdd1d082e498eb1b8050e5ec8[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 21 10:44:33 2026 +0900
+
+    fix: Capacitor에서 OSRM/Nominatim/고도 직접 호출, 터치 z-index, favicon bike_conti-128
+    
+    Made-with: Cursor
+
+[33mcommit 98b4997aadcaa1917269e484822e3041cd51cd41[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 21 09:51:26 2026 +0900
+
+    docs: 인트로 정체→맵·버튼 복구 원인·해결 보고서
+    
+    Made-with: Cursor
+
+[33mcommit 2533eee810368ae23fc58a70a76b28518528a67a[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 21 07:43:33 2026 +0900
+
+    docs: Capacitor Android Maps 키 제한 가이드 및 gm_authFailure 로그
+    
+    Made-with: Cursor
+
+[33mcommit d50c6f8458f90b636bd60dd17d71b4319349aa6b[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Sat Mar 21 00:03:22 2026 +0900
+
+    chore: Android 프로젝트 및 관련 설정/보고서 포함
+    
+    Made-with: Cursor
+
+[33mcommit 0552976bd7a5955318a1d22f2b52a70a6b6ae9eb[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 20 23:58:54 2026 +0900
+
+    chore: 제작 이미지/HTML 일부 정리
+    
+    Made-with: Cursor
+
+[33mcommit 43fa76e9ed662157aac0af2801956faaa26e50aa[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 20 23:52:08 2026 +0900
+
+    fix: Android Google Maps API key 주입 경로 보강
+    
+    Made-with: Cursor
+
+[33mcommit d5775519f0d00bb71ad3fea8121a020635837ba9[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 20 07:49:55 2026 +0900
+
+    fix: Android 첫 기동 triggerEvent 예외 전역 가드 및 이벤트 API 방어 추가
+    
+    Google Maps event race로 인한 triggerEvent 예외가 간헐적으로 발생해 검은 화면을 유발하므로, 초기 부트스트랩 전역 가드와 Maps event API 방어 패치를 추가해 크래시를 차단하고 로그 추적성을 강화했다.
+    
+    Made-with: Cursor
+
+[33mcommit a9e4b9d296a635124c88158ffa1009ea7a8a0ab8[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 20 07:07:29 2026 +0900
+
+    fix: Android 초기 기동 시 triggerEvent 예외 간헐 발생 안정화
+    
+    Google Maps resize 및 Street View listener 해제 경합 구간에 방어 로직을 추가하고, 전역 오류 로깅을 보강해 WebView 초기 기동에서 발생하던 간헐적 triggerEvent 예외를 재현 테스트 기준으로 해소했다.
+    
+    Made-with: Cursor
+
+[33mcommit 3678543a1b87153f50bdf4862cb3fcd14c586ad2[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 20 06:58:03 2026 +0900
+
+    fix: Google Maps resize 호출 가드 추가로 Android 블랙스크린 위험 완화
+    
+    Android WebView에서 google/maps/event 또는 map 인스턴스 준비 전 resize trigger가 호출되어 런타임 에러가 발생할 수 있어, 공통 가드 함수를 도입해 모든 resize 트리거 지점을 안전하게 보호했다.
+    
+    Made-with: Cursor
+
+[33mcommit d97a72edad193becf4c331e215286901791e8d96[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 13 07:55:21 2026 +0900
+
+    fix: Android Capacitor 빌드 - Vite base 상대경로, index.html 절대경로 제거
+    
+    Made-with: Cursor
+
+[33mcommit de47c68db9e892f6b7c780b95684c43ca0e0f6df[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 13 06:48:20 2026 +0900
+
+    docs: 100km vs 1km 경로별 API 호출량 검토 보고서 추가
+    
+    Made-with: Cursor
+
+[33mcommit 60f38ce2336ebad3f7057b190e55b0e6f1c969f1[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Fri Mar 13 06:12:20 2026 +0900
+
+    docs: add development completion report (20260313)
+    
+    Made-with: Cursor
+
+[33mcommit efefad9d24fed045d63e315bae93f8af1cfc6c19[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 08:25:39 2026 +0900
+
+    fix: Go 버튼 펄스를 의도한 UX만 동작하도록 변경 (경로 계산 완료 시 autoStart 아닐 때만)
+    
+    Made-with: Cursor
+
+[33mcommit 9585f2f7591014849ba2203892d1678e1e3b5c90[m
+Merge: 96bd960 25701c8
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 06:49:01 2026 +0900
+
+    fix: MenuPanel merge conflict - aria-label Menu
+    
+    Made-with: Cursor
+
+[33mcommit 25701c8e6e1cff0e24984a938b1d09d04770d9b9[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 06:38:17 2026 +0900
+
+    503 and 536 indent change 1 character too hide
+
+[33mcommit 13498b32ff5f4d898aa882e1522c0fb6839523b4[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 06:34:05 2026 +0900
+
+    503 and 536 indent change 1 character
+
+[33mcommit a9cf8ac373cf9d09537a2de47cf19100dfd75da0[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 06:26:00 2026 +0900
+
+    544 privacy policy chevronright make hide3-cancel
+
+[33mcommit b8ffae2beca471304054ef3ad305452a9f28dcf0[m
+Author: parkstery <130825724+parkstery@users.noreply.github.com>
+Date:   Thu Mar 12 06:24:04 2026 +0900
+
+    544 privacy policy chevronright make hide3

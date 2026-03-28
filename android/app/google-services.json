@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "544917538227",
+    "project_id": "indoor-cycling-5ff6a",
+    "storage_bucket": "indoor-cycling-5ff6a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:544917538227:android:f68408dfff81ee5212f7c6",
+        "android_client_info": {
+          "package_name": "com.liveonsoft.cycle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYJsx3hNuyt5zh8C11f69chQhR575vt-Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
