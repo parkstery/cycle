@@ -21,10 +21,16 @@ declare var google: any;
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
 /**
- * 네이티브 세로 전용 하한(px): 배너 높이 + 하이브리드 맵 하단 Google 로고·저작권 줄이 광고에 가리지 않도록.
- * getBannerFallbackPx(좁은 폭) 및 bottomBannerClearance/rootBottomBannerPad의 Math.max에 공통 사용. 가로에는 적용하지 않음.
+ * 네이티브 세로 전용 하한(px): 배너 + 하이브리드 맵 하단 Google 로고·저작권·약관 줄 전체가 잘리지 않도록.
+ * (90px대에서는 로고만 보이고 아래 카피라인이 배너에 깔리는 사례가 있음.)
  */
-const PORTRAIT_BANNER_RESERVE_MIN_PX = 90;
+const PORTRAIT_BANNER_RESERVE_MIN_PX = 118;
+
+/**
+ * 네이티브 가로: onBannerSize가 과대값(예: 90)을 주면 실제 adaptive(32~50)보다 크게 예약되어 맵·배너 사이 slate 배경 검은 띠가 생김.
+ * 레이아웃에 쓰는 값만 이 상한으로 자른다(bannerReservedPx 상태는 그대로).
+ */
+const LANDSCAPE_BANNER_RESERVE_CAP_PX = 60;
 
 // AdMob Units (Ride the World)
 const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
@@ -1286,7 +1292,8 @@ const App: React.FC = () => {
     if (isPortraitLayout()) {
       return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
     }
-    return bannerReservedPx;
+    const fb = getBannerFallbackPx();
+    return Math.min(Math.max(bannerReservedPx, fb), LANDSCAPE_BANNER_RESERVE_CAP_PX);
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
@@ -1306,7 +1313,7 @@ const App: React.FC = () => {
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
   const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
 
-  // 네이티브에서 루트 하단 예약이 바뀌면 맵 내부 저작권·스케일 레이아웃을 다시 맞춤
+  // 네이티브에서 하단 예약이 바뀌면 맵 내부 저작권·스케일 레이아웃을 다시 맞춤
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (!isMapReady || !googleMapRef.current) return;
@@ -1314,7 +1321,7 @@ const App: React.FC = () => {
       triggerMapResize(googleMapRef.current);
     });
     return () => window.cancelAnimationFrame(id);
-  }, [rootBottomBannerPadPx, isMapReady, triggerMapResize]);
+  }, [rootBottomBannerPadPx, bottomBannerClearancePx, isMapReady, triggerMapResize]);
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
