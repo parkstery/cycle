@@ -20,7 +20,10 @@ declare var google: any;
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
-/** 세로 네이티브에서 예약 높이가 실제 배너(예: 468×60)보다 작으면 맵·패널이 광고에 깔린다. */
+/**
+ * 네이티브 세로 전용 하한(px): 배너 높이 + 하이브리드 맵 하단 Google 로고·저작권 줄이 광고에 가리지 않도록.
+ * getBannerFallbackPx(좁은 폭) 및 bottomBannerClearance/rootBottomBannerPad의 Math.max에 공통 사용. 가로에는 적용하지 않음.
+ */
 const PORTRAIT_BANNER_RESERVE_MIN_PX = 90;
 
 // AdMob Units (Ride the World)
@@ -31,9 +34,6 @@ const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 
 /** Contents(앱 정보) 좌측 드로어만 맵 하단 Google 표시와 겹치지 않게 올릴 때 사용(px). 라우트·고도 패널에는 적용하지 않음. */
 const MENU_PANEL_ATTRIBUTION_CLEARANCE_PX = 48;
-
-/** 가로 네이티브 전용: 맵·거리뷰·OSM 링크만 최소 하단 예약. 세로 레이아웃에는 쓰지 않음(맵–배너 사이 과대 간격 방지). */
-const LANDSCAPE_MAP_ATTRIBUTION_MIN_PAD_PX = 64;
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
@@ -1263,9 +1263,8 @@ const App: React.FC = () => {
   }, []);
 
   /**
-   * 세로는 innerHeight >= innerWidth 만 본다.
-   * screen.orientation 은 기기/OS에 따라 화면과 불일치할 수 있어, landscape 로 오판 시 rootBottomBannerPadPx=0 이 되어
-   * 배너가 맵·패널 전체를 덮는 문제가 있었다(해당 분기 제거).
+   * 세로는 innerHeight >= innerWidth 만 사용.
+   * matchMedia/screen.orientation 오판 시 가로 분기로 빠져 rootBottomBannerPadPx=0·배너 겹침이 날 수 있어 쓰지 않음.
    */
   const isPortraitLayout = useCallback(() => {
     if (typeof window === 'undefined') return true;
@@ -1307,29 +1306,15 @@ const App: React.FC = () => {
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
   const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
 
-  /**
-   * 맵·거리뷰·OSM 저작권 링크용 하단 스택(px).
-   * 세로: stackBannerPadPx 그대로(7ad6c63 동작 유지).
-   * 가로+네이티브: 배너 폭이 좁아 실제 광고 높이가 커질 때 stack이 작으면 구글/OSM 표기가 배너에 가려지므로 하한만 적용.
-   * 경로·고도 패널 등에는 적용하지 않는다.
-   */
-  const mapSvOsmBottomStackPx = useMemo(() => {
-    if (!Capacitor.isNativePlatform()) return stackBannerPadPx;
-    void layoutOrientationTick;
-    if (isPortraitLayout()) return stackBannerPadPx;
-    return Math.max(stackBannerPadPx, LANDSCAPE_MAP_ATTRIBUTION_MIN_PAD_PX);
-  }, [layoutOrientationTick, stackBannerPadPx, isPortraitLayout]);
-
-  // 가로에서 맵 컨테이너 하단만 늘어날 때 구글 내부 저작권/스케일이 다시 배치되도록
+  // 네이티브에서 루트 하단 예약이 바뀌면 맵 내부 저작권·스케일 레이아웃을 다시 맞춤
   useEffect(() => {
-    if (!isMapReady) return;
-    const map = googleMapRef.current;
-    if (!map) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (!isMapReady || !googleMapRef.current) return;
     const id = window.requestAnimationFrame(() => {
-      triggerMapResize(map);
+      triggerMapResize(googleMapRef.current);
     });
     return () => window.cancelAnimationFrame(id);
-  }, [mapSvOsmBottomStackPx, isMapReady, triggerMapResize]);
+  }, [rootBottomBannerPadPx, isMapReady, triggerMapResize]);
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
@@ -3233,12 +3218,12 @@ const App: React.FC = () => {
         style={
           isSvActive
             ? isSvFullScreen
-              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${mapSvOsmBottomStackPx}px)` }
+              ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }
               : {
                   height:
                     rootBottomBannerPadPx > 0
                       ? 'calc(50% - 1px)'
-                      : `calc((100% - env(safe-area-inset-bottom, 0px) - ${mapSvOsmBottomStackPx}px) / 2)`,
+                      : `calc((100% - env(safe-area-inset-bottom, 0px) - ${stackBannerPadPx}px) / 2)`,
                 }
             : undefined
         }
@@ -3284,12 +3269,12 @@ const App: React.FC = () => {
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
-          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${mapSvOsmBottomStackPx}px)` : undefined,
+          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` : undefined,
           top:
             isSvActive && !isSvFullScreen
               ? rootBottomBannerPadPx > 0
                 ? 'calc(50% + 1px)'
-                : `calc((100% - env(safe-area-inset-bottom, 0px) - ${mapSvOsmBottomStackPx}px) / 2)`
+                : `calc((100% - env(safe-area-inset-bottom, 0px) - ${stackBannerPadPx}px) / 2)`
               : undefined,
         }}
         onTransitionEnd={() => {
@@ -3303,7 +3288,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${mapSvOsmBottomStackPx}px)` }}
+          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
         >
           © OpenStreetMap contributors
         </a>
