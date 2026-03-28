@@ -15,6 +15,11 @@ import { Capacitor } from '@capacitor/core';
 import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
+import { logEvent } from "firebase/analytics";
+import { analytics } from './firebase';
+logEvent(analytics, "app_open");
+logEvent(analytics, "test_event");
+
 declare var google: any;
 // 자동배포문제....
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
