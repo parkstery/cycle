@@ -20,6 +20,9 @@ declare var google: any;
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
+/** 세로 네이티브에서 예약 높이가 실제 배너(예: 468×60)보다 작으면 맵·패널이 광고에 깔린다. */
+const PORTRAIT_BANNER_RESERVE_MIN_PX = 90;
+
 // AdMob Units (Ride the World)
 const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
@@ -1240,7 +1243,7 @@ const App: React.FC = () => {
     }
     if (vw >= 728) return 90;
     if (vw >= 468) return 60;
-    return 50;
+    return PORTRAIT_BANNER_RESERVE_MIN_PX;
   }, []);
 
   /** 회전·리사이즈 시 세로/가로 판별 갱신 */
@@ -1257,23 +1260,15 @@ const App: React.FC = () => {
   }, []);
 
   /**
-   * 세로 판별은 뷰포트 크기만 사용한다. Android WebView에서 matchMedia(orientation)이 가로로 오판하는 사례가 있어
-   * rootBottomBannerPadPx가 항상 0이 되고 배너 여백이 전혀 적용되지 않았다.
+   * 세로는 innerHeight >= innerWidth 만 본다.
+   * screen.orientation 은 기기/OS에 따라 화면과 불일치할 수 있어, landscape 로 오판 시 rootBottomBannerPadPx=0 이 되어
+   * 배너가 맵·패널 전체를 덮는 문제가 있었다(해당 분기 제거).
    */
   const isPortraitLayout = useCallback(() => {
     if (typeof window === 'undefined') return true;
     const h = window.innerHeight;
     const w = window.innerWidth;
     if (w <= 0 || h <= 0) return true;
-    try {
-      const t = typeof screen !== 'undefined' ? screen.orientation?.type : '';
-      if (typeof t === 'string') {
-        if (t.includes('portrait')) return true;
-        if (t.includes('landscape')) return false;
-      }
-    } catch {
-      /* ignore */
-    }
     return h >= w;
   }, []);
 
@@ -1287,7 +1282,7 @@ const App: React.FC = () => {
     if (typeof window === 'undefined') return bannerReservedPx;
     void layoutOrientationTick;
     if (isPortraitLayout()) {
-      return Math.max(bannerReservedPx, getBannerFallbackPx());
+      return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
     }
     return bannerReservedPx;
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
@@ -1303,7 +1298,7 @@ const App: React.FC = () => {
     if (typeof window === 'undefined') return 0;
     void layoutOrientationTick;
     if (!isPortraitLayout()) return 0;
-    return Math.max(bannerReservedPx, getBannerFallbackPx());
+    return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
