@@ -1230,6 +1230,14 @@ const App: React.FC = () => {
     if (!Capacitor.isNativePlatform()) return 0;
     if (typeof window === 'undefined') return 50;
     const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    const landscape = vw > vh;
+    // 가로: adaptive 배너 높이가 종종 32px 수준 — 과대 예약 시 맵·배너 사이 검은 띠 발생
+    if (landscape) {
+      if (vw >= 728) return 60;
+      if (vw >= 468) return 32;
+      return 32;
+    }
     if (vw >= 728) return 90;
     if (vw >= 468) return 60;
     return 50;
@@ -1247,8 +1255,8 @@ const App: React.FC = () => {
     const onBannerSize = (info: any) => {
       const rawHeight = Number(info?.height ?? info?.adHeight ?? info?.size?.height ?? info?.adSize?.height);
       if (!Number.isFinite(rawHeight) || rawHeight <= 0) return;
-      // 일부 기기/버전에서 safe-area 포함 과대값이 들어올 수 있어 banner 실높이 범위(50/60/90)로 정규화한다.
-      const normalized = Math.max(50, Math.min(90, Math.round(rawHeight)));
+      // 과소 클램프(50)는 가로 32px 배너에서 맵·광고 사이 빈 검은 띠를 만든다. 상한만 둔다.
+      const normalized = Math.max(32, Math.min(90, Math.round(rawHeight)));
       bannerSizeMeasuredRef.current = true;
       setBannerReservedPx(normalized);
     };
