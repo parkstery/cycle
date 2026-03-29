@@ -34,11 +34,10 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
 
     /**
-     * 배너 끄기 테스트 1-B: true면 AdView가 들어 있는 네이티브 호스트를 계층에서 제거.
-     * WebView 부모 + android.R.id.content 직계 자식 그룹을 모두 스캔(플러그인 mViewGroup 불일치 대비).
-     * 출시·일상 빌드 전 false로 되돌릴 것.
+     * 배너 끄기 테스트 1-B: true면 AdView 호스트를 계층에서 제거. 원인 분석 시에만 true.
+     * 배너 복구·일상 빌드는 false.
      */
-    private static final boolean DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY = true;
+    private static final boolean DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY = false;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable applyInsetsRunnable = this::applySystemBarInsetsOnce;
