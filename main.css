@@ -10,6 +10,8 @@ html,
   margin: 0;
   padding: 0;
   overflow: hidden;
+  /* fixed 루트가 bottom을 올린 뒤 남는 영역이 투명이면 WebView 기본(흰) 배경이 비쳐 배너 위 흰 띠처럼 보일 수 있음 */
+  background-color: #0f172a;
 }
 
 /* Hide specific Google Maps UI elements for a cleaner look */

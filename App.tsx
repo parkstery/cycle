@@ -1330,17 +1330,20 @@ const App: React.FC = () => {
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
-   * 네이티브 세로 전용: fixed 루트의 bottom을 뷰포트에서 올려 전체 앱 높이를 줄인다.
-   * padding-bottom은 일부 WebView에서 absolute 자식·Maps 크기 계산에 반영되지 않는 경우가 있었다.
-   * 가로에서는 0(bottom:0과 동일) — 레이아웃 유지.
+   * 네이티브: fixed 루트의 bottom을 뷰포트에서 올려 배너 줄(네이티브 Ad) 구간에 HTML이 그려지지 않게 함.
+   * 가로에서만 bottom=0이면 그 아래 빈 영역이 투명→WebView 흰 배경이 비쳐 배너 위 흰 반투명 띠처럼 보일 수 있음(20260329 보고서·현장 재현).
+   * 가로 예약은 bottomBannerClearancePx와 동일 상한·폴백을 쓴다.
    */
   const rootBottomBannerPadPx = useMemo(() => {
     if (isTextInputActive) return 0;
     if (!Capacitor.isNativePlatform()) return 0;
     if (typeof window === 'undefined') return 0;
     void layoutOrientationTick;
-    if (!isPortraitLayout()) return 0;
-    return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
+    if (isPortraitLayout()) {
+      return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
+    }
+    const fb = getBannerFallbackPx();
+    return Math.min(Math.max(bannerReservedPx, fb), LANDSCAPE_BANNER_RESERVE_CAP_PX);
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
@@ -3130,7 +3133,7 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 가로·네이티브: 하단 bg-white 전폭 띠는 WebView가 배너 위에 그려질 때 광고를 하얗게 덮는 원인이 됨 → 사용 안 함(맵 bottom·stackBannerPad로만 예약). */}
+      {/* 가로·네이티브: 하단 bg-white 전폭 띠는 사용 안 함. 가로는 rootBottomBannerPadPx로 배너 줄을 HTML 밖으로 보냄(흰 WebView 비침 완화). */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
