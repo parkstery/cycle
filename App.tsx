@@ -946,6 +946,11 @@ const App: React.FC = () => {
         rotateControl: false,
         tiltControl: false,
         clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
+        ...(nativeApp
+          ? {
+              backgroundColor: '#0f172a',
+            }
+          : {}),
       });
       googleMapRef.current = map;
       map.addListener('click', (e: google.maps.MapMouseEvent) => {
@@ -1372,6 +1377,36 @@ const App: React.FC = () => {
     });
     return () => window.cancelAnimationFrame(id);
   }, [rootBottomBannerPadPx, bottomBannerClearancePx, isMapReady, triggerMapResize]);
+
+  /**
+   * 네이티브(특히 가로): Map padding으로 하단 저작권·컨트롤을 배너 예약 높이만큼 위로 밀어
+   * WebView 합성 시 밝은 박스가 배너 줄과 겹쳐 보이는 현상 완화(Maps API MapPadding).
+   */
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (!isMapReady || !googleMapRef.current) return;
+    void layoutOrientationTick;
+    const map = googleMapRef.current;
+    const bottom = Math.max(0, stackBannerPadPx) + (stackBannerPadPx > 0 ? 6 : 0);
+    const id = window.requestAnimationFrame(() => {
+      try {
+        map.setOptions({
+          backgroundColor: '#0f172a',
+          padding: { top: 0, right: 0, bottom, left: 0 },
+        } as google.maps.MapOptions);
+      } catch {
+        try {
+          (map as unknown as { setOptions: (o: object) => void }).setOptions({
+            padding: { top: 0, right: 0, bottom, left: 0 },
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+      triggerMapResize(map);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [isMapReady, stackBannerPadPx, layoutOrientationTick, triggerMapResize]);
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {

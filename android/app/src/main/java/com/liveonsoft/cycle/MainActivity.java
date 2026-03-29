@@ -1,6 +1,7 @@
 package com.liveonsoft.cycle;
 
 import android.content.res.Configuration;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -177,6 +178,17 @@ public class MainActivity extends BridgeActivity {
         }
         for (View c : adHosts) {
             vg.bringChildToFront(c);
+        }
+
+        // API 21+: draw 순서를 elevation 외에 Z로 한 번 더 고정(WebView가 배너 위로 올라가는 기기 대응).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            wv.setZ(0f);
+            for (View c : otherPlugins) {
+                c.setZ(midZ);
+            }
+            for (View c : adHosts) {
+                c.setZ(Math.max(adZ, 100f));
+            }
         }
     }
 
