@@ -34,6 +34,14 @@ html,
   cursor: default !important;
 }
 
+/* 거리뷰 하단 밝은 주소/정보 패널(.gm-iv-*) — 배너 직상단 반투명 띠로 보이는 사례 대응 (API addressControl과 병행) */
+.gm-iv-address,
+.gm-iv-address-link,
+.gm-iv-short-address-description,
+.gm-iv-marker-icon {
+  display: none !important;
+}
+
 /* 속도 숫자 입력 상하 스피너 제거 및 박스 폭 절약 */
 .speed-input-no-spinner::-webkit-inner-spin-button,
 .speed-input-no-spinner::-webkit-outer-spin-button {
