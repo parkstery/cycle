@@ -5,15 +5,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.Color;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebView;
-import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -40,10 +37,6 @@ public class MainActivity extends BridgeActivity {
 
     @Nullable
     private View insetTargetAttached;
-
-    /** WebView와 AdMob 배너 사이: 맵 하단 반투명 UI가 배너 위로 비치지 않도록 불투명 흰 바(배너 뒤 레이어). */
-    @Nullable
-    private View bannerBackdrop;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -96,8 +89,9 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * 네이티브 스택(아래→위): WebView → 흰 배너 백드롭 → 기타 플러그인 → AdMob 배너(최상단).
-     * 배너는 맵/WebView 반투명 레이어보다 위에 그려져야 하며, 백드롭은 배너 바로 아래(맵과 사이).
+     * 네이티브 스택(아래→위): WebView(인덱스 0) → 플러그인 뷰 → AdMob(최상단).
+     * 하단 전폭 흰 백드롭 뷰는 배너 위 흰/반투명 띠로 보일 수 있어 두지 않음.
+     * (PM 확인: Report/20260329-하단_배너_반투명_해결_확인_및_배경색_조정.md)
      */
     private void scheduleBringNonWebContentAboveWebView() {
         mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
@@ -135,7 +129,6 @@ public class MainActivity extends BridgeActivity {
                 vg.addView(wv, 0);
             }
 
-            ensureBannerBackdropStrip(vg, wv);
             stackNativeLayersBannerOnTop(vg, wv);
         } catch (Throwable ignored) {
         }
@@ -143,26 +136,21 @@ public class MainActivity extends BridgeActivity {
 
     /**
      * AdMob AdView를 포함한 형제 레이아웃은 elevation·draw 순서 모두 최상단으로.
-     * 그 외 플러그인 뷰는 백드롭 위·배너 아래.
+     * 그 외 플러그인 뷰는 WebView 위·배너 아래.
      */
     private void stackNativeLayersBannerOnTop(ViewGroup vg, WebView wv) {
         float density = getResources().getDisplayMetrics().density;
-        float backdropZ = Math.max(2f, 2f * density);
         float midZ = Math.max(16f, 12f * density);
         float adZ = Math.max(32f, 24f * density);
 
         wv.setElevation(0f);
         wv.setTranslationZ(0f);
-        if (bannerBackdrop != null) {
-            bannerBackdrop.setElevation(backdropZ);
-            bannerBackdrop.setTranslationZ(0f);
-        }
 
         List<View> adHosts = new ArrayList<>();
         List<View> otherPlugins = new ArrayList<>();
         for (int i = 0; i < vg.getChildCount(); i++) {
             View c = vg.getChildAt(i);
-            if (c == wv || c == bannerBackdrop) {
+            if (c == wv) {
                 continue;
             }
             if (viewSubtreeContainsAdMobAdView(c)) {
@@ -206,54 +194,6 @@ public class MainActivity extends BridgeActivity {
             }
         }
         return false;
-    }
-
-    private void ensureBannerBackdropStrip(ViewGroup vg, WebView wv) {
-        float density = getResources().getDisplayMetrics().density;
-        int bottomInset = 0;
-        WindowInsetsCompat wi = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
-        if (wi != null) {
-            bottomInset = wi.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
-        }
-        // 배너(50~90dp) + 시스템 내비 — 맵이 예약한 하단 줄과 맞춤
-        int h = (int) (92 * density) + bottomInset;
-
-        if (bannerBackdrop == null) {
-            bannerBackdrop = new View(this);
-            bannerBackdrop.setBackgroundColor(Color.WHITE);
-        }
-
-        ViewGroup.LayoutParams lp;
-        if (vg instanceof CoordinatorLayout) {
-            CoordinatorLayout.LayoutParams clp =
-                new CoordinatorLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
-            clp.gravity = Gravity.BOTTOM;
-            lp = clp;
-        } else {
-            FrameLayout.LayoutParams flp =
-                new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
-            flp.gravity = Gravity.BOTTOM;
-            lp = flp;
-        }
-        bannerBackdrop.setLayoutParams(lp);
-        bannerBackdrop.setElevation(Math.max(2f, 2f * density));
-
-        if (bannerBackdrop.getParent() != null && bannerBackdrop.getParent() != vg) {
-            ((ViewGroup) bannerBackdrop.getParent()).removeView(bannerBackdrop);
-        }
-
-        int wvIdx = vg.indexOfChild(wv);
-        if (wvIdx < 0) {
-            return;
-        }
-
-        int stripIdx = vg.indexOfChild(bannerBackdrop);
-        if (stripIdx < 0) {
-            vg.addView(bannerBackdrop, wvIdx + 1);
-        } else if (stripIdx != wvIdx + 1) {
-            vg.removeView(bannerBackdrop);
-            vg.addView(bannerBackdrop, wvIdx + 1);
-        }
     }
 
     private void applySystemBarInsetsOnce() {
