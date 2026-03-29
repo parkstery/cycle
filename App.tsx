@@ -3183,7 +3183,7 @@ const App: React.FC = () => {
       {Capacitor.isNativePlatform() && isPortraitLayout() && rootBottomBannerPadPx > 0 && (
         <div
           aria-hidden
-          className="fixed bottom-0 left-0 right-0 z-[5] bg-[#f5f5f5] pointer-events-none"
+          className="fixed bottom-0 left-0 right-0 z-[5] bg-slate-900 pointer-events-none"
           style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${rootBottomBannerPadPx}px)` }}
         />
       )}
