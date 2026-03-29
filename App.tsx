@@ -3120,8 +3120,11 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  /** 네이티브: 하단 패널 blur/반투명이 배너 구간과 겹쳐 보일 때 합성 번짐 완화(브라우저는 기존 글래스 유지). */
+  /** 네이티브: 하단 패널 blur/반투명이 배너 구간과 합성 번짐을 일으킬 수 있어 불투명 면만 사용(브라우저는 글래스 유지). */
   const nativeBottomPanelSurface =
+    Capacitor.isNativePlatform() ? 'bg-white' : 'bg-white/95 backdrop-blur-md';
+  /** 네이티브: 검색·메뉴 등 상단 크롬도 동일(backdrop-blur 제거). */
+  const nativeTopChromeSurface =
     Capacitor.isNativePlatform() ? 'bg-white' : 'bg-white/95 backdrop-blur-md';
 
   return (
@@ -3129,7 +3132,17 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 가로·네이티브: 하단 z-[5] bg-white 전폭 띠는 제거됨(WebView가 배너 위에 그려질 때 광고를 하얗게 덮음). 맵 overflow-hidden + stackBannerPad + MainActivity WebView z-order. */}
+      {/* 단계 2(웹): 가로·네이티브에서 배너 예약 높이만큼 슬레이트 전폭 띠 — 과거 bg-white는 광고 위 흰 덮임 유발. 루트(bg-slate-900)와 동일 톤으로 맵 하단 비침만 흡수. */}
+      {Capacitor.isNativePlatform() &&
+        !isPortraitLayout() &&
+        rootBottomBannerPadPx === 0 &&
+        stackBannerPadPx > 0 && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-slate-900"
+            style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
+            aria-hidden
+          />
+        )}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3160,7 +3173,9 @@ const App: React.FC = () => {
       )} */}
       {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
-          <div className="bg-white/85 border border-slate-300 px-5 py-1.5 rounded-full shadow-md backdrop-blur-sm animate-in fade-in duration-300">
+          <div
+            className={`border border-slate-300 px-5 py-1.5 rounded-full shadow-md animate-in fade-in duration-300 ${Capacitor.isNativePlatform() ? 'bg-white' : 'bg-white/85 backdrop-blur-sm'}`}
+          >
             <p className="text-sm font-semibold text-blue-600 text-center whitespace-nowrap">
               Please click 2 points on the road
             </p>
@@ -3323,7 +3338,7 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10 overflow-hidden' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10 overflow-hidden isolate' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden isolate"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
@@ -3413,7 +3428,7 @@ const App: React.FC = () => {
       </div>
 
       <div
-        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
+        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out ${nativeTopChromeSurface} shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem + 2.4rem + 6px)',
           top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
@@ -3799,7 +3814,7 @@ const App: React.FC = () => {
         onTouchEnd={(e) => activateFromTouchEnd(e, () => { setMenuView('list'); setMenuOpen(true); })}
         onClick={() => { setMenuView('list'); setMenuOpen(true); }}
         title="App Info"
-        className="fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation"
+        className={`fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full ${nativeTopChromeSurface} shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem)',
           top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',

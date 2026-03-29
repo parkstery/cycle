@@ -131,6 +131,8 @@ public class MainActivity extends BridgeActivity {
             }
 
             stackNativeLayersBannerOnTop(vg, wv);
+            vg.requestLayout();
+            wv.invalidate();
         } catch (Throwable ignored) {
         }
     }

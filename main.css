@@ -36,11 +36,12 @@ html,
   cursor: default !important;
 }
 
-/* 맵 하단 저작권 줄: 알파 배경은 WebView·네이티브 배너 합성 시 반투명 띠로 광고를 덮어 보이게 할 수 있어 불투명 슬레이트로 고정 (Google DOM 변경 시 무효 가능) */
+/* 맵 하단 저작권·약관 줄(단계 4): 밝은/알파 배경은 배너와 합성 시 흰 반투명 띠로 보일 수 있어 불투명 슬레이트 고정 (Google DOM 변경 시 무효 가능) */
 .gm-style-cc,
 .gm-style-moc,
 .gm-style-pbc {
   background-color: rgb(15 23 42) !important;
+  opacity: 1 !important;
 }
 .gm-style-cc span,
 .gm-style-cc a,
