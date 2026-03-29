@@ -98,8 +98,8 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            // 하단 합성 시 알파 번짐 완화(투명 배경이면 네이티브 레이어와 섞여 반투명 띠처럼 보일 수 있음)
-            wv.setBackgroundColor(Color.BLACK);
+            // 불투명 배경 유지로 알파 번짐·반투명 띠 방지. 검은색은 배너 좌우 여백이 거슬려 흰색으로 통일(PM 2026-03-29).
+            wv.setBackgroundColor(Color.WHITE);
             View parent = (View) wv.getParent();
             if (!(parent instanceof ViewGroup)) {
                 return;
