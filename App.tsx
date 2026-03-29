@@ -3177,9 +3177,12 @@ const App: React.FC = () => {
   /** 네이티브: shadow-2xl이 하단 배너 쪽으로 GPU 번짐(흰 반투명 띠)을 일으킬 수 있어 제거. */
   const nativeUiShadow = Capacitor.isNativePlatform() ? 'shadow-none' : 'shadow-2xl';
 
+  /** 가로: 맵과 동일 슬레이트. 밝은(#f5f5f5) 거터는 네이티브 배너와 겹쳐 흰 반투명 띠처럼 보이는 주 원인이 됨 — 제거 목적에 맞춤. */
+  const landscapeBannerGutterBg = 'bg-slate-900';
+
   return (
     <>
-      {/* 세로: 루트가 bottom으로 올라가 뷰포트 하단이 WebView 검정이면 슬레이트·광고 사이 검은 선처럼 보임 — 루트 밖 fixed 거터로만 채움. */}
+      {/* 세로: 루트 밖 WebView 검정 대비 — 밝은 띠 최소화가 우선이면 f5f5f5 유지(광고와 대비). */}
       {Capacitor.isNativePlatform() && isPortraitLayout() && rootBottomBannerPadPx > 0 && (
         <div
           aria-hidden
@@ -3187,11 +3190,11 @@ const App: React.FC = () => {
           style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${rootBottomBannerPadPx}px)` }}
         />
       )}
-      {/* 가로: 루트가 전체 높이일 때 동일 (#f5f5f5). DOM 순서상 루트가 위에 그려짐. */}
+      {/* 가로: 배너 예약 구간을 맵과 동일 톤으로만 채움(흰 반투명 띠 억제). */}
       {Capacitor.isNativePlatform() && !isPortraitLayout() && stackBannerPadPx > 0 && (
         <div
           aria-hidden
-          className="fixed bottom-0 left-0 right-0 z-[5] bg-[#f5f5f5] pointer-events-none"
+          className={`fixed bottom-0 left-0 right-0 z-[5] pointer-events-none ${landscapeBannerGutterBg}`}
           style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
         />
       )}
@@ -3392,10 +3395,10 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
+      {/* 맵: 불투명 배경(bg-slate-900). 가로+네이티브에서 isolate는 하단·배너 합성 시 번짐(흰 반투명 띠) 유발 보고 — 맵만 표시·분할 시 가로는 isolate 생략. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10 overflow-hidden isolate' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden isolate"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? `absolute top-0 left-0 right-0 z-10 overflow-hidden ${Capacitor.isNativePlatform() && !isPortraitLayout() ? '' : 'isolate'}` : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : `absolute left-0 right-0 z-[25] overflow-hidden ${Capacitor.isNativePlatform() && !isPortraitLayout() ? '' : 'isolate'}`} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
