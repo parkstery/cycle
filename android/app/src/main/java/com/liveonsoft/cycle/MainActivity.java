@@ -112,8 +112,9 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            // WebView는 맨 아래 드로잉 + 낮은 elevation — 반투명 맵 UI가 배너(네이티브) 위로 올라가는 합성 역전 완화
-            wv.setBackgroundColor(Color.WHITE);
+            // 불투명 배경: 투명/흰색이면 네이티브 배너와 합성 시 알파 번짐·흰 반투명 띠처럼 보일 수 있음.
+            // 순수 검정은 가로에서 배너 좌우 검은 띠 PM 이슈 → 앱 루트와 동일 슬레이트(0f172a).
+            wv.setBackgroundColor(Color.parseColor("#0f172a"));
             wv.setElevation(0f);
             wv.setTranslationZ(0f);
 
