@@ -44,6 +44,16 @@ const PORTRAIT_BANNER_RESERVE_MIN_PX = 118;
  */
 const LANDSCAPE_BANNER_RESERVE_CAP_PX = 60;
 
+/** 거리뷰: 하단 주소 등 컨트롤 억제(초기화·setOptions 재적용 공통). 배너 구간 밝은 띠 완화. */
+const STREET_VIEW_CONTROL_CLAMP_OPTIONS = {
+  addressControl: false,
+  imageDateControl: false,
+  linksControl: false,
+  panControl: false,
+  zoomControl: false,
+  fullscreenControl: false,
+} as const;
+
 // AdMob Units (Ride the World)
 const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
@@ -1219,12 +1229,7 @@ const App: React.FC = () => {
       clickToGo: false,
       motionTracking: false,
       motionTrackingControl: false,
-      addressControl: false,
-      imageDateControl: false,
-      fullscreenControl: false,
-      linksControl: false,
-      panControl: false,
-      zoomControl: false,
+      ...STREET_VIEW_CONTROL_CLAMP_OPTIONS,
       pov: { heading: 0, pitch: 0, zoom: 0 },
     };
     panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
@@ -1340,6 +1345,24 @@ const App: React.FC = () => {
 
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
   const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
+
+  /** 배너·회전 후에도 거리뷰 하단 컨트롤이 다시 켜지지 않도록 재적용 */
+  useEffect(() => {
+    if (!isMapsApiLoaded) return;
+    void stackBannerPadPx;
+    void rootBottomBannerPadPx;
+    void layoutOrientationTick;
+    const p1 = panorama1.current;
+    const p2 = panorama2.current;
+    if (!p1 && !p2) return;
+    const id = window.requestAnimationFrame(() => {
+      try {
+        p1?.setOptions?.(STREET_VIEW_CONTROL_CLAMP_OPTIONS);
+        p2?.setOptions?.(STREET_VIEW_CONTROL_CLAMP_OPTIONS);
+      } catch { /* ignore */ }
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [isMapsApiLoaded, stackBannerPadPx, rootBottomBannerPadPx, layoutOrientationTick]);
 
   // 네이티브에서 하단 예약이 바뀌면 맵 내부 저작권·스케일 레이아웃을 다시 맞춤
   useEffect(() => {
@@ -3104,6 +3127,13 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
+      {rootBottomBannerPadPx === 0 && stackBannerPadPx > 0 ? (
+        <div
+          className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-white"
+          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
+          aria-hidden
+        />
+      ) : null}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">

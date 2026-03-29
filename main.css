@@ -38,7 +38,9 @@ html,
 .gm-iv-address,
 .gm-iv-address-link,
 .gm-iv-short-address-description,
-.gm-iv-marker-icon {
+.gm-iv-marker-icon,
+.gm-iv-main,
+.gm-iv-vertical {
   display: none !important;
 }
 
