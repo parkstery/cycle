@@ -33,6 +33,13 @@ import java.util.List;
  */
 public class MainActivity extends BridgeActivity {
 
+    /**
+     * 배너 끄기 테스트 1-B: true면 WebView 형제 중 AdView를 포함한 뷰를 부모에서 제거(계층에서 제거).
+     * App.tsx의 DEBUG_DISABLE_BANNER_AD로 show를 막은 뒤에도 잔류하면 true로 A/B 판정.
+     * 기본 false — 출시·일상 빌드는 변경하지 말 것.
+     */
+    private static final boolean DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY = false;
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable applyInsetsRunnable = this::applySystemBarInsetsOnce;
 
@@ -130,10 +137,23 @@ public class MainActivity extends BridgeActivity {
                 vg.addView(wv, 0);
             }
 
+            if (DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY) {
+                removeBannerAdHostViews(vg, wv);
+            }
             stackNativeLayersBannerOnTop(vg, wv);
             vg.requestLayout();
             wv.invalidate();
         } catch (Throwable ignored) {
+        }
+    }
+
+    /** AdView(또는 그 서브트리)를 담은 직계 자식만 제거. WebView는 유지. */
+    private static void removeBannerAdHostViews(ViewGroup vg, WebView wv) {
+        for (int i = vg.getChildCount() - 1; i >= 0; i--) {
+            View c = vg.getChildAt(i);
+            if (c != wv && viewSubtreeContainsAdMobAdView(c)) {
+                vg.removeView(c);
+            }
         }
     }
 

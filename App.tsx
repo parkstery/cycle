@@ -60,6 +60,13 @@ const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 
+/**
+ * 개발·A/B 테스트용: true면 AdMob 배너 show/resume/hide를 호출하지 않아 네이티브에 AdView를 붙이지 않음(1-A).
+ * 하단 예약(px)은 별도 effect로 getBannerFallbackPx와 동기화 — 레이아웃만 바꿔 해석 오염 방지.
+ * 1-A만으로 뷰가 남으면 MainActivity.DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY 를 true로(1-B).
+ */
+const DEBUG_DISABLE_BANNER_AD = false;
+
 /** Contents(앱 정보) 좌측 드로어만 맵 하단 Google 표시와 겹치지 않게 올릴 때 사용(px). 라우트·고도 패널에는 적용하지 않음. */
 const MENU_PANEL_ATTRIBUTION_CLEARANCE_PX = 48;
 
@@ -1382,6 +1389,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
+    if (DEBUG_DISABLE_BANNER_AD) return;
     let cancelled = false;
 
     // 이벤트가 늦거나 누락돼도 과대 여백(72px) 대신 화면 폭 기반 최소 예약으로 시작한다.
@@ -1422,6 +1430,15 @@ const App: React.FC = () => {
       void Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
     };
   }, [admobReady, getBannerFallbackPx]);
+
+  /** DEBUG_DISABLE_BANNER_AD: 측정 리스너 없이 폴백 높이만 유지(회전·리사이즈 반영). */
+  useEffect(() => {
+    if (!DEBUG_DISABLE_BANNER_AD) return;
+    if (!admobReady || !Capacitor.isNativePlatform()) return;
+    if (isTextInputActive) return;
+    void layoutOrientationTick;
+    setBannerReservedPx(getBannerFallbackPx());
+  }, [admobReady, isTextInputActive, layoutOrientationTick, getBannerFallbackPx]);
 
   // 텍스트 입력 중에는 배너를 숨겨 키보드/패널/저작권 겹침 및 빈 reserve 영역을 방지한다.
   useEffect(() => {
@@ -1464,6 +1481,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
+
+    if (DEBUG_DISABLE_BANNER_AD) {
+      if (isTextInputActive) setBannerReservedPx(0);
+      return;
+    }
 
     const run = async () => {
       try {
