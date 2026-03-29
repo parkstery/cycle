@@ -4,6 +4,7 @@ import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -79,7 +80,8 @@ public class MainActivity extends BridgeActivity {
     /**
      * AdMob 등 플러그인이 WebView와 형제로 추가한 뷰가 드로잉 순서상 뒤로 가면
      * 가로 모드에서 배너가 WebView 하단 콘텐츠에 가려질 수 있다.
-     * WebView가 아닌 마지막 형제를 앞으로 올려 배너·오버레이가 위에 오도록 한다.
+     * 마지막 형제만 앞으로 올리면 회전 후 순서가 꼬였을 때 배너가 WebView 아래에 남을 수 있어,
+     * WebView를 부모의 맨 아래(인덱스 0)로 보내 형제 전체가 항상 WebView 위에 그려지게 한다.
      */
     private void scheduleBringNonWebContentAboveWebView() {
         mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 280);
@@ -96,6 +98,8 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
+            // 하단 합성 시 알파 번짐 완화(투명 배경이면 네이티브 레이어와 섞여 반투명 띠처럼 보일 수 있음)
+            wv.setBackgroundColor(Color.BLACK);
             View parent = (View) wv.getParent();
             if (!(parent instanceof ViewGroup)) {
                 return;
@@ -105,9 +109,10 @@ public class MainActivity extends BridgeActivity {
             if (n < 2) {
                 return;
             }
-            View last = vg.getChildAt(n - 1);
-            if (last != null && last != wv) {
-                vg.bringChildToFront(last);
+            int idx = vg.indexOfChild(wv);
+            if (idx > 0) {
+                vg.removeView(wv);
+                vg.addView(wv, 0);
             }
         } catch (Throwable ignored) {
         }

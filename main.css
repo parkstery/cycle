@@ -34,6 +34,20 @@ html,
   cursor: default !important;
 }
 
+/* 맵 하단 저작권 줄: 밝은/반투명 배경이 네이티브 배너와 겹쳐 흰 띠처럼 보일 때 — 슬레이트 톤으로 통일 (Google DOM 변경 시 무효 가능) */
+.gm-style-cc,
+.gm-style-moc,
+.gm-style-pbc {
+  background-color: rgb(15 23 42 / 0.92) !important;
+}
+.gm-style-cc span,
+.gm-style-cc a,
+.gm-style-moc a,
+.gm-style-pbc span,
+.gm-style-pbc a {
+  color: #e2e8f0 !important;
+}
+
 /* 거리뷰 하단 밝은 주소/정보 패널(.gm-iv-*) — 배너 직상단 반투명 띠로 보이는 사례 대응 (API addressControl과 병행) */
 .gm-iv-address,
 .gm-iv-address-link,

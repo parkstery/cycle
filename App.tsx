@@ -3127,13 +3127,7 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {rootBottomBannerPadPx === 0 && stackBannerPadPx > 0 ? (
-        <div
-          className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-white"
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
-          aria-hidden
-        />
-      ) : null}
+      {/* 가로·네이티브: 하단 bg-white 전폭 띠는 WebView가 배너 위에 그려질 때 광고를 하얗게 덮는 원인이 됨 → 사용 안 함(맵 bottom·stackBannerPad로만 예약). */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3327,7 +3321,7 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10 overflow-hidden' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
