@@ -1318,6 +1318,16 @@ const App: React.FC = () => {
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
   const stackBannerPadPx = rootBottomBannerPadPx > 0 ? 0 : bottomBannerClearancePx;
 
+  /**
+   * 네이티브 가로: WebView가 전체 높이이고 배너는 일부 폭만 덮을 때,
+   * OSM 링크의 bg-white/55·과도한 z-index가 배너 옆 하단에 반투명 띠처럼 보일 수 있음.
+   * 세로(rootBottomBannerPad)에서는 동일 문제가 없어 기존 스타일 유지.
+   */
+  const osmAttributionNativeLandscape = useMemo(() => {
+    void layoutOrientationTick;
+    return Capacitor.isNativePlatform() && !isPortraitLayout();
+  }, [layoutOrientationTick, isPortraitLayout]);
+
   // 네이티브에서 하단 예약이 바뀌면 맵 내부 저작권·스케일 레이아웃을 다시 맞춤
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -3297,8 +3307,16 @@ const App: React.FC = () => {
           href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
+          className={
+            osmAttributionNativeLandscape
+              ? 'absolute right-0 z-[12] text-[11px] text-slate-200 hover:underline bg-transparent mr-[5px] pointer-events-auto [text-shadow:0_1px_2px_rgba(0,0,0,0.9),0_0_10px_rgba(0,0,0,0.55)]'
+              : 'absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto'
+          }
+          style={{
+            bottom: osmAttributionNativeLandscape
+              ? `calc(26px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)`
+              : `calc(10px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)`,
+          }}
         >
           © OpenStreetMap contributors
         </a>

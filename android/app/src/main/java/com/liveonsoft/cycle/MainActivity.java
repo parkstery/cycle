@@ -51,12 +51,14 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         scheduleApplySystemBarInsets();
+        scheduleBringNonWebContentAboveWebView();
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         scheduleApplySystemBarInsets();
+        scheduleBringNonWebContentAboveWebView();
     }
 
     @Override
@@ -71,6 +73,43 @@ public class MainActivity extends BridgeActivity {
         decor.post(applyInsetsRunnable);
         mainHandler.postDelayed(applyInsetsRunnable, 120);
         mainHandler.postDelayed(applyInsetsRunnable, 380);
+    }
+
+    /**
+     * AdMob 등 플러그인이 WebView와 형제로 추가한 뷰가 드로잉 순서상 뒤로 가면
+     * 가로 모드에서 배너가 WebView 하단 콘텐츠에 가려질 수 있다.
+     * WebView가 아닌 마지막 형제를 앞으로 올려 배너·오버레이가 위에 오도록 한다.
+     */
+    private void scheduleBringNonWebContentAboveWebView() {
+        mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 280);
+        mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 900);
+    }
+
+    private void bringNonWebContentAboveWebViewOnce() {
+        try {
+            Bridge bridge = getBridge();
+            if (bridge == null) {
+                return;
+            }
+            WebView wv = bridge.getWebView();
+            if (wv == null) {
+                return;
+            }
+            View parent = (View) wv.getParent();
+            if (!(parent instanceof ViewGroup)) {
+                return;
+            }
+            ViewGroup vg = (ViewGroup) parent;
+            int n = vg.getChildCount();
+            if (n < 2) {
+                return;
+            }
+            View last = vg.getChildAt(n - 1);
+            if (last != null && last != wv) {
+                vg.bringChildToFront(last);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void applySystemBarInsetsOnce() {
