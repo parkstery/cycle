@@ -22,6 +22,9 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 시스템 내비·상태바·노치 영역까지 WebView 콘텐츠가 그려지지 않도록 인셋을 적용한다.
  * 부모에는 left/top/right만 패딩(가로 모드 오른쪽 내비 회피). bottom은 부모에 두지 않는다.
@@ -93,10 +96,8 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * AdMob 등 플러그인이 WebView와 형제로 추가한 뷰가 드로잉 순서상 뒤로 가면
-     * 가로 모드에서 배너가 WebView 하단 콘텐츠에 가려질 수 있다.
-     * 마지막 형제만 앞으로 올리면 회전 후 순서가 꼬였을 때 배너가 WebView 아래에 남을 수 있어,
-     * WebView를 부모의 맨 아래(인덱스 0)로 보내 형제 전체가 항상 WebView 위에 그려지게 한다.
+     * 네이티브 스택(아래→위): WebView → 흰 배너 백드롭 → 기타 플러그인 → AdMob 배너(최상단).
+     * 배너는 맵/WebView 반투명 레이어보다 위에 그려져야 하며, 백드롭은 배너 바로 아래(맵과 사이).
      */
     private void scheduleBringNonWebContentAboveWebView() {
         mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
@@ -135,19 +136,76 @@ public class MainActivity extends BridgeActivity {
             }
 
             ensureBannerBackdropStrip(vg, wv);
-
-            // bringChildToFront 순회는 형제 순서를 뒤집어 다른 플러그인이 배너 위로 올 수 있음 → elevation만 사용
-            float density = getResources().getDisplayMetrics().density;
-            float overlayZ = Math.max(16f, 12f * density);
-            for (int i = 0; i < vg.getChildCount(); i++) {
-                View c = vg.getChildAt(i);
-                if (c == wv || c == bannerBackdrop) {
-                    continue;
-                }
-                c.setElevation(overlayZ);
-            }
+            stackNativeLayersBannerOnTop(vg, wv);
         } catch (Throwable ignored) {
         }
+    }
+
+    /**
+     * AdMob AdView를 포함한 형제 레이아웃은 elevation·draw 순서 모두 최상단으로.
+     * 그 외 플러그인 뷰는 백드롭 위·배너 아래.
+     */
+    private void stackNativeLayersBannerOnTop(ViewGroup vg, WebView wv) {
+        float density = getResources().getDisplayMetrics().density;
+        float backdropZ = Math.max(2f, 2f * density);
+        float midZ = Math.max(16f, 12f * density);
+        float adZ = Math.max(32f, 24f * density);
+
+        wv.setElevation(0f);
+        wv.setTranslationZ(0f);
+        if (bannerBackdrop != null) {
+            bannerBackdrop.setElevation(backdropZ);
+            bannerBackdrop.setTranslationZ(0f);
+        }
+
+        List<View> adHosts = new ArrayList<>();
+        List<View> otherPlugins = new ArrayList<>();
+        for (int i = 0; i < vg.getChildCount(); i++) {
+            View c = vg.getChildAt(i);
+            if (c == wv || c == bannerBackdrop) {
+                continue;
+            }
+            if (viewSubtreeContainsAdMobAdView(c)) {
+                adHosts.add(c);
+            } else {
+                otherPlugins.add(c);
+            }
+        }
+
+        for (View c : otherPlugins) {
+            c.setElevation(midZ);
+            c.setTranslationZ(0f);
+        }
+        for (View c : adHosts) {
+            c.setElevation(adZ);
+            c.setTranslationZ(0f);
+        }
+
+        for (View c : otherPlugins) {
+            vg.bringChildToFront(c);
+        }
+        for (View c : adHosts) {
+            vg.bringChildToFront(c);
+        }
+    }
+
+    /** 문자열 비교로 의존 최소화(Play services Ads 클래스명). */
+    private static boolean viewSubtreeContainsAdMobAdView(View v) {
+        if (v == null) {
+            return false;
+        }
+        if ("com.google.android.gms.ads.AdView".equals(v.getClass().getName())) {
+            return true;
+        }
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                if (viewSubtreeContainsAdMobAdView(g.getChildAt(i))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void ensureBannerBackdropStrip(ViewGroup vg, WebView wv) {
