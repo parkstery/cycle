@@ -3167,17 +3167,7 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 단계 2(웹): 가로·네이티브에서 배너 예약 높이만큼 슬레이트 전폭 띠 — 과거 bg-white는 광고 위 흰 덮임 유발. 루트(bg-slate-900)와 동일 톤으로 맵 하단 비침만 흡수. */}
-      {Capacitor.isNativePlatform() &&
-        !isPortraitLayout() &&
-        rootBottomBannerPadPx === 0 &&
-        stackBannerPadPx > 0 && (
-          <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-slate-900"
-            style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
-            aria-hidden
-          />
-        )}
+      {/* 가로·네이티브 하단 z-[5] 전폭 띠(bg-white/bg-slate-900)는 두지 않음 — WebView·네이티브 배너 합성 시 광고 위 흰 반투명 띠로 보임(현장·DevTools 확인). 예약은 맵/SV bottom + stackBannerPad만. */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
