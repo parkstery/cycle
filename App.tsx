@@ -2818,7 +2818,6 @@ const App: React.FC = () => {
       const res = await nominatim.search(query);
       const lat = res.lat;
       const lng = res.lng;
-      const location = new google.maps.LatLng(lat, lng);
       const map = googleMapRef.current;
       map.setCenter({ lat, lng });
       map.setZoom(16);
@@ -2833,7 +2832,6 @@ const App: React.FC = () => {
         icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
       });
       googleMarkersRef.current.push(searchMarkerRef.current);
-      setClickedLocation({ lat, lng, name: query, address: query, elevation: null, location });
       setRecentPlaceSearches(prev => {
         const filtered = prev.filter(item => item !== query);
         const updated = [query, ...filtered].slice(0, 5);
