@@ -39,9 +39,9 @@ const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/'
 const PORTRAIT_BANNER_RESERVE_MIN_PX = 118;
 
 /**
- * 네이티브 가로: 맵 하단 예약 상한. adaptive 실높이는 대개 32~50px — 60이면 폰 가로에서 띠 잔류.
+ * 네이티브 가로: 맵 하단 예약 상한. 468×60 테스트 등(높이 60) + 여유. 50이면 60px 광고와 어긋남.
  */
-const LANDSCAPE_BANNER_RESERVE_CAP_PX = 50;
+const LANDSCAPE_BANNER_RESERVE_CAP_PX = 68;
 
 /** 거리뷰: 하단 주소 등 컨트롤 억제(초기화·setOptions 재적용 공통). 배너 구간 밝은 띠 완화. */
 const STREET_VIEW_CONTROL_CLAMP_OPTIONS = {
@@ -3182,7 +3182,7 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 가로·네이티브: 하단 z-[5] 띠 없음(흰/슬레이트 모두 배너 합성 이슈). 가로 예약은 stackBannerPad + MainActivity WebView 검정·인덱스0. */}
+      {/* 가로·네이티브: 하단 예약은 stackBannerPadPx + 밝은 거터(z-[5])로 광고 배경과 이음. MainActivity WebView 검정·인덱스0 유지. */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3323,6 +3323,15 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 네이티브 가로: 맵(z-10) 아래 비는 영역이 루트 슬레이트면 광고 좌측(흰)·우측(네이티브 회색)과 경계가 검은 선처럼 보임. */}
+      {Capacitor.isNativePlatform() && !isPortraitLayout() && stackBannerPadPx > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-[#f5f5f5]"
+          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
+        />
       )}
 
       {/* Street View Container — 배너·safe-area 위 영역만 사용(전체/분할 공통). 맵과 하단 기준 정합. */}
