@@ -9,5 +9,5 @@
     <WebView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0f172a" />
+        android:background="#000000" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -92,7 +92,8 @@ public class MainActivity extends BridgeActivity {
     /**
      * 네이티브 스택(아래→위): WebView(인덱스 0) → 플러그인 뷰 → AdMob(최상단).
      * 하단 전폭 흰 백드롭 뷰는 배너 위 흰/반투명 띠로 보일 수 있어 두지 않음.
-     * (PM 확인: Report/20260329-하단_배너_반투명_해결_확인_및_배경색_조정.md)
+     * WebView 배경은 9a3edb1과 동일하게 검정(투명·슬레이트와 네이티브 배너 합성 시 흰 반투명 번짐 완화).
+     * PM 흰색 요청 시 가로 좌우 띠 이슈와 트레이드오프 — 본 이슈 우선 시 BLACK 유지.
      */
     private void scheduleBringNonWebContentAboveWebView() {
         mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
@@ -113,9 +114,7 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            // 불투명 배경: 투명/흰색이면 네이티브 배너와 합성 시 알파 번짐·흰 반투명 띠처럼 보일 수 있음.
-            // 순수 검정은 가로에서 배너 좌우 검은 띠 PM 이슈 → 앱 루트와 동일 슬레이트(0f172a).
-            wv.setBackgroundColor(Color.parseColor("#0f172a"));
+            wv.setBackgroundColor(Color.BLACK);
             wv.setElevation(0f);
             wv.setTranslationZ(0f);
 
