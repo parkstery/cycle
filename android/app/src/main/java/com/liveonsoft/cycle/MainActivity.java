@@ -64,6 +64,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         mainHandler.removeCallbacks(applyInsetsRunnable);
+        mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
         super.onDestroy();
     }
 
