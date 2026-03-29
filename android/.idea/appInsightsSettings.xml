@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.liveonsoft.cycle" />
+                  <option name="mobileSdkAppId" value="1:544917538227:android:f68408dfff81ee5212f7c6" />
+                  <option name="projectId" value="indoor-cycling-5ff6a" />
+                  <option name="projectNumber" value="544917538227" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
