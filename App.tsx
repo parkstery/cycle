@@ -3081,13 +3081,6 @@ const App: React.FC = () => {
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {rootBottomBannerPadPx === 0 && stackBannerPadPx > 0 ? (
-        <div
-          className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-white"
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
-          aria-hidden
-        />
-      ) : null}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
