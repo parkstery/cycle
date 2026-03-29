@@ -3178,11 +3178,28 @@ const App: React.FC = () => {
   const nativeUiShadow = Capacitor.isNativePlatform() ? 'shadow-none' : 'shadow-2xl';
 
   return (
+    <>
+      {/* 세로: 루트가 bottom으로 올라가 뷰포트 하단이 WebView 검정이면 슬레이트·광고 사이 검은 선처럼 보임 — 루트 밖 fixed 거터로만 채움. */}
+      {Capacitor.isNativePlatform() && isPortraitLayout() && rootBottomBannerPadPx > 0 && (
+        <div
+          aria-hidden
+          className="fixed bottom-0 left-0 right-0 z-[5] bg-[#f5f5f5] pointer-events-none"
+          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${rootBottomBannerPadPx}px)` }}
+        />
+      )}
+      {/* 가로: 루트가 전체 높이일 때 동일 (#f5f5f5). DOM 순서상 루트가 위에 그려짐. */}
+      {Capacitor.isNativePlatform() && !isPortraitLayout() && stackBannerPadPx > 0 && (
+        <div
+          aria-hidden
+          className="fixed bottom-0 left-0 right-0 z-[5] bg-[#f5f5f5] pointer-events-none"
+          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
+        />
+      )}
     <div
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 가로·네이티브: 하단 예약은 stackBannerPadPx + 밝은 거터(z-[5])로 광고 배경과 이음. MainActivity WebView 검정·인덱스0 유지. */}
+      {/* 가로·네이티브: 하단 예약 stackBannerPadPx + 위 형제 거터. MainActivity WebView 검정·인덱스0 유지. */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3323,15 +3340,6 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* 네이티브 가로: 맵(z-10) 아래 비는 영역이 루트 슬레이트면 광고 좌측(흰)·우측(네이티브 회색)과 경계가 검은 선처럼 보임. */}
-      {Capacitor.isNativePlatform() && !isPortraitLayout() && stackBannerPadPx > 0 && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-[#f5f5f5]"
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
-        />
       )}
 
       {/* Street View Container — 배너·safe-area 위 영역만 사용(전체/분할 공통). 맵과 하단 기준 정합. */}
@@ -3874,6 +3882,7 @@ const App: React.FC = () => {
       </button>
 
     </div>
+    </>
   );
 };
 
