@@ -61,11 +61,11 @@ const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
 
 /**
- * 개발·A/B 테스트용: true면 AdMob 배너 show/resume/hide를 호출하지 않아 네이티브에 AdView를 붙이지 않음(1-A).
- * 하단 예약(px)은 별도 effect로 getBannerFallbackPx와 동기화 — 레이아웃만 바꿔 해석 오염 방지.
- * 1-A만으로 뷰가 남으면 MainActivity.DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY 를 true로(1-B).
+ * 개발·A/B 테스트용: true면 AdMob 배너 show/resume/hide를 호출하지 않음(1-A) + 초기화 후 removeBanner로 플러그인 뷰 정리.
+ * 하단 예약(px)은 getBannerFallbackPx와 동기화. 네이티브 강제 제거는 MainActivity 1-B.
+ * 출시·일상 개발 전 false로 되돌릴 것.
  */
-const DEBUG_DISABLE_BANNER_AD = false;
+const DEBUG_DISABLE_BANNER_AD = true;
 
 /** Contents(앱 정보) 좌측 드로어만 맵 하단 Google 표시와 겹치지 않게 올릴 때 사용(px). 라우트·고도 패널에는 적용하지 않음. */
 const MENU_PANEL_ATTRIBUTION_CLEARANCE_PX = 48;
@@ -1282,6 +1282,12 @@ const App: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  /** 1-A: 기존 세션·플러그인에 남은 배너 레이아웃을 destroy까지 제거(show 스킵과 병행). */
+  useEffect(() => {
+    if (!DEBUG_DISABLE_BANNER_AD || !admobReady || !Capacitor.isNativePlatform()) return;
+    void AdMob.removeBanner().catch(() => undefined);
+  }, [admobReady]);
 
   const getBannerFallbackPx = useCallback(() => {
     if (!Capacitor.isNativePlatform()) return 0;

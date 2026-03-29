@@ -34,11 +34,11 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
 
     /**
-     * 배너 끄기 테스트 1-B: true면 WebView 형제 중 AdView를 포함한 뷰를 부모에서 제거(계층에서 제거).
-     * App.tsx의 DEBUG_DISABLE_BANNER_AD로 show를 막은 뒤에도 잔류하면 true로 A/B 판정.
-     * 기본 false — 출시·일상 빌드는 변경하지 말 것.
+     * 배너 끄기 테스트 1-B: true면 AdView가 들어 있는 네이티브 호스트를 계층에서 제거.
+     * WebView 부모 + android.R.id.content 직계 자식 그룹을 모두 스캔(플러그인 mViewGroup 불일치 대비).
+     * 출시·일상 빌드 전 false로 되돌릴 것.
      */
-    private static final boolean DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY = false;
+    private static final boolean DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY = true;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable applyInsetsRunnable = this::applySystemBarInsetsOnce;
@@ -137,12 +137,40 @@ public class MainActivity extends BridgeActivity {
                 vg.addView(wv, 0);
             }
 
-            if (DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY) {
-                removeBannerAdHostViews(vg, wv);
-            }
+            stripDebugBannerAdHosts(wv);
             stackNativeLayersBannerOnTop(vg, wv);
             vg.requestLayout();
             wv.invalidate();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** WebView 부모 및 content 하위 다른 루트에서 배너 호스트 제거. */
+    private void stripDebugBannerAdHosts(WebView wv) {
+        if (!DEBUG_REMOVE_BANNER_AD_VIEW_FROM_HIERARCHY) {
+            return;
+        }
+        ViewGroup webParent = (ViewGroup) wv.getParent();
+        if (webParent != null) {
+            removeBannerAdHostViews(webParent, wv);
+        }
+        try {
+            View content = findViewById(android.R.id.content);
+            if (!(content instanceof ViewGroup)) {
+                return;
+            }
+            ViewGroup cg = (ViewGroup) content;
+            for (int i = 0; i < cg.getChildCount(); i++) {
+                View c = cg.getChildAt(i);
+                if (!(c instanceof ViewGroup)) {
+                    continue;
+                }
+                ViewGroup root = (ViewGroup) c;
+                if (root == webParent) {
+                    continue;
+                }
+                removeBannerAdHostViews(root, wv);
+            }
         } catch (Throwable ignored) {
         }
     }
@@ -211,12 +239,16 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    /** 문자열 비교로 의존 최소화(Play services Ads 클래스명). */
+    /** Play services·AdManager 등 배너 클래스명 변형 대응. */
     private static boolean viewSubtreeContainsAdMobAdView(View v) {
         if (v == null) {
             return false;
         }
-        if ("com.google.android.gms.ads.AdView".equals(v.getClass().getName())) {
+        String cn = v.getClass().getName();
+        if ("com.google.android.gms.ads.AdView".equals(cn)) {
+            return true;
+        }
+        if (cn.contains("com.google.android.gms.ads") && cn.endsWith("AdView")) {
             return true;
         }
         if (v instanceof ViewGroup) {
