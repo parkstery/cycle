@@ -39,10 +39,9 @@ const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/'
 const PORTRAIT_BANNER_RESERVE_MIN_PX = 118;
 
 /**
- * 네이티브 가로: onBannerSize가 과대값(예: 90)을 주면 실제 adaptive(32~50)보다 크게 예약되어 맵·배너 사이 slate 배경 검은 띠가 생김.
- * 레이아웃에 쓰는 값만 이 상한으로 자른다(bannerReservedPx 상태는 그대로).
+ * 네이티브 가로: 맵 하단 예약 상한. adaptive 실높이는 대개 32~50px — 60이면 폰 가로에서 띠 잔류.
  */
-const LANDSCAPE_BANNER_RESERVE_CAP_PX = 60;
+const LANDSCAPE_BANNER_RESERVE_CAP_PX = 50;
 
 /** 거리뷰: 하단 주소 등 컨트롤 억제(초기화·setOptions 재적용 공통). 배너 구간 밝은 띠 완화. */
 const STREET_VIEW_CONTROL_CLAMP_OPTIONS = {
@@ -1294,10 +1293,8 @@ const App: React.FC = () => {
     const vw = window.innerWidth || 0;
     const vh = window.innerHeight || 0;
     const landscape = vw > vh;
-    // 가로: adaptive 배너 높이가 종종 32px 수준 — 과대 예약 시 맵·배너 사이 검은 띠 발생
+    // 가로: 폭이 커도 anchored adaptive '높이'는 보통 32~50px. vw>=728 시 60px 폴백은 실제보다 커 하단 띠 유발.
     if (landscape) {
-      if (vw >= 728) return 60;
-      if (vw >= 468) return 32;
       return 32;
     }
     if (vw >= 728) return 90;
@@ -1330,9 +1327,20 @@ const App: React.FC = () => {
     return h >= w;
   }, []);
 
+  /** 가로 전환 직후 세로에서 온 과대 bannerReservedPx를 상한에 맞춤(onAdSize 이전 띠 완화). */
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !admobReady) return;
+    if (typeof window === 'undefined') return;
+    if (window.innerHeight >= window.innerWidth) return;
+    setBannerReservedPx((prev) => {
+      if (prev <= 0) return prev;
+      return Math.min(prev, LANDSCAPE_BANNER_RESERVE_CAP_PX);
+    });
+  }, [layoutOrientationTick, admobReady]);
+
   /**
    * 네이티브 세로: 배너 크기 이벤트가 늦거나 0이면 맵·거리뷰가 배너와 겹친다.
-   * 세로에서만 max(상태, 폭 기반 폴백)으로 최소 예약을 보장한다. 가로는 기존 bannerReservedPx만 사용(요청대로 가로 레이아웃 유지).
+   * 세로: max(상태, 폭 폴백, PORTRAIT 최소). 가로: 세로 측정값 과대 방지 + LANDSCAPE 상한(아래 useMemo).
    */
   const bottomBannerClearancePx = useMemo(() => {
     if (isTextInputActive) return 0;
@@ -1343,7 +1351,9 @@ const App: React.FC = () => {
       return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
     }
     const fb = getBannerFallbackPx();
-    return Math.min(Math.max(bannerReservedPx, fb), LANDSCAPE_BANNER_RESERVE_CAP_PX);
+    // 가로: max(banner, fb)는 세로 측정값(예: 90)·과대 fb가 합쳐져 띠를 키움 — base 후 상한만.
+    const base = bannerReservedPx > 0 ? bannerReservedPx : fb;
+    return Math.max(32, Math.min(base, LANDSCAPE_BANNER_RESERVE_CAP_PX));
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
