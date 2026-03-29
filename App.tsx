@@ -1347,8 +1347,11 @@ const App: React.FC = () => {
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
-   * 네이티브 세로 전용: fixed 루트 bottom으로 배너 줄 올림.
-   * 가로는 bottom=0 — 맵/SV `bottom` + `stackBannerPadPx`만(9a3edb1·20260329 §4d). z-[5] 하단 띠 없음.
+   * 네이티브 세로 전용: fixed 루트 bottom으로 WebView에서 비우는 높이.
+   * bottomBannerClearancePx와 달리 PORTRAIT 최소(118)를 넣지 않는다 — 실제 배너보다 크게 비우면
+   * 그만큼 WebView 배경(검정)이 광고 위로 드러나 검은 띠로 보인다(onAdSize 반영 후에도 max(...,118)이면 고착).
+   * 폴백만 getBannerFallbackPx, 측정 후에는 bannerReservedPx(최소 32).
+   * 가로는 bottom=0 — 맵/SV는 stackBannerPadPx(9a3edb1·20260329 §4d).
    */
   const rootBottomBannerPadPx = useMemo(() => {
     if (isTextInputActive) return 0;
@@ -1356,7 +1359,10 @@ const App: React.FC = () => {
     if (typeof window === 'undefined') return 0;
     void layoutOrientationTick;
     if (!isPortraitLayout()) return 0;
-    return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
+    if (bannerReservedPx <= 0) {
+      return Math.max(32, getBannerFallbackPx());
+    }
+    return Math.max(32, bannerReservedPx);
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
