@@ -3121,6 +3121,9 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
+  /** 네이티브: 하단 패널 blur/반투명이 배너 구간과 겹쳐 보일 때 합성 번짐 완화(브라우저는 기존 글래스 유지). */
+  const nativeBottomPanelSurface =
+    Capacitor.isNativePlatform() ? 'bg-white' : 'bg-white/95 backdrop-blur-md';
 
   return (
     <div
@@ -3449,7 +3452,7 @@ const App: React.FC = () => {
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
         style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
       >
-        <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
+        <div className={`${nativeBottomPanelSurface} rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[6px] ${routeInputExpanded ? 'w-[1rem] h-[1rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={14} /> : <Waypoints size={16} className="text-blue-600" />}</button>
             {routeInputExpanded && (
@@ -3678,7 +3681,7 @@ const App: React.FC = () => {
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
-          <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
+          <div className={`${nativeBottomPanelSurface} rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
             {elevationExpanded && (
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
