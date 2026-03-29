@@ -5,12 +5,15 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.Color;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebView;
+import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -34,6 +37,10 @@ public class MainActivity extends BridgeActivity {
 
     @Nullable
     private View insetTargetAttached;
+
+    /** WebView와 AdMob 배너 사이: 맵 하단 반투명 UI가 배너 위로 비치지 않도록 불투명 흰 바(배너 뒤 레이어). */
+    @Nullable
+    private View bannerBackdrop;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -63,6 +70,14 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            scheduleBringNonWebContentAboveWebView();
+        }
+    }
+
+    @Override
     public void onDestroy() {
         mainHandler.removeCallbacks(applyInsetsRunnable);
         mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
@@ -84,8 +99,12 @@ public class MainActivity extends BridgeActivity {
      * WebView를 부모의 맨 아래(인덱스 0)로 보내 형제 전체가 항상 WebView 위에 그려지게 한다.
      */
     private void scheduleBringNonWebContentAboveWebView() {
+        mainHandler.removeCallbacks(this::bringNonWebContentAboveWebViewOnce);
+        mainHandler.post(this::bringNonWebContentAboveWebViewOnce);
+        mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 80);
         mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 280);
         mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 900);
+        mainHandler.postDelayed(this::bringNonWebContentAboveWebViewOnce, 2000);
     }
 
     private void bringNonWebContentAboveWebViewOnce() {
@@ -98,23 +117,84 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            // 불투명 배경 유지로 알파 번짐·반투명 띠 방지. 검은색은 배너 좌우 여백이 거슬려 흰색으로 통일(PM 2026-03-29).
+            // WebView는 맨 아래 드로잉 + 낮은 elevation — 반투명 맵 UI가 배너(네이티브) 위로 올라가는 합성 역전 완화
             wv.setBackgroundColor(Color.WHITE);
+            wv.setElevation(0f);
+            wv.setTranslationZ(0f);
+
             View parent = (View) wv.getParent();
             if (!(parent instanceof ViewGroup)) {
                 return;
             }
             ViewGroup vg = (ViewGroup) parent;
-            int n = vg.getChildCount();
-            if (n < 2) {
-                return;
-            }
+
             int idx = vg.indexOfChild(wv);
             if (idx > 0) {
                 vg.removeView(wv);
                 vg.addView(wv, 0);
             }
+
+            ensureBannerBackdropStrip(vg, wv);
+
+            // bringChildToFront 순회는 형제 순서를 뒤집어 다른 플러그인이 배너 위로 올 수 있음 → elevation만 사용
+            float density = getResources().getDisplayMetrics().density;
+            float overlayZ = Math.max(16f, 12f * density);
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View c = vg.getChildAt(i);
+                if (c == wv || c == bannerBackdrop) {
+                    continue;
+                }
+                c.setElevation(overlayZ);
+            }
         } catch (Throwable ignored) {
+        }
+    }
+
+    private void ensureBannerBackdropStrip(ViewGroup vg, WebView wv) {
+        float density = getResources().getDisplayMetrics().density;
+        int bottomInset = 0;
+        WindowInsetsCompat wi = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
+        if (wi != null) {
+            bottomInset = wi.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
+        }
+        // 배너(50~90dp) + 시스템 내비 — 맵이 예약한 하단 줄과 맞춤
+        int h = (int) (92 * density) + bottomInset;
+
+        if (bannerBackdrop == null) {
+            bannerBackdrop = new View(this);
+            bannerBackdrop.setBackgroundColor(Color.WHITE);
+        }
+
+        ViewGroup.LayoutParams lp;
+        if (vg instanceof CoordinatorLayout) {
+            CoordinatorLayout.LayoutParams clp =
+                new CoordinatorLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+            clp.gravity = Gravity.BOTTOM;
+            lp = clp;
+        } else {
+            FrameLayout.LayoutParams flp =
+                new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+            flp.gravity = Gravity.BOTTOM;
+            lp = flp;
+        }
+        bannerBackdrop.setLayoutParams(lp);
+        bannerBackdrop.setElevation(Math.max(2f, 2f * density));
+
+        if (bannerBackdrop.getParent() != null && bannerBackdrop.getParent() != vg) {
+            ((ViewGroup) bannerBackdrop.getParent()).removeView(bannerBackdrop);
+        }
+
+        int wvIdx = vg.indexOfChild(wv);
+        if (wvIdx < 0) {
+            return;
+        }
+
+        int stripIdx = vg.indexOfChild(bannerBackdrop);
+        if (stripIdx < 0) {
+            vg.addView(bannerBackdrop, wvIdx + 1);
+        } else if (stripIdx != wvIdx + 1) {
+            vg.removeView(bannerBackdrop);
+            vg.addView(bannerBackdrop, wvIdx + 1);
         }
     }
 
