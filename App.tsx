@@ -1335,16 +1335,19 @@ const App: React.FC = () => {
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /**
-   * 네이티브 세로 전용: fixed 루트 bottom으로 배너 줄을 올림.
-   * 가로는 bottom=0 — 맵/SV `bottom` + `stackBannerPadPx`만으로 예약(9a3edb1·20260329 WebView 레이어 정리와 동일).
+   * 네이티브: fixed 루트를 배너 높이만큼 올려 HTML이 배너 픽셀에 그려지지 않게 함.
+   * 가로는 z-[5] 띠 없이 이 방식만 사용(띠는 WebView·배너 합성 시 흰 번짐 유발). 세로와 동일 논리.
    */
   const rootBottomBannerPadPx = useMemo(() => {
     if (isTextInputActive) return 0;
     if (!Capacitor.isNativePlatform()) return 0;
     if (typeof window === 'undefined') return 0;
     void layoutOrientationTick;
-    if (!isPortraitLayout()) return 0;
-    return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
+    if (isPortraitLayout()) {
+      return Math.max(bannerReservedPx, getBannerFallbackPx(), PORTRAIT_BANNER_RESERVE_MIN_PX);
+    }
+    const fb = getBannerFallbackPx();
+    return Math.min(Math.max(bannerReservedPx, fb), LANDSCAPE_BANNER_RESERVE_CAP_PX);
   }, [layoutOrientationTick, bannerReservedPx, getBannerFallbackPx, isTextInputActive, isPortraitLayout]);
 
   /** 루트가 이미 위로 줄었으면 자식 bottom calc에서 배너 높이를 또 빼지 않는다. */
@@ -1377,36 +1380,6 @@ const App: React.FC = () => {
     });
     return () => window.cancelAnimationFrame(id);
   }, [rootBottomBannerPadPx, bottomBannerClearancePx, isMapReady, triggerMapResize]);
-
-  /**
-   * 네이티브(특히 가로): Map padding으로 하단 저작권·컨트롤을 배너 예약 높이만큼 위로 밀어
-   * WebView 합성 시 밝은 박스가 배너 줄과 겹쳐 보이는 현상 완화(Maps API MapPadding).
-   */
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    if (!isMapReady || !googleMapRef.current) return;
-    void layoutOrientationTick;
-    const map = googleMapRef.current;
-    const bottom = Math.max(0, stackBannerPadPx) + (stackBannerPadPx > 0 ? 6 : 0);
-    const id = window.requestAnimationFrame(() => {
-      try {
-        map.setOptions({
-          backgroundColor: '#0f172a',
-          padding: { top: 0, right: 0, bottom, left: 0 },
-        } as google.maps.MapOptions);
-      } catch {
-        try {
-          (map as unknown as { setOptions: (o: object) => void }).setOptions({
-            padding: { top: 0, right: 0, bottom, left: 0 },
-          });
-        } catch {
-          /* ignore */
-        }
-      }
-      triggerMapResize(map);
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [isMapReady, stackBannerPadPx, layoutOrientationTick, triggerMapResize]);
 
   // Banner size sync: 실제 배너 높이를 수신해 하단 예약 영역과 일치시킨다.
   useEffect(() => {
@@ -3161,13 +3134,15 @@ const App: React.FC = () => {
   /** 네이티브: 검색·메뉴 등 상단 크롬도 동일(backdrop-blur 제거). */
   const nativeTopChromeSurface =
     Capacitor.isNativePlatform() ? 'bg-white' : 'bg-white/95 backdrop-blur-md';
+  /** 네이티브: shadow-2xl이 하단 배너 쪽으로 GPU 번짐(흰 반투명 띠)을 일으킬 수 있어 제거. */
+  const nativeUiShadow = Capacitor.isNativePlatform() ? 'shadow-none' : 'shadow-2xl';
 
   return (
     <div
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
     >
-      {/* 가로·네이티브 하단 z-[5] 전폭 띠(bg-white/bg-slate-900)는 두지 않음 — WebView·네이티브 배너 합성 시 광고 위 흰 반투명 띠로 보임(현장·DevTools 확인). 예약은 맵/SV bottom + stackBannerPad만. */}
+      {/* 가로·네이티브: 하단 z-[5] 띠 없음. 배너 줄은 rootBottomBannerPadPx(가로 포함)로 HTML을 올려 픽셀 겹침 방지. */}
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
@@ -3417,7 +3392,7 @@ const App: React.FC = () => {
           onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapType)}
           onClick={handleToggleMapType}
           title="Change Map Style"
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full ${nativeUiShadow} transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
         >
           <Layers size={19} className="pointer-events-none" />
         </button>
@@ -3438,22 +3413,22 @@ const App: React.FC = () => {
           onTouchEnd={(e) => activateFromTouchEnd(e, () => setShowCoverage((v) => !v))}
           onClick={() => setShowCoverage(!showCoverage)}
           title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full ${nativeUiShadow} transition-all active:scale-95 flex items-center justify-center touch-manipulation ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}
         >
           <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className="pointer-events-none" />
         </button>
-        <button onClick={handleToggleStreetView} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
+        <button onClick={handleToggleStreetView} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full ${nativeUiShadow} transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
           <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
         </button>
         {isSvActive && (
-          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
+          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-[2.4rem] h-[2.4rem] rounded-full ${nativeUiShadow} transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
             {isSvFullScreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
           </button>
         )}
       </div>
 
       <div
-        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out ${nativeTopChromeSurface} shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
+        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out ${nativeTopChromeSurface} ${nativeUiShadow} overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem + 2.4rem + 6px)',
           top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
@@ -3491,7 +3466,7 @@ const App: React.FC = () => {
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
         style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
       >
-        <div className={`${nativeBottomPanelSurface} rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
+        <div className={`${nativeBottomPanelSurface} rounded-[1.5rem] ${nativeUiShadow} flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
             <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[6px] ${routeInputExpanded ? 'w-[1rem] h-[1rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={14} /> : <Waypoints size={16} className="text-blue-600" />}</button>
             {routeInputExpanded && (
@@ -3720,7 +3695,7 @@ const App: React.FC = () => {
           }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
-          <div className={`${nativeBottomPanelSurface} rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
+          <div className={`${nativeBottomPanelSurface} rounded-[2rem] ${nativeUiShadow} flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
             <button onClick={() => setElevationExpanded(!elevationExpanded)} title="Elevation Profile" className="shrink-0 min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 order-last" aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}>{elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}</button>
             {elevationExpanded && (
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
@@ -3839,7 +3814,7 @@ const App: React.FC = () => {
         onTouchEnd={(e) => activateFromTouchEnd(e, () => { setMenuView('list'); setMenuOpen(true); })}
         onClick={() => { setMenuView('list'); setMenuOpen(true); }}
         title="App Info"
-        className={`fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full ${nativeTopChromeSurface} shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation`}
+        className={`fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full ${nativeTopChromeSurface} ${nativeUiShadow} border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem)',
           top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',

@@ -42,6 +42,8 @@ html,
 .gm-style-pbc {
   background-color: rgb(15 23 42) !important;
   opacity: 1 !important;
+  box-shadow: none !important;
+  filter: none !important;
 }
 .gm-style-cc span,
 .gm-style-cc a,
@@ -49,6 +51,14 @@ html,
 .gm-style-pbc span,
 .gm-style-pbc a {
   color: #e2e8f0 !important;
+}
+
+/* Google이 하단에 두는 추가 래퍼(클래스명 변동 가능) */
+.gm-style-moc-bbw,
+.gm-style-pbt,
+.gm-style-pbb {
+  background-color: rgb(15 23 42) !important;
+  opacity: 1 !important;
 }
 
 /* 거리뷰 하단 밝은 주소/정보 패널(.gm-iv-*) — 배너 직상단 반투명 띠로 보이는 사례 대응 (API addressControl과 병행) */
