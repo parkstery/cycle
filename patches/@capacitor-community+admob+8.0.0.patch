@@ -11,3 +11,27 @@ index 1056a18..13d21f7 100644
          }
      }
      lintOptions {
+diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
+index c629139..c168fea 100644
+--- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
++++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/banner/BannerExecutor.java
+@@ -2,6 +2,7 @@ package com.getcapacitor.community.admob.banner;
+ 
+ import android.app.Activity;
+ import android.content.Context;
++import android.graphics.Color;
+ import android.os.Build;
+ import android.util.DisplayMetrics;
+ import android.util.Log;
+@@ -80,8 +81,11 @@ public class BannerExecutor extends Executor {
+                 );
+             }
+ 
++            mAdView.setBackgroundColor(Color.TRANSPARENT);
++
+             // Setup AdView Layout
+             mAdViewLayout = new RelativeLayout(contextSupplier.get());
++            mAdViewLayout.setBackgroundColor(Color.TRANSPARENT);
+             mAdViewLayout.setHorizontalGravity(Gravity.CENTER_HORIZONTAL);
+             mAdViewLayout.setVerticalGravity(Gravity.BOTTOM);
+ 

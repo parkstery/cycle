@@ -191,7 +191,6 @@ public class MainActivity extends BridgeActivity {
     private void stackNativeLayersBannerOnTop(ViewGroup vg, WebView wv) {
         float density = getResources().getDisplayMetrics().density;
         float midZ = Math.max(16f, 12f * density);
-        float adZ = Math.max(32f, 24f * density);
 
         wv.setElevation(0f);
         wv.setTranslationZ(0f);
@@ -214,9 +213,12 @@ public class MainActivity extends BridgeActivity {
             c.setElevation(midZ);
             c.setTranslationZ(0f);
         }
+        // 배너 호스트에 큰 elevation을 주면 그림자가 좁은 광고폭보다 넓게 퍼져 가로에서 흰/회색 반투명 띠처럼 보임.
+        // 순서는 bringChildToFront + 낮은 Z만 사용.
         for (View c : adHosts) {
-            c.setElevation(adZ);
+            c.setElevation(0f);
             c.setTranslationZ(0f);
+            c.setBackgroundColor(Color.TRANSPARENT);
         }
 
         for (View c : otherPlugins) {
@@ -226,14 +228,14 @@ public class MainActivity extends BridgeActivity {
             vg.bringChildToFront(c);
         }
 
-        // API 21+: draw 순서를 elevation 외에 Z로 한 번 더 고정(WebView가 배너 위로 올라가는 기기 대응).
+        // API 21+: draw 순서만 Z로 고정(배너 Z는 과대하지 않음 — 그림자 번짐 방지).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             wv.setZ(0f);
             for (View c : otherPlugins) {
                 c.setZ(midZ);
             }
             for (View c : adHosts) {
-                c.setZ(Math.max(adZ, 100f));
+                c.setZ(8f);
             }
         }
     }

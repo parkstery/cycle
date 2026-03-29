@@ -3177,25 +3177,14 @@ const App: React.FC = () => {
   /** 네이티브: shadow-2xl이 하단 배너 쪽으로 GPU 번짐(흰 반투명 띠)을 일으킬 수 있어 제거. */
   const nativeUiShadow = Capacitor.isNativePlatform() ? 'shadow-none' : 'shadow-2xl';
 
-  /** 가로: 맵과 동일 슬레이트. 밝은(#f5f5f5) 거터는 네이티브 배너와 겹쳐 흰 반투명 띠처럼 보이는 주 원인이 됨 — 제거 목적에 맞춤. */
-  const landscapeBannerGutterBg = 'bg-slate-900';
-
   return (
     <>
-      {/* 세로: 루트 밖 WebView 검정 대비 — 밝은 띠 최소화가 우선이면 f5f5f5 유지(광고와 대비). */}
+      {/* 세로: 루트 밖 WebView 검정 대비. 가로 띠는 네이티브 elevation·AdMob 호스트 배경 패치로 처리(Web 거터 제거). */}
       {Capacitor.isNativePlatform() && isPortraitLayout() && rootBottomBannerPadPx > 0 && (
         <div
           aria-hidden
           className="fixed bottom-0 left-0 right-0 z-[5] bg-[#f5f5f5] pointer-events-none"
           style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${rootBottomBannerPadPx}px)` }}
-        />
-      )}
-      {/* 가로: 배너 예약 구간을 맵과 동일 톤으로만 채움(흰 반투명 띠 억제). */}
-      {Capacitor.isNativePlatform() && !isPortraitLayout() && stackBannerPadPx > 0 && (
-        <div
-          aria-hidden
-          className={`fixed bottom-0 left-0 right-0 z-[5] pointer-events-none ${landscapeBannerGutterBg}`}
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${stackBannerPadPx}px)` }}
         />
       )}
     <div
