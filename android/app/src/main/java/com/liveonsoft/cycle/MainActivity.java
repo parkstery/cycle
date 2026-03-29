@@ -49,6 +49,10 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
+        try {
+            getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+        } catch (Throwable ignored) {
+        }
         scheduleApplySystemBarInsets();
     }
 
@@ -195,6 +199,12 @@ public class MainActivity extends BridgeActivity {
         wv.setElevation(0f);
         wv.setTranslationZ(0f);
 
+        try {
+            vg.setClipChildren(true);
+            vg.setClipToPadding(true);
+        } catch (Throwable ignored) {
+        }
+
         List<View> adHosts = new ArrayList<>();
         List<View> otherPlugins = new ArrayList<>();
         for (int i = 0; i < vg.getChildCount(); i++) {
@@ -209,8 +219,9 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        // elevation은 넓은 플러그인 컨테이너에서 Material 그림자가 전폭으로 퍼져 흰/밝은 반투명 띠처럼 보일 수 있음. Z 순서만 사용.
         for (View c : otherPlugins) {
-            c.setElevation(midZ);
+            c.setElevation(0f);
             c.setTranslationZ(0f);
         }
         // 배너 호스트에 큰 elevation을 주면 그림자가 좁은 광고폭보다 넓게 퍼져 가로에서 흰/회색 반투명 띠처럼 보임.

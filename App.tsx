@@ -3179,14 +3179,7 @@ const App: React.FC = () => {
 
   return (
     <>
-      {/* 세로: 루트 밖 WebView 검정 대비. 가로 띠는 네이티브 elevation·AdMob 호스트 배경 패치로 처리(Web 거터 제거). */}
-      {Capacitor.isNativePlatform() && isPortraitLayout() && rootBottomBannerPadPx > 0 && (
-        <div
-          aria-hidden
-          className="fixed bottom-0 left-0 right-0 z-[5] bg-slate-900 pointer-events-none"
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${rootBottomBannerPadPx}px)` }}
-        />
-      )}
+      {/* 세로 전폭 fixed 거터 제거: 배너 ON 시 Web+네이티브 합성에서 흰/밝은 반투명 띠로 번짐(재현). 하단은 root bottom·stackBannerPad만으로 맞춤. */}
     <div
       className="fixed top-0 left-0 right-0 bg-slate-900 overflow-hidden font-sans"
       style={{ bottom: rootBottomBannerPadPx }}
