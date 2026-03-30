@@ -936,6 +936,10 @@ const App: React.FC = () => {
     if (!isMapsApiLoaded || !mapRevealed || !mapRef.current || googleMapRef.current) return;
     try {
       const nativeApp = Capacitor.isNativePlatform();
+      const portraitNow =
+        typeof window !== 'undefined'
+          ? (window.innerHeight ?? 0) >= (window.innerWidth ?? 0)
+          : true;
       const map = new google.maps.Map(mapRef.current, {
         center: { lat: 37.5512, lng: 126.9882 },
         zoom: 14,
@@ -946,8 +950,13 @@ const App: React.FC = () => {
         zoomControl: false,
         cameraControl: false,
         // 네이티브: 하단 BOTTOM_CENTER 스케일 UI가 배너 구간과 겹쳐 반투명 띠처럼 보이는 사례 대응(브라우저는 유지).
-        scaleControl: !nativeApp,
-        ...(nativeApp ? {} : { scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER } }),
+        // 세로 모드에서도 배너와 겹치지 않도록 scaleControl을 끈다.
+        scaleControl: !nativeApp && !portraitNow,
+        ...(nativeApp
+          ? {}
+          : !portraitNow
+            ? { scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER } }
+            : {}),
         rotateControl: false,
         tiltControl: false,
         clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
@@ -1314,6 +1323,27 @@ const App: React.FC = () => {
       window.removeEventListener('orientationchange', bump);
     };
   }, []);
+
+  // 세로/가로 전환 후에도 scaleControl 상태를 배너 겹침 방지 기준에 맞춘다.
+  useEffect(() => {
+    if (!googleMapRef.current) return;
+
+    const nativeApp = Capacitor.isNativePlatform();
+    const portraitNow =
+      typeof window !== 'undefined'
+        ? (window.innerHeight ?? 0) >= (window.innerWidth ?? 0)
+        : true;
+
+    const enabled = !nativeApp && !portraitNow;
+    try {
+      googleMapRef.current.setOptions({
+        scaleControl: enabled,
+        ...(enabled ? { scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER } } : {}),
+      });
+    } catch {
+      // ignore (지도 옵션 업데이트 실패는 UI 안정성 영향이 작음)
+    }
+  }, [layoutOrientationTick]);
 
   /**
    * 세로는 innerHeight >= innerWidth 만 사용.
