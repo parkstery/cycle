@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.Bridge;
@@ -53,6 +54,7 @@ public class MainActivity extends BridgeActivity {
             getWindow().getDecorView().setBackgroundColor(Color.BLACK);
         } catch (Throwable ignored) {
         }
+        applySystemBarsForOrientation();
         scheduleApplySystemBarInsets();
     }
 
@@ -65,6 +67,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        applySystemBarsForOrientation();
         scheduleApplySystemBarInsets();
         scheduleBringNonWebContentAboveWebView();
     }
@@ -72,6 +75,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        applySystemBarsForOrientation();
         scheduleApplySystemBarInsets();
         scheduleBringNonWebContentAboveWebView();
     }
@@ -80,7 +84,28 @@ public class MainActivity extends BridgeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
+            applySystemBarsForOrientation();
             scheduleBringNonWebContentAboveWebView();
+        }
+    }
+
+    private void applySystemBarsForOrientation() {
+        try {
+            WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            if (controller == null) {
+                return;
+            }
+            boolean isLandscape =
+                getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+            if (isLandscape) {
+                controller.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(WindowInsetsCompat.Type.navigationBars());
+            } else {
+                controller.show(WindowInsetsCompat.Type.navigationBars());
+            }
+        } catch (Throwable ignored) {
         }
     }
 
