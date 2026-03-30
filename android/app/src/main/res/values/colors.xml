@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      배너 주변( WebView/placeholder가 채우는 영역 ) 배경색.
+      세로 기본값은 기존(다크) 유지, 가로(values-land)에서만 흰색으로 오버라이드.
+    -->
+    <color name="banner_area_root_bg">#0f172a</color>
+    <color name="banner_area_webview_bg">#000000</color>
+    <color name="banner_area_placeholder_bg">#0f172a</color>
+</resources>
