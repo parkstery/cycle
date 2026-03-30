@@ -369,6 +369,7 @@ const App: React.FC = () => {
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
+  const [bannerHeightPx, setBannerHeightPx] = useState(0);
   const [bannerOrientationTick, setBannerOrientationTick] = useState(0);
   const bannerEverShownRef = useRef(false);
   const bannerHiddenRef = useRef(false);
@@ -1294,6 +1295,31 @@ const App: React.FC = () => {
 
     void run();
   }, [admobReady, simulation.isActive, bannerOrientationTick]);
+
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+    let detached = false;
+    let sizeListener: { remove: () => Promise<void> } | null = null;
+
+    const attach = async () => {
+      try {
+        sizeListener = await (AdMob as any).addListener('bannerAdSizeChanged', (event: any) => {
+          if (detached) return;
+          const h = Number(event?.height ?? 0);
+          setBannerHeightPx(Number.isFinite(h) && h > 0 ? h : 0);
+        });
+      } catch (e) {
+        console.warn('[AdMob] banner size listener failed', e);
+      }
+    };
+
+    void attach();
+    return () => {
+      detached = true;
+      if (sizeListener) void sizeListener.remove();
+    };
+  }, [admobReady]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
@@ -2919,9 +2945,9 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 세로는 구조분리 높이(118dp)에 맞춰 충분한 하단 예약을 적용해 맵/배너 중첩을 방지한다.
+  // 고정값 대신 실제 배너 높이를 사용해 맵/배너 간 불필요한 띠를 제거한다.
   const bannerReservedPx = (admobReady && Capacitor.isNativePlatform())
-    ? (isPortrait ? 118 : 72)
+    ? bannerHeightPx
     : 0;
 
   return (

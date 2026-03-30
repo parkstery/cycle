@@ -51,7 +51,7 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
         try {
-            getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+            getWindow().getDecorView().setBackgroundColor(Color.WHITE);
         } catch (Throwable ignored) {
         }
         applySystemBarsForOrientation();
@@ -149,7 +149,7 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            wv.setBackgroundColor(Color.BLACK);
+            wv.setBackgroundColor(Color.WHITE);
             wv.setElevation(0f);
             wv.setTranslationZ(0f);
 
