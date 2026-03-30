@@ -2945,9 +2945,9 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 고정값 대신 실제 배너 높이를 사용해 맵/배너 간 불필요한 띠를 제거한다.
+  // 세로는 안정적으로 60px 고정, 가로는 실제 배너 높이를 사용한다.
   const bannerReservedPx = (admobReady && Capacitor.isNativePlatform())
-    ? bannerHeightPx
+    ? (isPortrait ? 106 : bannerHeightPx)
     : 0;
 
   return (
@@ -3128,6 +3128,12 @@ const App: React.FC = () => {
         </div>
       )}
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
+      {!isSvFullScreen && bannerReservedPx > 0 && (
+        <div
+          className="absolute left-0 right-0 bottom-0 z-[12] pointer-events-none bg-white"
+          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        />
+      )}
       <div
         ref={mapRef}
         className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
