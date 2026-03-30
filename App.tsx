@@ -3160,7 +3160,7 @@ const App: React.FC = () => {
         </a>
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-[60%] pointer-events-none flex justify-center">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center">
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
           </div>
