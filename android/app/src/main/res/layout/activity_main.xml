@@ -4,10 +4,23 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#0f172a"
     tools:context=".MainActivity">
 
     <WebView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginBottom="118dp"
         android:background="#000000" />
+
+    <!--
+      AdMob banner는 런타임에 WebView "위"에 overlay로 추가될 수 있어(WebView 형제 구조),
+      WebView가 배너 영역까지 그리지 않도록 하단에 고정 placeholder 영역을 둔다.
+      (배너 아래는 이 뷰의 단색 배경이 제공되어 합성 아티팩트를 줄임)
+    -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="118dp"
+        android:layout_gravity="bottom"
+        android:background="#0f172a" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
