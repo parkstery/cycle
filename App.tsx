@@ -356,6 +356,10 @@ const App: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   const [mapRevealed, setMapRevealed] = useState(false);
+  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.innerHeight >= window.innerWidth;
+  });
   /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -934,6 +938,20 @@ const App: React.FC = () => {
     googleMapRef.current.panTo(userLocation);
     googleMapRef.current.setZoom(14);
   }, [isMapReady, userLocation]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncOrientation = () => {
+      setIsPortrait(window.innerHeight >= window.innerWidth);
+    };
+    syncOrientation();
+    window.addEventListener('resize', syncOrientation);
+    window.addEventListener('orientationchange', syncOrientation);
+    return () => {
+      window.removeEventListener('resize', syncOrientation);
+      window.removeEventListener('orientationchange', syncOrientation);
+    };
+  }, []);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -2901,8 +2919,10 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 구조분리 placeholder(118dp)와 별개로, 앱 오버레이 UI가 배너와 겹치지 않도록 여유를 둔다.
-  const bannerReservedPx = (admobReady && Capacitor.isNativePlatform()) ? 72 : 0;
+  // 세로는 구조분리 높이(118dp)에 맞춰 충분한 하단 예약을 적용해 맵/배너 중첩을 방지한다.
+  const bannerReservedPx = (admobReady && Capacitor.isNativePlatform())
+    ? (isPortrait ? 118 : 72)
+    : 0;
 
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
