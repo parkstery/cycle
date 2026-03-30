@@ -285,6 +285,9 @@ public class MainActivity extends BridgeActivity {
         ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            boolean isLandscape =
+                getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+            int bottomInset = isLandscape ? 0 : insets.bottom;
             WebView wv = null;
             try {
                 Bridge bridge = getBridge();
@@ -295,9 +298,9 @@ public class MainActivity extends BridgeActivity {
             }
             if (wv != null) {
                 v.setPadding(insets.left, insets.top, insets.right, 0);
-                wv.setPadding(0, 0, 0, insets.bottom);
+                wv.setPadding(0, 0, 0, bottomInset);
             } else {
-                v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+                v.setPadding(insets.left, insets.top, insets.right, bottomInset);
             }
             return WindowInsetsCompat.CONSUMED;
         });

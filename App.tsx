@@ -1224,7 +1224,7 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Banner: App info 영역은 맵과 동일 bottom inset으로 배너와 분리되므로, 메뉴/About 열림과 관계없이 표시.
+  // Banner: 구조분리(activity_main.xml) 전제를 유지한 상태에서 하단 고정 배너만 노출.
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
@@ -2876,7 +2876,7 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 배너가 항상 보이는 하단 전용 영역을 주행 중에도 계속 확보한다.
+  // 구조분리 placeholder(118dp)와 별개로, 앱 오버레이 UI가 배너와 겹치지 않도록 여유를 둔다.
   const bannerReservedPx = (admobReady && Capacitor.isNativePlatform()) ? 72 : 0;
 
   return (
