@@ -63,7 +63,7 @@ const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
  * 개발·A/B 테스트용: true면 배너 show 스킵 + removeBanner(1-A). 네이티브 강제 제거는 MainActivity 1-B.
  * 일상 빌드는 false(배너 정상 표시).
  */
-const DEBUG_DISABLE_BANNER_AD = true;
+const DEBUG_DISABLE_BANNER_AD = false;
 
 /** Contents(앱 정보) 좌측 드로어만 맵 하단 Google 표시와 겹치지 않게 올릴 때 사용(px). 라우트·고도 패널에는 적용하지 않음. */
 const MENU_PANEL_ATTRIBUTION_CLEARANCE_PX = 48;

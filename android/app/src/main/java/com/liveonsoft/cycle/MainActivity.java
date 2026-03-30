@@ -229,7 +229,9 @@ public class MainActivity extends BridgeActivity {
         for (View c : adHosts) {
             c.setElevation(0f);
             c.setTranslationZ(0f);
-            c.setBackgroundColor(Color.TRANSPARENT);
+            // AdMob 호스트에 투명 배경을 두면(특히 overlay 합성 시) WebView/패널과 섞이면서
+            // "흰 반투명 띠" 같은 착시가 생길 수 있어 앱 기본 배경과 동일 톤으로 불투명 처리한다.
+            c.setBackgroundColor(Color.rgb(15, 23, 42)); // #0f172a
         }
 
         for (View c : otherPlugins) {
