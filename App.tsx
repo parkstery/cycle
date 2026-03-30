@@ -365,8 +365,12 @@ const App: React.FC = () => {
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
+  const [bannerOrientationTick, setBannerOrientationTick] = useState(0);
   const bannerEverShownRef = useRef(false);
   const bannerHiddenRef = useRef(false);
+  const lastBannerPortraitRef = useRef<boolean>(
+    typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : true
+  );
   const lastAppPhaseRef = useRef<AppPhase>(appPhase);
   const lastSimulationActiveRef = useRef<boolean>(simulation.isActive);
   const interstitialShownRef = useRef(false);
@@ -1224,6 +1228,24 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  // 배너는 회전 시 새 크기로 다시 생성해야 잘림(예: 468x60 유지) 문제가 줄어든다.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (typeof window === 'undefined') return;
+    const onOrientationMaybeChanged = () => {
+      const isPortraitNow = window.innerHeight >= window.innerWidth;
+      if (isPortraitNow === lastBannerPortraitRef.current) return;
+      lastBannerPortraitRef.current = isPortraitNow;
+      setBannerOrientationTick((v) => v + 1);
+    };
+    window.addEventListener('resize', onOrientationMaybeChanged);
+    window.addEventListener('orientationchange', onOrientationMaybeChanged);
+    return () => {
+      window.removeEventListener('resize', onOrientationMaybeChanged);
+      window.removeEventListener('orientationchange', onOrientationMaybeChanged);
+    };
+  }, []);
+
   // Banner: 구조분리(activity_main.xml) 전제를 유지한 상태에서 하단 고정 배너만 노출.
   useEffect(() => {
     if (!admobReady) return;
@@ -1231,26 +1253,29 @@ const App: React.FC = () => {
 
     const run = async () => {
       try {
-        if (!bannerEverShownRef.current) {
-          await AdMob.showBanner({
-            adId: ADMOB_BANNER_AD_UNIT_ID,
-            adSize: BannerAdSize.ADAPTIVE_BANNER,
-            position: BannerAdPosition.BOTTOM_CENTER,
-            margin: 0,
-          });
-          bannerEverShownRef.current = true;
-          bannerHiddenRef.current = false;
-        } else {
-          await AdMob.resumeBanner();
-          bannerHiddenRef.current = false;
+        // orientation 변경 시 기존 배너를 제거 후 재생성해 폭/높이 재계산을 강제한다.
+        if (bannerEverShownRef.current) {
+          try {
+            await AdMob.removeBanner();
+          } catch {
+            await AdMob.hideBanner();
+          }
         }
+        await AdMob.showBanner({
+          adId: ADMOB_BANNER_AD_UNIT_ID,
+          adSize: BannerAdSize.ADAPTIVE_BANNER,
+          position: BannerAdPosition.BOTTOM_CENTER,
+          margin: 0,
+        });
+        bannerEverShownRef.current = true;
+        bannerHiddenRef.current = false;
       } catch (e) {
         console.warn('[AdMob] banner control failed', e);
       }
     };
 
     void run();
-  }, [admobReady, simulation.isActive]);
+  }, [admobReady, simulation.isActive, bannerOrientationTick]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
