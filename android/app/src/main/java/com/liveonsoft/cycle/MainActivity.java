@@ -50,10 +50,10 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
         try {
-            int bg = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
-                    ? Color.WHITE
-                    : Color.BLACK;
-            getWindow().getDecorView().setBackgroundColor(bg);
+            // WebView/Window 배경을 항상 BLACK으로 유지한다.
+            // 가로에서 WebView까지 흰색으로 바꾸면(합성 혼합) 배너 주변 합성 아티팩트가 재발할 수 있어
+            // 배너 주변 흰색 처리는 layout placeholder/root 배경으로만 담당하도록 제한한다.
+            getWindow().getDecorView().setBackgroundColor(Color.BLACK);
         } catch (Throwable ignored) {
         }
         scheduleApplySystemBarInsets();
@@ -127,10 +127,9 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            int bg = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE
-                    ? Color.WHITE
-                    : Color.BLACK;
-            wv.setBackgroundColor(bg);
+            // WebView 배경은 항상 BLACK 유지.
+            // 가로 모드의 “배너 주변 흰색 배경”은 placeholder/root background 색으로만 처리한다.
+            wv.setBackgroundColor(Color.BLACK);
             wv.setElevation(0f);
             wv.setTranslationZ(0f);
 

@@ -2,6 +2,6 @@
 <resources>
     <!-- 가로에서 배너 주변이 검은색으로 보이는 문제를 완화하기 위해 흰색으로 오버라이드 -->
     <color name="banner_area_root_bg">#ffffff</color>
-    <color name="banner_area_webview_bg">#ffffff</color>
+    <color name="banner_area_webview_bg">#000000</color>
     <color name="banner_area_placeholder_bg">#ffffff</color>
 </resources>
