@@ -5,7 +5,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -49,13 +48,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
-        try {
-            // WebView/Window 배경을 항상 BLACK으로 유지한다.
-            // 가로에서 WebView까지 흰색으로 바꾸면(합성 혼합) 배너 주변 합성 아티팩트가 재발할 수 있어
-            // 배너 주변 흰색 처리는 layout placeholder/root 배경으로만 담당하도록 제한한다.
-            getWindow().getDecorView().setBackgroundColor(Color.BLACK);
-        } catch (Throwable ignored) {
-        }
+        // 배경색 결정은 레이아웃 XML/리소스(@color)에서 단일 책임으로 관리한다.
         scheduleApplySystemBarInsets();
     }
 
@@ -127,9 +120,6 @@ public class MainActivity extends BridgeActivity {
             if (wv == null) {
                 return;
             }
-            // WebView 배경은 항상 BLACK 유지.
-            // 가로 모드의 “배너 주변 흰색 배경”은 placeholder/root background 색으로만 처리한다.
-            wv.setBackgroundColor(Color.BLACK);
             wv.setElevation(0f);
             wv.setTranslationZ(0f);
 
