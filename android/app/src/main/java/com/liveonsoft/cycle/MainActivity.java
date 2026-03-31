@@ -2,6 +2,7 @@ package com.liveonsoft.cycle;
 
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -15,13 +16,17 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdSize;
 import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 
 public class MainActivity extends BridgeActivity {
-    private static final String ADMOB_BANNER_AD_UNIT_ID = "ca-app-pub-2386721030013396/2486360510";
+    private static final String TAG = "MainActivityAd";
+    private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
+    private static final String ADMOB_BANNER_AD_UNIT_ID_TEST = "ca-app-pub-3940256099942544/6300978111";
 
     @Nullable
     private FrameLayout nativeAdContainer;
@@ -37,6 +42,7 @@ public class MainActivity extends BridgeActivity {
         applySystemBarsForOrientation();
         nativeAdContainer = findViewById(R.id.native_ad_container);
         MobileAds.initialize(this, initializationStatus -> {});
+        Log.i(TAG, "onCreate: nativeAdContainer=" + (nativeAdContainer != null));
         requestNativeBanner();
         applyRootInsets();
     }
@@ -132,19 +138,44 @@ public class MainActivity extends BridgeActivity {
 
     private void requestNativeBanner() {
         if (nativeAdContainer == null) {
+            Log.w(TAG, "requestNativeBanner: nativeAdContainer is null");
             return;
         }
         destroyNativeBanner();
         float density = getResources().getDisplayMetrics().density;
         int adWidthDp = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
+        String bannerUnitId = BuildConfig.DEBUG ? ADMOB_BANNER_AD_UNIT_ID_TEST : ADMOB_BANNER_AD_UNIT_ID_RELEASE;
+        Log.i(TAG, "requestNativeBanner: widthDp=" + adWidthDp + ", unitId=" + bannerUnitId + ", debug=" + BuildConfig.DEBUG);
         nativeBannerView = new AdView(this);
-        nativeBannerView.setAdUnitId(ADMOB_BANNER_AD_UNIT_ID);
+        nativeBannerView.setAdUnitId(bannerUnitId);
         nativeBannerView.setAdSize(
             AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
                 this,
                 adWidthDp
             )
         );
+        nativeBannerView.setAdListener(new AdListener() {
+            @Override
+            public void onAdLoaded() {
+                Log.i(TAG, "banner onAdLoaded");
+                if (nativeAdContainer != null) {
+                    nativeAdContainer.setVisibility(View.VISIBLE);
+                }
+            }
+
+            @Override
+            public void onAdFailedToLoad(LoadAdError adError) {
+                Log.e(TAG, "banner onAdFailedToLoad: code=" + adError.getCode() + ", msg=" + adError.getMessage());
+                if (nativeAdContainer != null) {
+                    nativeAdContainer.removeAllViews();
+                    nativeAdContainer.setVisibility(View.GONE);
+                }
+                if (nativeBannerView != null) {
+                    nativeBannerView.destroy();
+                    nativeBannerView = null;
+                }
+            }
+        });
         nativeAdContainer.removeAllViews();
         nativeAdContainer.addView(
             nativeBannerView,
