@@ -2,8 +2,6 @@ package com.liveonsoft.cycle;
 
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,10 +26,6 @@ import com.google.android.gms.ads.MobileAds;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivityAd";
     private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
-    private static final long BANNER_RETRY_BASE_DELAY_MS = 3_000L;
-    private static final long BANNER_RETRY_MAX_DELAY_MS = 30_000L;
-    private static final int BANNER_WIDTH_MEASURE_MAX_ATTEMPTS = 6;
-    private static final long BANNER_WIDTH_MEASURE_RETRY_DELAY_MS = 150L;
 
     @Nullable
     private FrameLayout nativeAdContainer;
@@ -39,12 +33,6 @@ public class MainActivity extends BridgeActivity {
     private AdView nativeBannerView;
     @Nullable
     private View insetsTargetView;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private int bannerRetryAttempt = 0;
-    private boolean isBannerLoadInProgress = false;
-    private boolean isBannerLoaded = false;
-    private int lastKnownOrientation = Configuration.ORIENTATION_UNDEFINED;
-    private final Runnable bannerRetryRunnable = this::requestNativeBanner;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -53,9 +41,8 @@ public class MainActivity extends BridgeActivity {
         applySystemBarsForOrientation();
         nativeAdContainer = findViewById(R.id.native_ad_container);
         MobileAds.initialize(this, initializationStatus -> {});
-        lastKnownOrientation = getResources().getConfiguration().orientation;
         Log.i(TAG, "onCreate: nativeAdContainer=" + (nativeAdContainer != null));
-        requestNativeBanner(true);
+        initNativeBanner();
         applyRootInsets();
     }
 
@@ -66,18 +53,6 @@ public class MainActivity extends BridgeActivity {
         if (nativeBannerView != null) {
             nativeBannerView.resume();
         }
-        int currentOrientation = getResources().getConfiguration().orientation;
-        boolean orientationChanged = currentOrientation != lastKnownOrientation;
-        boolean hasAttachedBannerView = nativeAdContainer != null && nativeAdContainer.getChildCount() > 0;
-        boolean shouldForceReload = orientationChanged || !hasAttachedBannerView;
-        Log.i(
-            TAG,
-            "onResume: orientationChanged=" + orientationChanged
-                + ", hasAttachedBannerView=" + hasAttachedBannerView
-                + ", forceReload=" + shouldForceReload
-        );
-        requestNativeBanner(shouldForceReload);
-        lastKnownOrientation = currentOrientation;
         applyRootInsets();
     }
 
@@ -91,18 +66,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
-        clearBannerRetry();
         destroyNativeBanner();
         super.onDestroy();
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        applySystemBarsForOrientation();
-        lastKnownOrientation = newConfig.orientation;
-        requestNativeBanner(true);
-        applyRootInsets();
     }
 
     private void applySystemBarsForOrientation() {
@@ -161,103 +126,50 @@ public class MainActivity extends BridgeActivity {
         return content;
     }
 
-    private void requestNativeBanner() {
-        requestNativeBanner(false);
-    }
-
-    private void requestNativeBanner(boolean forceReload) {
+    /**
+     * 배너는 onCreate에서만 생성·로드한다. onResume에서는 resume()만 호출한다.
+     */
+    private void initNativeBanner() {
         if (nativeAdContainer == null) {
-            Log.w(TAG, "requestNativeBanner: nativeAdContainer is null");
-            return;
-        }
-        if (!forceReload && (isBannerLoadInProgress || isBannerLoaded)) {
-            Log.i(
-                TAG,
-                "requestNativeBanner: skip (forceReload=false, inProgress=" + isBannerLoadInProgress
-                    + ", loaded=" + isBannerLoaded + ")"
-            );
-            return;
-        }
-        clearBannerRetry();
-        destroyNativeBanner();
-        String bannerUnitId = ADMOB_BANNER_AD_UNIT_ID_RELEASE;
-        Log.i(
-            TAG,
-            "requestNativeBanner: prepare unitId=" + bannerUnitId
-                + ", orientation=" + getOrientationLabel()
-                + ", forceReload=" + forceReload
-        );
-        nativeBannerView = new AdView(this);
-        nativeBannerView.setAdUnitId(bannerUnitId);
-        nativeBannerView.setAdListener(new AdListener() {
-            @Override
-            public void onAdLoaded() {
-                Log.i(TAG, "banner onAdLoaded");
-                bannerRetryAttempt = 0;
-                isBannerLoadInProgress = false;
-                isBannerLoaded = true;
-                if (nativeAdContainer != null) {
-                    nativeAdContainer.setVisibility(View.VISIBLE);
-                }
-            }
-
-            @Override
-            public void onAdFailedToLoad(LoadAdError adError) {
-                Log.e(TAG, "banner onAdFailedToLoad: code=" + adError.getCode() + ", msg=" + adError.getMessage());
-                isBannerLoadInProgress = false;
-                isBannerLoaded = false;
-                if (nativeAdContainer != null) {
-                    nativeAdContainer.removeAllViews();
-                    nativeAdContainer.setVisibility(View.GONE);
-                }
-                if (nativeBannerView != null) {
-                    nativeBannerView.destroy();
-                    nativeBannerView = null;
-                }
-                scheduleBannerRetry();
-            }
-        });
-        nativeAdContainer.removeAllViews();
-        nativeAdContainer.addView(
-            nativeBannerView,
-            new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            )
-        );
-        nativeAdContainer.setVisibility(View.VISIBLE);
-        requestNativeBannerAfterLayout(nativeBannerView, 0);
-    }
-
-    private void requestNativeBannerAfterLayout(AdView adView, int measureAttempt) {
-        if (nativeAdContainer == null || adView != nativeBannerView) {
+            Log.w(TAG, "initNativeBanner: nativeAdContainer is null");
             return;
         }
         nativeAdContainer.post(() -> {
-            if (nativeAdContainer == null || adView != nativeBannerView) {
+            if (nativeAdContainer == null) {
                 return;
             }
-
-            int containerWidthPx = nativeAdContainer.getWidth();
-            int adViewWidthPx = adView.getWidth();
-            int adWidthPx = Math.max(containerWidthPx, adViewWidthPx);
-            boolean isAttached = adView.isAttachedToWindow();
+            int widthPx = nativeAdContainer.getWidth();
+            if (widthPx <= 0) {
+                Log.w(TAG, "initNativeBanner: container width is 0, skipping ad load");
+                return;
+            }
             float density = getResources().getDisplayMetrics().density;
-            int adWidthDp = density > 0f ? (int) (adWidthPx / density) : 0;
-
+            int widthDp = Math.max(1, (int) (widthPx / density));
             Log.i(
                 TAG,
-                "requestNativeBannerAfterLayout: attempt=" + measureAttempt
-                    + ", containerWidthPx=" + containerWidthPx
-                    + ", adViewWidthPx=" + adViewWidthPx
-                    + ", adWidthDp=" + adWidthDp
-                    + ", isAttachedToWindow=" + isAttached
+                "initNativeBanner: widthPx=" + widthPx + ", widthDp=" + widthDp
                     + ", orientation=" + getOrientationLabel()
             );
 
-            if (adWidthDp <= 0 || !isAttached) {
-                if (measureAttempt >= BANNER_WIDTH_MEASURE_MAX_ATTEMPTS) {
-                    Log.e(TAG, "requestNativeBannerAfterLayout: width/attach not ready, schedule retry");
+            destroyNativeBanner();
+
+            nativeBannerView = new AdView(this);
+            nativeBannerView.setAdUnitId(ADMOB_BANNER_AD_UNIT_ID_RELEASE);
+            nativeBannerView.setAdSize(
+                AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp)
+            );
+            nativeBannerView.setAdListener(new AdListener() {
+                @Override
+                public void onAdLoaded() {
+                    Log.i(TAG, "banner onAdLoaded");
+                    if (nativeAdContainer != null) {
+                        nativeAdContainer.setVisibility(View.VISIBLE);
+                    }
+                }
+
+                @Override
+                public void onAdFailedToLoad(LoadAdError adError) {
+                    Log.e(TAG, "banner onAdFailedToLoad: code=" + adError.getCode() + ", msg=" + adError.getMessage());
                     if (nativeAdContainer != null) {
                         nativeAdContainer.removeAllViews();
                         nativeAdContainer.setVisibility(View.GONE);
@@ -266,44 +178,22 @@ public class MainActivity extends BridgeActivity {
                         nativeBannerView.destroy();
                         nativeBannerView = null;
                     }
-                    isBannerLoadInProgress = false;
-                    isBannerLoaded = false;
-                    scheduleBannerRetry();
-                    return;
                 }
-                mainHandler.postDelayed(
-                    () -> requestNativeBannerAfterLayout(adView, measureAttempt + 1),
-                    BANNER_WIDTH_MEASURE_RETRY_DELAY_MS
-                );
-                return;
-            }
-
-            AdSize adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, Math.max(1, adWidthDp));
-            adView.setAdSize(adSize);
-            isBannerLoadInProgress = true;
-            isBannerLoaded = false;
-            adView.loadAd(new AdRequest.Builder().build());
+            });
+            nativeAdContainer.removeAllViews();
+            nativeAdContainer.addView(
+                nativeBannerView,
+                new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            );
+            nativeAdContainer.setVisibility(View.VISIBLE);
+            nativeBannerView.loadAd(new AdRequest.Builder().build());
         });
     }
 
-    private void scheduleBannerRetry() {
-        bannerRetryAttempt += 1;
-        long delayMs = Math.min(
-            BANNER_RETRY_BASE_DELAY_MS * (1L << Math.max(0, bannerRetryAttempt - 1)),
-            BANNER_RETRY_MAX_DELAY_MS
-        );
-        Log.w(TAG, "scheduleBannerRetry: attempt=" + bannerRetryAttempt + ", delayMs=" + delayMs);
-        mainHandler.removeCallbacks(bannerRetryRunnable);
-        mainHandler.postDelayed(bannerRetryRunnable, delayMs);
-    }
-
-    private void clearBannerRetry() {
-        mainHandler.removeCallbacks(bannerRetryRunnable);
-    }
-
     private void destroyNativeBanner() {
-        isBannerLoadInProgress = false;
-        isBannerLoaded = false;
         if (nativeAdContainer != null) {
             nativeAdContainer.removeAllViews();
             nativeAdContainer.setVisibility(View.GONE);
