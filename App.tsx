@@ -1336,7 +1336,10 @@ const App: React.FC = () => {
     if (simulation.isActive && !prevSimActive) {
       interstitialShownRef.current = false;
       interstitialPreparedRef.current = false;
-      interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_AD_UNIT_ID })
+      interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({
+        adId: ADMOB_INTERSTITIAL_AD_UNIT_ID,
+        immersiveMode: true,
+      })
         .then(() => { interstitialPreparedRef.current = true; })
         .catch((e) => {
           interstitialPreparePromiseRef.current = null;
@@ -1356,7 +1359,10 @@ const App: React.FC = () => {
             }
 
             if (!interstitialPreparedRef.current) {
-              interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_AD_UNIT_ID })
+              interstitialPreparePromiseRef.current = AdMob.prepareInterstitial({
+                adId: ADMOB_INTERSTITIAL_AD_UNIT_ID,
+                immersiveMode: true,
+              })
                 .then(() => { interstitialPreparedRef.current = true; })
                 .catch((e) => {
                   interstitialPreparePromiseRef.current = null;
