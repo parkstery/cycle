@@ -2,6 +2,8 @@ package com.liveonsoft.cycle;
 
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,6 +28,8 @@ import com.google.android.gms.ads.MobileAds;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivityAd";
     private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
+    private static final long BANNER_RETRY_BASE_DELAY_MS = 3_000L;
+    private static final long BANNER_RETRY_MAX_DELAY_MS = 30_000L;
 
     @Nullable
     private FrameLayout nativeAdContainer;
@@ -33,6 +37,9 @@ public class MainActivity extends BridgeActivity {
     private AdView nativeBannerView;
     @Nullable
     private View insetsTargetView;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private int bannerRetryAttempt = 0;
+    private final Runnable bannerRetryRunnable = this::requestNativeBanner;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -67,6 +74,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        clearBannerRetry();
         destroyNativeBanner();
         super.onDestroy();
     }
@@ -140,6 +148,7 @@ public class MainActivity extends BridgeActivity {
             Log.w(TAG, "requestNativeBanner: nativeAdContainer is null");
             return;
         }
+        clearBannerRetry();
         destroyNativeBanner();
         float density = getResources().getDisplayMetrics().density;
         int adWidthDp = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
@@ -157,6 +166,7 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onAdLoaded() {
                 Log.i(TAG, "banner onAdLoaded");
+                bannerRetryAttempt = 0;
                 if (nativeAdContainer != null) {
                     nativeAdContainer.setVisibility(View.VISIBLE);
                 }
@@ -173,6 +183,7 @@ public class MainActivity extends BridgeActivity {
                     nativeBannerView.destroy();
                     nativeBannerView = null;
                 }
+                scheduleBannerRetry();
             }
         });
         nativeAdContainer.removeAllViews();
@@ -185,6 +196,21 @@ public class MainActivity extends BridgeActivity {
         );
         nativeAdContainer.setVisibility(View.VISIBLE);
         nativeBannerView.loadAd(new AdRequest.Builder().build());
+    }
+
+    private void scheduleBannerRetry() {
+        bannerRetryAttempt += 1;
+        long delayMs = Math.min(
+            BANNER_RETRY_BASE_DELAY_MS * (1L << Math.max(0, bannerRetryAttempt - 1)),
+            BANNER_RETRY_MAX_DELAY_MS
+        );
+        Log.w(TAG, "scheduleBannerRetry: attempt=" + bannerRetryAttempt + ", delayMs=" + delayMs);
+        mainHandler.removeCallbacks(bannerRetryRunnable);
+        mainHandler.postDelayed(bannerRetryRunnable, delayMs);
+    }
+
+    private void clearBannerRetry() {
+        mainHandler.removeCallbacks(bannerRetryRunnable);
     }
 
     private void destroyNativeBanner() {
