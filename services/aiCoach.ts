@@ -65,7 +65,7 @@ export const getAdvancedCoaching = async (
   // UI 표시용: 저항이 바뀐 경우 "(Set to N)" 붙임 (캐시 재생은 tipId + resId 로 분리 재생)
   const tipForDisplay =
     resistanceText !== previousResistance
-      ? `${tipText} (Set to ${targetRes})`
+      ? `${tipText} (R ${targetRes})`
       : tipText;
 
   return {
