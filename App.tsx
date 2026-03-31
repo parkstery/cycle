@@ -25,10 +25,11 @@ declare var google: any;
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
-// AdMob Units (Ride the World)..
-const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
-const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
+const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-2386721030013396/9109144037';
+// AdMob Units (Ride the World)..
+const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-2386721030013396/3841473087';
+
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;

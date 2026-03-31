@@ -21,7 +21,7 @@ import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.MobileAds;
 
 public class MainActivity extends BridgeActivity {
-    private static final String ADMOB_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111";
+    private static final String ADMOB_BANNER_AD_UNIT_ID = "ca-app-pub-2386721030013396/2486360510";
 
     @Nullable
     private FrameLayout nativeAdContainer;
