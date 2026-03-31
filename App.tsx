@@ -263,6 +263,8 @@ const App: React.FC = () => {
   const speechRequestIdRef = useRef(0);
   const musicOnRef = useRef(true);
   const pendingAudioPauseRef = useRef(false);
+  const lastMusicTrackRef = useRef<string | null>(null);
+  const musicRetryTokenRef = useRef(0);
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
@@ -1779,18 +1781,79 @@ const App: React.FC = () => {
     }, stepTime);
   };
 
-  const playRandomMusic = () => {
-    if (!audioRef.current) return;
+  const pickRandomTrack = (exclude?: string | null) => {
+    if (!PLAYLIST.length) return null;
+    if (PLAYLIST.length === 1) return PLAYLIST[0];
+    // Avoid immediate repeats which can be fragile on some WebViews.
+    for (let i = 0; i < 6; i++) {
+      const candidate = PLAYLIST[Math.floor(Math.random() * PLAYLIST.length)];
+      if (!exclude || candidate !== exclude) return candidate;
+    }
+    // Fallback if randomness keeps picking the same track.
+    const idx = PLAYLIST.indexOf(exclude ?? '');
+    const nextIdx = idx >= 0 ? (idx + 1) % PLAYLIST.length : 0;
+    return PLAYLIST[nextIdx];
+  };
+
+  const startMusicTrack = (track: string, token: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Stop any in-flight fade and ensure a clean start.
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
       fadeIntervalRef.current = null;
     }
     pendingAudioPauseRef.current = false;
-    const track = PLAYLIST[Math.floor(Math.random() * PLAYLIST.length)];
-    audioRef.current.src = track;
-    audioRef.current.volume = 0;
-    audioRef.current.play().catch(e => console.log("Audio autoplay blocked or failed", e));
+
+    // Force a deterministic restart position even if the same src is selected.
+    // Some WebViews can stay "ended" unless currentTime is reset.
+    try {
+      audio.pause();
+    } catch {
+      // no-op
+    }
+
+    audio.src = track;
+    try {
+      audio.load();
+    } catch {
+      // no-op (some browsers auto-load on src)
+    }
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // no-op (can throw if metadata not ready)
+    }
+
+    audio.volume = 0;
+    const playPromise = audio.play();
+    if (playPromise && typeof (playPromise as any).catch === 'function') {
+      playPromise.catch((e: any) => {
+        console.log("Audio autoplay blocked or failed", e);
+        // If another newer play request started, don't fight it.
+        if (musicRetryTokenRef.current !== token) return;
+        // If ride/music toggled off, don't retry.
+        if (!simulationActiveRef.current || !musicOnRef.current) return;
+        const next = pickRandomTrack(track);
+        if (!next || next === track) return;
+        // Small delay to avoid tight loop on transient failures.
+        window.setTimeout(() => {
+          if (musicRetryTokenRef.current !== token) return;
+          startMusicTrack(next, token);
+        }, 250);
+      });
+    }
     fadeAudio(0.3);
+  };
+
+  const playRandomMusic = () => {
+    if (!audioRef.current) return;
+    const track = pickRandomTrack(lastMusicTrackRef.current);
+    if (!track) return;
+    lastMusicTrackRef.current = track;
+    const token = ++musicRetryTokenRef.current;
+    startMusicTrack(track, token);
   };
 
   useEffect(() => {
