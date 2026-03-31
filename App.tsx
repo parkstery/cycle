@@ -11,8 +11,8 @@ import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
-import { Capacitor } from '@capacitor/core';
-import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem } from '@capacitor-community/admob';
+import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
+import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 import { logEvent } from "firebase/analytics";
@@ -1378,6 +1378,54 @@ const App: React.FC = () => {
       void run();
     }
   }, [admobReady, appPhase, simulation.isActive]);
+
+  // 가로모드에서 내비게이션 숨김(immersive)이면 전면광고 닫기 컨트롤이 잘리는 경우가 있어, 노출 중에만 시스템 바를 연다.
+  useEffect(() => {
+    if (!admobReady) return;
+    if (Capacitor.getPlatform() !== 'android') return;
+
+    const restoreRideSystemBars = async () => {
+      const landscape =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+      try {
+        if (landscape) {
+          await SystemBars.hide({ bar: SystemBarType.NavigationBar });
+        } else {
+          await SystemBars.show({ bar: SystemBarType.NavigationBar });
+        }
+      } catch (e) {
+        console.warn('[AdMob] interstitial 이후 시스템 바 복원 실패', e);
+      }
+    };
+
+    let hShow: { remove: () => Promise<void> } | undefined;
+    let hDismiss: { remove: () => Promise<void> } | undefined;
+    let hFail: { remove: () => Promise<void> } | undefined;
+
+    const attach = async () => {
+      hShow = await AdMob.addListener(InterstitialAdPluginEvents.Showed, async () => {
+        try {
+          await SystemBars.show();
+        } catch (e) {
+          console.warn('[AdMob] 전면광고용 시스템 바 표시 실패', e);
+        }
+      });
+      hDismiss = await AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => {
+        void restoreRideSystemBars();
+      });
+      hFail = await AdMob.addListener(InterstitialAdPluginEvents.FailedToShow, () => {
+        void restoreRideSystemBars();
+      });
+    };
+
+    void attach();
+
+    return () => {
+      void hShow?.remove();
+      void hDismiss?.remove();
+      void hFail?.remove();
+    };
+  }, [admobReady]);
 
   // Rewarded video: 미리 로드(지연 최소화)
   useEffect(() => {
