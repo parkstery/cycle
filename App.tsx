@@ -13,6 +13,7 @@ import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor } from '@capacitor/core';
 import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem } from '@capacitor-community/admob';
+import { ScreenOrientation, type OrientationLockType } from '@capacitor/screen-orientation';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 import { logEvent } from "firebase/analytics";
@@ -1348,7 +1349,18 @@ const App: React.FC = () => {
     // Session end: show only if 실제로 주행하다가(simActive=true) 멈추고, appPhase가 IDLE로 종료됐을 때
     if (!simulation.isActive && prevSimActive && appPhase === 'IDLE' && !interstitialShownRef.current) {
       const run = async () => {
+        let orientationLocked = false;
         try {
+          // Interstitial has no explicit orientation option, so lock briefly to current UI orientation.
+          try {
+            const lockTo: OrientationLockType = isPortrait ? 'portrait' : 'landscape';
+            await ScreenOrientation.lock({ orientation: lockTo });
+            orientationLocked = true;
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 120));
+          } catch (e) {
+            console.warn('[AdMob] interstitial orientation lock failed', e);
+          }
+
           if (!interstitialPreparedRef.current) {
             // If prepare is still in-flight, wait for it; otherwise try once more.
             if (interstitialPreparePromiseRef.current) {
@@ -1372,12 +1384,19 @@ const App: React.FC = () => {
         } catch (e) {
           console.warn('[AdMob] interstitial failed', e);
         } finally {
+          if (orientationLocked) {
+            try {
+              await ScreenOrientation.unlock();
+            } catch (e) {
+              console.warn('[AdMob] interstitial orientation unlock failed', e);
+            }
+          }
           interstitialPreparePromiseRef.current = null;
         }
       };
       void run();
     }
-  }, [admobReady, appPhase, simulation.isActive]);
+  }, [admobReady, appPhase, simulation.isActive, isPortrait]);
 
   // Rewarded video: 미리 로드(지연 최소화)
   useEffect(() => {
