@@ -135,12 +135,14 @@ public class MainActivity extends BridgeActivity {
             return;
         }
         destroyNativeBanner();
+        float density = getResources().getDisplayMetrics().density;
+        int adWidthDp = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
         nativeBannerView = new AdView(this);
         nativeBannerView.setAdUnitId(ADMOB_BANNER_AD_UNIT_ID);
         nativeBannerView.setAdSize(
             AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
                 this,
-                getResources().getDisplayMetrics().widthPixels
+                adWidthDp
             )
         );
         nativeAdContainer.removeAllViews();
