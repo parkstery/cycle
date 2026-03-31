@@ -445,7 +445,6 @@ export default function MenuPanel({
         aria-label="Menu"
         style={{
           paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
           ...appInfoBottomStyle(),
         }}
       >

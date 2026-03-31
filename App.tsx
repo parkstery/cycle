@@ -12,7 +12,7 @@ import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
-import { AdMob, BannerAdPosition, BannerAdSize, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 import { logEvent } from "firebase/analytics";
@@ -26,13 +26,9 @@ declare var google: any;
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
 
 // AdMob Units (Ride the World)..
-const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
-const BANNER_INITIAL_REQUEST_DELAY_MS = 1500;
-const BANNER_RETRY_BASE_DELAY_MS = 3500;
-const BANNER_RETRY_MAX_DELAY_MS = 30000;
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
@@ -374,16 +370,6 @@ const App: React.FC = () => {
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
-  const [bannerHeightPx, setBannerHeightPx] = useState(0);
-  const [bannerOrientationTick, setBannerOrientationTick] = useState(0);
-  const bannerEverShownRef = useRef(false);
-  const bannerHiddenRef = useRef(false);
-  const bannerRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bannerRetryAttemptRef = useRef(0);
-  const bannerRequestSeqRef = useRef(0);
-  const lastBannerPortraitRef = useRef<boolean>(
-    typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : true
-  );
   const lastAppPhaseRef = useRef<AppPhase>(appPhase);
   const lastSimulationActiveRef = useRef<boolean>(simulation.isActive);
   const interstitialShownRef = useRef(false);
@@ -1254,156 +1240,6 @@ const App: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  // 배너는 회전 시 새 크기로 다시 생성해야 잘림(예: 468x60 유지) 문제가 줄어든다.
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    if (typeof window === 'undefined') return;
-    const onOrientationMaybeChanged = () => {
-      const isPortraitNow = window.innerHeight >= window.innerWidth;
-      if (isPortraitNow === lastBannerPortraitRef.current) return;
-      lastBannerPortraitRef.current = isPortraitNow;
-      setBannerOrientationTick((v) => v + 1);
-    };
-    window.addEventListener('resize', onOrientationMaybeChanged);
-    window.addEventListener('orientationchange', onOrientationMaybeChanged);
-    return () => {
-      window.removeEventListener('resize', onOrientationMaybeChanged);
-      window.removeEventListener('orientationchange', onOrientationMaybeChanged);
-    };
-  }, []);
-
-  // Banner: 구조분리(activity_main.xml) 전제를 유지한 상태에서 하단 고정 배너만 노출.
-  useEffect(() => {
-    if (!admobReady) return;
-    if (!Capacitor.isNativePlatform()) return;
-    if (typeof window === 'undefined') return;
-
-    let cancelled = false;
-
-    const clearRetry = () => {
-      if (bannerRetryTimerRef.current) {
-        clearTimeout(bannerRetryTimerRef.current);
-        bannerRetryTimerRef.current = null;
-      }
-    };
-
-    const scheduleRetry = (delayMs: number, reason: string) => {
-      if (cancelled) return;
-      clearRetry();
-      bannerRetryTimerRef.current = setTimeout(() => {
-        void requestBanner(reason);
-      }, delayMs);
-    };
-
-    const requestBanner = async (reason: string) => {
-      const requestSeq = ++bannerRequestSeqRef.current;
-      const attempt = bannerRetryAttemptRef.current + 1;
-      try {
-        console.info(`[AdMob] banner request #${requestSeq} (${reason}) attempt=${attempt}`);
-        // orientation 변경 시 기존 배너를 제거 후 재생성해 폭/높이 재계산을 강제한다.
-        if (bannerEverShownRef.current) {
-          try {
-            await AdMob.removeBanner();
-          } catch {
-            await AdMob.hideBanner();
-          }
-        }
-        await AdMob.showBanner({
-          adId: ADMOB_BANNER_AD_UNIT_ID,
-          adSize: BannerAdSize.ADAPTIVE_BANNER,
-          position: BannerAdPosition.BOTTOM_CENTER,
-          margin: 0,
-        });
-        if (cancelled) return;
-        bannerRetryAttemptRef.current = 0;
-        bannerEverShownRef.current = true;
-        bannerHiddenRef.current = false;
-        console.info(`[AdMob] banner request #${requestSeq} succeeded`);
-      } catch (e) {
-        if (cancelled) return;
-        bannerRetryAttemptRef.current = attempt;
-        const retryDelayMs = Math.min(
-          BANNER_RETRY_BASE_DELAY_MS * (2 ** Math.max(0, attempt - 1)),
-          BANNER_RETRY_MAX_DELAY_MS
-        );
-        console.warn('[AdMob] banner request failed; scheduling retry', {
-          requestSeq,
-          attempt,
-          retryDelayMs,
-          error: e,
-        });
-        scheduleRetry(retryDelayMs, 'retry');
-      }
-    };
-
-    scheduleRetry(BANNER_INITIAL_REQUEST_DELAY_MS, bannerOrientationTick > 0 ? 'orientation_change' : 'app_start');
-    return () => {
-      cancelled = true;
-      clearRetry();
-    };
-  }, [admobReady, bannerOrientationTick]);
-
-  useEffect(() => {
-    if (!admobReady) return;
-    if (!Capacitor.isNativePlatform()) return;
-    let detached = false;
-    let loadedListener: { remove: () => Promise<void> } | null = null;
-    let failedListener: { remove: () => Promise<void> } | null = null;
-
-    const attach = async () => {
-      try {
-        loadedListener = await (AdMob as any).addListener('bannerAdLoaded', (event: any) => {
-          if (detached) return;
-          console.info('[AdMob] bannerAdLoaded', event);
-          bannerRetryAttemptRef.current = 0;
-        });
-      } catch (e) {
-        console.warn('[AdMob] bannerAdLoaded listener failed', e);
-      }
-
-      try {
-        failedListener = await (AdMob as any).addListener('bannerAdFailedToLoad', (event: any) => {
-          if (detached) return;
-          console.warn('[AdMob] bannerAdFailedToLoad', event);
-        });
-      } catch (e) {
-        console.warn('[AdMob] bannerAdFailedToLoad listener failed', e);
-      }
-    };
-
-    void attach();
-    return () => {
-      detached = true;
-      if (loadedListener) void loadedListener.remove();
-      if (failedListener) void failedListener.remove();
-    };
-  }, [admobReady]);
-
-  useEffect(() => {
-    if (!admobReady) return;
-    if (!Capacitor.isNativePlatform()) return;
-    let detached = false;
-    let sizeListener: { remove: () => Promise<void> } | null = null;
-
-    const attach = async () => {
-      try {
-        sizeListener = await (AdMob as any).addListener('bannerAdSizeChanged', (event: any) => {
-          if (detached) return;
-          const h = Number(event?.height ?? 0);
-          setBannerHeightPx(Number.isFinite(h) && h > 0 ? h : 0);
-        });
-      } catch (e) {
-        console.warn('[AdMob] banner size listener failed', e);
-      }
-    };
-
-    void attach();
-    return () => {
-      detached = true;
-      if (sizeListener) void sizeListener.remove();
-    };
-  }, [admobReady]);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
   useEffect(() => {
@@ -3151,8 +2987,7 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
           <img src="/bike_conti-128.png" alt="Ride the World – Indoor Cycling" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold" style={{ fontSize: '1.425rem' }}>Ride the World – Indoor Cycling</p>
-          {/* <p className="absolute bottom-0 left-0 right-0 text-[10px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}> */}
-          <p className="absolute bottom-2 left-0 right-0 text-[16px] text-slate-500 text-center pb-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+          <p className="absolute bottom-2 left-0 right-0 text-[16px] text-slate-500 text-center pb-2">
             © 2026 LiveOnSoft
           </p>
         </div>
