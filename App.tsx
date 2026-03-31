@@ -23,12 +23,12 @@ logEvent(analytics, "test_event");
 declare var google: any;
 // 자동배포문제....
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
-const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle-road.png`;
+const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle_road.png`;
 
 // AdMob Units (Ride the World)..
-const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
+const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-2386721030013396/3841473087';
 // Rewarded video ad (replace with production ad unit when ready)
-const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
+const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-2386721030013396/9109144037';
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
@@ -420,32 +420,40 @@ const App: React.FC = () => {
     if (saved) return JSON.parse(saved);
 
     // Default Routes if nothing saved
+    // Default Routes if nothing saved
     return [
       {
         id: "def-roma1",
-        origin: "Jaeger-LeCoultre, 92, Piazza di Spagna, Campo Marzio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00187, Italia",
-        destination: "Piazza del Colosseo, Celio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00184, Italia",
+        origin: "1441, Golden Gate Bridge East Sidewalk, San Francisco, California, 94129, United States",
+        destination: "Golden Gate Bridge East Sidewalk, San Francisco, Marin County, California, 94129, United States",
         waypoints: [],
         timestamp: Date.now()
       },
       {
         id: "def-seoul",
-        origin: "고덕로, 암사2동, 강동구, 서울특별시, 05241, 대한민국",
-        destination: "올림픽대로, 본동, 노량진1동, 동작구, 서울특별시, 06904, 대한민국",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-greece",
         origin: "F96M+QX Oia, 그리스",
         destination: "F9HJ+VJ Ia, 그리스",
         waypoints: [],
         timestamp: Date.now()
       },
       {
+        id: "def-greece",
+        origin: "Cheongnyeongpo 2 Bridge, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
+        destination: "영월로, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
         id: "def-roma2",
-        origin: "Via Claudia, Celio, Municipio Roma I, Roma, Roma Capitale, Lazio, 00184, Italia",
-        destination: "10, Piazza Pio Dodicesimo, Borgo, Municipio Roma I, Roma, Roma Capitale, Lazio, 00193, Italia",
+        origin: "هرم خفرع, شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
+        destination: "شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
+        waypoints: [],
+        timestamp: Date.now()
+      },
+      {
+        id: "def-roma2",
+        origin: "1441, Golden Gate Bridge East Sidewalk, San Francisco, California, 94129, United States",
+        destination: "Golden Gate Bridge East Sidewalk, San Francisco, Marin County, California, 94129, United States",
         waypoints: [],
         timestamp: Date.now()
       }
@@ -1188,7 +1196,7 @@ const App: React.FC = () => {
   // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
   useEffect(() => {
     if (cyclingMarkerDataUrlRef.current) return;
-    fetch('/cycling-position-marker.png')
+    fetch('/cycling_position_marker.png')
       .then((r) => r.blob())
       .then((blob) => {
         const reader = new FileReader();
@@ -1490,7 +1498,7 @@ const App: React.FC = () => {
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></svg>';
         return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
       }
-      return { url: '/cycling-position-marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+      return { url: '/cycling_position_marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
     })();
     if (!simulationMarker.current && map) {
       simulationMarker.current = new google.maps.Marker({
@@ -2982,10 +2990,10 @@ const App: React.FC = () => {
   const isSaved = isCurrentRouteSaved();
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
-      {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
+      {/* LCP용: 지도 로드 전 껍데기 — bike_conti_128.png + Ride the World – Indoor Cycling */}
       {!isMapReady && (
         <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900" aria-hidden="true">
-          <img src="/bike_conti-128.png" alt="Ride the World – Indoor Cycling" className="w-48 h-48 object-contain mb-5" />
+          <img src="/bike_conti_128.png" alt="Ride the World – Indoor Cycling" className="w-48 h-48 object-contain mb-5" />
           <p className="text-slate-400 text-2xl font-semibold" style={{ fontSize: '1.425rem' }}>Ride the World – Indoor Cycling</p>
           <p className="absolute bottom-2 left-0 right-0 text-[16px] text-slate-500 text-center pb-2">
             © 2026 LiveOnSoft
