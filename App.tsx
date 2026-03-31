@@ -30,6 +30,9 @@ const ADMOB_BANNER_AD_UNIT_ID = 'ca-app-pub-3940256099942544/6300978111';
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-3940256099942544/5224354917';
+const BANNER_INITIAL_REQUEST_DELAY_MS = 1500;
+const BANNER_RETRY_BASE_DELAY_MS = 3500;
+const BANNER_RETRY_MAX_DELAY_MS = 30000;
 
 // Ride distance policy
 const DEFAULT_RIDE_LIMIT_KM = 5;
@@ -375,6 +378,9 @@ const App: React.FC = () => {
   const [bannerOrientationTick, setBannerOrientationTick] = useState(0);
   const bannerEverShownRef = useRef(false);
   const bannerHiddenRef = useRef(false);
+  const bannerRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerRetryAttemptRef = useRef(0);
+  const bannerRequestSeqRef = useRef(0);
   const lastBannerPortraitRef = useRef<boolean>(
     typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : true
   );
@@ -1271,9 +1277,30 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!admobReady) return;
     if (!Capacitor.isNativePlatform()) return;
+    if (typeof window === 'undefined') return;
 
-    const run = async () => {
+    let cancelled = false;
+
+    const clearRetry = () => {
+      if (bannerRetryTimerRef.current) {
+        clearTimeout(bannerRetryTimerRef.current);
+        bannerRetryTimerRef.current = null;
+      }
+    };
+
+    const scheduleRetry = (delayMs: number, reason: string) => {
+      if (cancelled) return;
+      clearRetry();
+      bannerRetryTimerRef.current = setTimeout(() => {
+        void requestBanner(reason);
+      }, delayMs);
+    };
+
+    const requestBanner = async (reason: string) => {
+      const requestSeq = ++bannerRequestSeqRef.current;
+      const attempt = bannerRetryAttemptRef.current + 1;
       try {
+        console.info(`[AdMob] banner request #${requestSeq} (${reason}) attempt=${attempt}`);
         // orientation 변경 시 기존 배너를 제거 후 재생성해 폭/높이 재계산을 강제한다.
         if (bannerEverShownRef.current) {
           try {
@@ -1288,15 +1315,70 @@ const App: React.FC = () => {
           position: BannerAdPosition.BOTTOM_CENTER,
           margin: 0,
         });
+        if (cancelled) return;
+        bannerRetryAttemptRef.current = 0;
         bannerEverShownRef.current = true;
         bannerHiddenRef.current = false;
+        console.info(`[AdMob] banner request #${requestSeq} succeeded`);
       } catch (e) {
-        console.warn('[AdMob] banner control failed', e);
+        if (cancelled) return;
+        bannerRetryAttemptRef.current = attempt;
+        const retryDelayMs = Math.min(
+          BANNER_RETRY_BASE_DELAY_MS * (2 ** Math.max(0, attempt - 1)),
+          BANNER_RETRY_MAX_DELAY_MS
+        );
+        console.warn('[AdMob] banner request failed; scheduling retry', {
+          requestSeq,
+          attempt,
+          retryDelayMs,
+          error: e,
+        });
+        scheduleRetry(retryDelayMs, 'retry');
       }
     };
 
-    void run();
-  }, [admobReady, simulation.isActive, bannerOrientationTick]);
+    scheduleRetry(BANNER_INITIAL_REQUEST_DELAY_MS, bannerOrientationTick > 0 ? 'orientation_change' : 'app_start');
+    return () => {
+      cancelled = true;
+      clearRetry();
+    };
+  }, [admobReady, bannerOrientationTick]);
+
+  useEffect(() => {
+    if (!admobReady) return;
+    if (!Capacitor.isNativePlatform()) return;
+    let detached = false;
+    let loadedListener: { remove: () => Promise<void> } | null = null;
+    let failedListener: { remove: () => Promise<void> } | null = null;
+
+    const attach = async () => {
+      try {
+        loadedListener = await (AdMob as any).addListener('onAdLoaded', (event: any) => {
+          if (detached) return;
+          console.info('[AdMob] onAdLoaded', event);
+          bannerRetryAttemptRef.current = 0;
+        });
+      } catch (e) {
+        console.warn('[AdMob] onAdLoaded listener failed', e);
+      }
+
+      try {
+        failedListener = await (AdMob as any).addListener('onAdFailedToLoad', (event: any) => {
+          if (detached) return;
+          console.warn('[AdMob] onAdFailedToLoad', event);
+        });
+      } catch (e) {
+        console.warn('[AdMob] onAdFailedToLoad listener failed', e);
+      }
+    };
+
+    void attach();
+    return () => {
+      detached = true;
+      if (loadedListener) void loadedListener.remove();
+      if (failedListener) void failedListener.remove();
+    };
+  }, [admobReady]);
 
   useEffect(() => {
     if (!admobReady) return;
