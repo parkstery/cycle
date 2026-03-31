@@ -138,9 +138,16 @@ public class MainActivity extends BridgeActivity {
             if (nativeAdContainer == null) {
                 return;
             }
+            // 컨테이너가 XML에서 visibility=gone이면 getWidth()가 0이므로 부모·디스플레이 폭으로 보정
             int widthPx = nativeAdContainer.getWidth();
+            if (widthPx <= 0 && nativeAdContainer.getParent() instanceof View parent) {
+                widthPx = parent.getWidth();
+            }
             if (widthPx <= 0) {
-                Log.w(TAG, "initNativeBanner: container width is 0, skipping ad load");
+                widthPx = getResources().getDisplayMetrics().widthPixels;
+            }
+            if (widthPx <= 0) {
+                Log.w(TAG, "initNativeBanner: could not resolve width, skipping ad load");
                 return;
             }
             float density = getResources().getDisplayMetrics().density;

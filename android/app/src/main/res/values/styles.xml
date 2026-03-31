@@ -20,9 +20,9 @@
         <item name="android:background">@drawable/splash</item>
     </style>
 -->    
+    <!-- Cold start 전용으로만 쓸 때: 회전 시 스플래시 아이콘 재노출을 피하려면 Activity 테마는 AppTheme.NoActionBar 사용 -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@android:color/white</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/bike_conti_128</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
