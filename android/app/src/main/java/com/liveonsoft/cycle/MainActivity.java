@@ -1,7 +1,6 @@
 package com.liveonsoft.cycle;
 
 import android.content.res.Configuration;
-import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -27,7 +26,6 @@ import com.google.android.gms.ads.MobileAds;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivityAd";
     private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
-    private static final String ADMOB_BANNER_AD_UNIT_ID_TEST = "ca-app-pub-3940256099942544/6300978111";
 
     @Nullable
     private FrameLayout nativeAdContainer;
@@ -145,9 +143,8 @@ public class MainActivity extends BridgeActivity {
         destroyNativeBanner();
         float density = getResources().getDisplayMetrics().density;
         int adWidthDp = Math.max(1, (int) (getResources().getDisplayMetrics().widthPixels / density));
-        boolean isDebuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        String bannerUnitId = isDebuggable ? ADMOB_BANNER_AD_UNIT_ID_TEST : ADMOB_BANNER_AD_UNIT_ID_RELEASE;
-        Log.i(TAG, "requestNativeBanner: widthDp=" + adWidthDp + ", unitId=" + bannerUnitId + ", debug=" + isDebuggable);
+        String bannerUnitId = ADMOB_BANNER_AD_UNIT_ID_RELEASE;
+        Log.i(TAG, "requestNativeBanner: widthDp=" + adWidthDp + ", unitId=" + bannerUnitId);
         nativeBannerView = new AdView(this);
         nativeBannerView.setAdUnitId(bannerUnitId);
         nativeBannerView.setAdSize(
