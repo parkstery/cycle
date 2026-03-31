@@ -26,6 +26,7 @@ import com.google.android.gms.ads.MobileAds;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivityAd";
     private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
+    private static final long BANNER_LAYOUT_RETRY_DELAY_MS = 200L;
 
     @Nullable
     private FrameLayout nativeAdContainer;
@@ -128,76 +129,81 @@ public class MainActivity extends BridgeActivity {
 
     /**
      * 배너는 onCreate에서만 생성·로드한다. onResume에서는 resume()만 호출한다.
+     * 컨테이너 실제 width만 사용한다(width==0이면 200ms 후 1회만 재시도).
      */
     private void initNativeBanner() {
         if (nativeAdContainer == null) {
             Log.w(TAG, "initNativeBanner: nativeAdContainer is null");
             return;
         }
-        nativeAdContainer.post(() -> {
-            if (nativeAdContainer == null) {
-                return;
-            }
-            // 컨테이너가 XML에서 visibility=gone이면 getWidth()가 0이므로 부모·디스플레이 폭으로 보정
-            int widthPx = nativeAdContainer.getWidth();
-            if (widthPx <= 0 && nativeAdContainer.getParent() instanceof View parent) {
-                widthPx = parent.getWidth();
-            }
-            if (widthPx <= 0) {
-                widthPx = getResources().getDisplayMetrics().widthPixels;
-            }
-            if (widthPx <= 0) {
-                Log.w(TAG, "initNativeBanner: could not resolve width, skipping ad load");
-                return;
-            }
-            float density = getResources().getDisplayMetrics().density;
-            int widthDp = Math.max(1, (int) (widthPx / density));
-            Log.i(
-                TAG,
-                "initNativeBanner: widthPx=" + widthPx + ", widthDp=" + widthDp
-                    + ", orientation=" + getOrientationLabel()
-            );
+        nativeAdContainer.post(() -> attachNativeBannerIfWidthReady(false));
+    }
 
-            destroyNativeBanner();
+    private void attachNativeBannerIfWidthReady(boolean alreadyRetriedOnce) {
+        if (nativeAdContainer == null) {
+            return;
+        }
+        int widthPx = nativeAdContainer.getWidth();
+        if (widthPx <= 0) {
+            if (!alreadyRetriedOnce) {
+                Log.w(TAG, "attachNativeBannerIfWidthReady: widthPx=0, scheduling one retry");
+                nativeAdContainer.postDelayed(
+                    () -> attachNativeBannerIfWidthReady(true),
+                    BANNER_LAYOUT_RETRY_DELAY_MS
+                );
+            } else {
+                Log.e(TAG, "attachNativeBannerIfWidthReady: width still 0 after one retry, skip load");
+            }
+            return;
+        }
 
-            nativeBannerView = new AdView(this);
-            nativeBannerView.setAdUnitId(ADMOB_BANNER_AD_UNIT_ID_RELEASE);
-            nativeBannerView.setAdSize(
-                AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp)
-            );
-            nativeBannerView.setAdListener(new AdListener() {
-                @Override
-                public void onAdLoaded() {
-                    Log.i(TAG, "banner onAdLoaded");
-                    if (nativeAdContainer != null) {
-                        nativeAdContainer.setVisibility(View.VISIBLE);
-                    }
+        float density = getResources().getDisplayMetrics().density;
+        int widthDp = Math.max(1, (int) (widthPx / density));
+        Log.i(
+            TAG,
+            "attachNativeBannerIfWidthReady: widthPx=" + widthPx + ", widthDp=" + widthDp
+                + ", orientation=" + getOrientationLabel()
+        );
+
+        destroyNativeBanner();
+
+        nativeBannerView = new AdView(this);
+        nativeBannerView.setAdUnitId(ADMOB_BANNER_AD_UNIT_ID_RELEASE);
+        nativeBannerView.setAdSize(
+            AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp)
+        );
+        nativeBannerView.setAdListener(new AdListener() {
+            @Override
+            public void onAdLoaded() {
+                Log.i(TAG, "banner onAdLoaded");
+                if (nativeAdContainer != null) {
+                    nativeAdContainer.setVisibility(View.VISIBLE);
                 }
+            }
 
-                @Override
-                public void onAdFailedToLoad(LoadAdError adError) {
-                    Log.e(TAG, "banner onAdFailedToLoad: code=" + adError.getCode() + ", msg=" + adError.getMessage());
-                    if (nativeAdContainer != null) {
-                        nativeAdContainer.removeAllViews();
-                        nativeAdContainer.setVisibility(View.GONE);
-                    }
-                    if (nativeBannerView != null) {
-                        nativeBannerView.destroy();
-                        nativeBannerView = null;
-                    }
+            @Override
+            public void onAdFailedToLoad(LoadAdError adError) {
+                Log.e(TAG, "banner onAdFailedToLoad: code=" + adError.getCode() + ", msg=" + adError.getMessage());
+                if (nativeAdContainer != null) {
+                    nativeAdContainer.removeAllViews();
+                    nativeAdContainer.setVisibility(View.GONE);
                 }
-            });
-            nativeAdContainer.removeAllViews();
-            nativeAdContainer.addView(
-                nativeBannerView,
-                new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                )
-            );
-            nativeAdContainer.setVisibility(View.VISIBLE);
-            nativeBannerView.loadAd(new AdRequest.Builder().build());
+                if (nativeBannerView != null) {
+                    nativeBannerView.destroy();
+                    nativeBannerView = null;
+                }
+            }
         });
+        nativeAdContainer.removeAllViews();
+        nativeAdContainer.addView(
+            nativeBannerView,
+            new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        );
+        nativeAdContainer.setVisibility(View.INVISIBLE);
+        nativeBannerView.loadAd(new AdRequest.Builder().build());
     }
 
     private void destroyNativeBanner() {
