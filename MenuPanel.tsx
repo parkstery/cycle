@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 
 const APP_NAME = "Ride the World – Indoor Cycling";
+const MAP_ATTRIBUTION_CLEARANCE_PX = 24;
 
 const docTitle = "text-base font-bold text-slate-900 mt-4 mb-2 first:mt-0";
 const docSubtitle = "text-sm font-bold text-slate-800 mt-3 mb-1.5";
@@ -390,7 +391,7 @@ interface MenuPanelProps {
 
 const appInfoBottomStyle = (bannerReservedPx: number) =>
   ({
-    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px + ${MAP_ATTRIBUTION_CLEARANCE_PX}px)`,
   }) as const;
 
 export default function MenuPanel({
