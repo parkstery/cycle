@@ -1353,22 +1353,22 @@ const App: React.FC = () => {
 
     const attach = async () => {
       try {
-        loadedListener = await (AdMob as any).addListener('onAdLoaded', (event: any) => {
+        loadedListener = await (AdMob as any).addListener('bannerAdLoaded', (event: any) => {
           if (detached) return;
-          console.info('[AdMob] onAdLoaded', event);
+          console.info('[AdMob] bannerAdLoaded', event);
           bannerRetryAttemptRef.current = 0;
         });
       } catch (e) {
-        console.warn('[AdMob] onAdLoaded listener failed', e);
+        console.warn('[AdMob] bannerAdLoaded listener failed', e);
       }
 
       try {
-        failedListener = await (AdMob as any).addListener('onAdFailedToLoad', (event: any) => {
+        failedListener = await (AdMob as any).addListener('bannerAdFailedToLoad', (event: any) => {
           if (detached) return;
-          console.warn('[AdMob] onAdFailedToLoad', event);
+          console.warn('[AdMob] bannerAdFailedToLoad', event);
         });
       } catch (e) {
-        console.warn('[AdMob] onAdFailedToLoad listener failed', e);
+        console.warn('[AdMob] bannerAdFailedToLoad listener failed', e);
       }
     };
 
@@ -3144,11 +3144,6 @@ const App: React.FC = () => {
   };
 
   const isSaved = isCurrentRouteSaved();
-  // 세로는 안정적으로 60px 고정, 가로는 실제 배너 높이를 사용한다.
-  const bannerReservedPx = (admobReady && Capacitor.isNativePlatform())
-    ? (isPortrait ? 106 : bannerHeightPx)
-    : 0;
-
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
       {/* LCP용: 지도 로드 전 껍데기 — bike_conti-128.png + Ride the World – Indoor Cycling */}
@@ -3297,7 +3292,7 @@ const App: React.FC = () => {
         className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute top-0 left-0 right-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}
         style={{
           bottom: (isSvActive && isSvFullScreen)
-            ? `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`
+            ? 0
             : undefined,
         }}
       >
@@ -3335,12 +3330,6 @@ const App: React.FC = () => {
         </div>
       )}
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
-      {!isSvFullScreen && bannerReservedPx > 0 && (
-        <div
-          className="absolute left-0 right-0 bottom-0 z-[12] pointer-events-none bg-white"
-          style={{ height: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
-        />
-      )}
       <div
         ref={mapRef}
         className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
@@ -3348,7 +3337,7 @@ const App: React.FC = () => {
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
-          bottom: !isSvFullScreen ? `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` : undefined,
+          bottom: !isSvFullScreen ? 0 : undefined,
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
@@ -3361,7 +3350,7 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: `calc(10px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+          style={{ bottom: '10px' }}
         >
           © OpenStreetMap contributors
         </a>
@@ -3463,7 +3452,7 @@ const App: React.FC = () => {
       </div>
       <div
         className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+        style={{ bottom: '25px' }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3688,7 +3677,7 @@ const App: React.FC = () => {
       {route && (
         <div
           className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'right-4 w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'right-4 w-[2.4rem] h-[2.4rem] group'}`}
-          style={{ bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)` }}
+          style={{ bottom: '25px' }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
           <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
@@ -3781,7 +3770,7 @@ const App: React.FC = () => {
         <div
           className="fixed left-0 right-0 top-0 z-[1100] flex flex-col overflow-hidden bg-white"
           style={{
-            bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px)`,
+            bottom: 0,
           }}
         >
           <About
@@ -3797,7 +3786,6 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
-          bannerReservedPx={bannerReservedPx}
         />,
         document.body
       )}

@@ -42,6 +42,8 @@ public class MainActivity extends BridgeActivity {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable applyInsetsRunnable = this::applySystemBarInsetsOnce;
+    private int currentBannerHeightPx = 0;
+    private int lastSystemBottomInsetPx = 0;
 
     @Nullable
     private View insetTargetAttached;
@@ -167,6 +169,7 @@ public class MainActivity extends BridgeActivity {
 
             stripDebugBannerAdHosts(wv);
             stackNativeLayersBannerOnTop(vg, wv);
+            updateBannerHeightAndApplyBottomPadding(vg, wv);
             vg.requestLayout();
             wv.invalidate();
         } catch (Throwable ignored) {
@@ -295,6 +298,49 @@ public class MainActivity extends BridgeActivity {
         return false;
     }
 
+    private void updateBannerHeightAndApplyBottomPadding(@Nullable ViewGroup parent, @Nullable WebView wv) {
+        if (wv == null) {
+            return;
+        }
+        int measuredBannerHeightPx = resolveVisibleBannerHeightPx(parent, wv);
+        if (measuredBannerHeightPx != currentBannerHeightPx) {
+            currentBannerHeightPx = measuredBannerHeightPx;
+        }
+        applyBottomPaddingToWebView(wv);
+    }
+
+    private int resolveVisibleBannerHeightPx(@Nullable ViewGroup parent, @Nullable WebView wv) {
+        if (parent == null) {
+            return 0;
+        }
+        int bannerHeightPx = 0;
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            if (child == null || child == wv || child.getVisibility() != View.VISIBLE) {
+                continue;
+            }
+            if (!viewSubtreeContainsAdMobAdView(child)) {
+                continue;
+            }
+            int candidate = Math.max(child.getHeight(), child.getMeasuredHeight());
+            if (candidate > bannerHeightPx) {
+                bannerHeightPx = candidate;
+            }
+        }
+        return Math.max(0, bannerHeightPx);
+    }
+
+    private void applyBottomPaddingToWebView(@Nullable WebView wv) {
+        if (wv == null) {
+            return;
+        }
+        int finalBottomPx = Math.max(0, lastSystemBottomInsetPx + currentBannerHeightPx);
+        if (wv.getPaddingBottom() == finalBottomPx) {
+            return;
+        }
+        wv.setPadding(0, 0, 0, finalBottomPx);
+    }
+
     private void applySystemBarInsetsOnce() {
         final View target = resolveInsetsTargetView();
         if (target == null) {
@@ -323,7 +369,9 @@ public class MainActivity extends BridgeActivity {
             }
             if (wv != null) {
                 v.setPadding(insets.left, insets.top, insets.right, 0);
-                wv.setPadding(0, 0, 0, bottomInset);
+                lastSystemBottomInsetPx = bottomInset;
+                View parent = (View) wv.getParent();
+                updateBannerHeightAndApplyBottomPadding(parent instanceof ViewGroup ? (ViewGroup) parent : null, wv);
             } else {
                 v.setPadding(insets.left, insets.top, insets.right, bottomInset);
             }

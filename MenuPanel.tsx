@@ -385,13 +385,11 @@ interface MenuPanelProps {
   setMenuView: (v: MenuView) => void;
   legalExpanded?: boolean;
   setLegalExpanded?: (v: boolean) => void;
-  /** Match main map bottom inset (e.g. native banner reserve) so panel does not overlap the ad strip */
-  bannerReservedPx?: number;
 }
 
-const appInfoBottomStyle = (bannerReservedPx: number) =>
+const appInfoBottomStyle = () =>
   ({
-    bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bannerReservedPx}px + ${MAP_ATTRIBUTION_CLEARANCE_PX}px)`,
+    bottom: `${MAP_ATTRIBUTION_CLEARANCE_PX}px`,
   }) as const;
 
 export default function MenuPanel({
@@ -400,7 +398,6 @@ export default function MenuPanel({
   onOpenAbout,
   menuView,
   setMenuView,
-  bannerReservedPx = 0,
 }: MenuPanelProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -434,7 +431,7 @@ export default function MenuPanel({
       {/* backdrop */}
       <div
         className="fixed left-0 right-0 top-0 z-[10001] bg-black/40"
-        style={appInfoBottomStyle(bannerReservedPx)}
+        style={appInfoBottomStyle()}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -449,7 +446,7 @@ export default function MenuPanel({
         style={{
           paddingTop: "env(safe-area-inset-top)",
           paddingBottom: "env(safe-area-inset-bottom)",
-          ...appInfoBottomStyle(bannerReservedPx),
+          ...appInfoBottomStyle(),
         }}
       >
         {/* navigation */}
