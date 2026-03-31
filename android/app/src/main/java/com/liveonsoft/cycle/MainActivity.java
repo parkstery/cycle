@@ -15,11 +15,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
-import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdSize;
 import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 
 public class MainActivity extends BridgeActivity {
@@ -145,26 +143,6 @@ public class MainActivity extends BridgeActivity {
                 getResources().getDisplayMetrics().widthPixels
             )
         );
-        nativeBannerView.setAdListener(new AdListener() {
-            @Override
-            public void onAdLoaded() {
-                if (nativeAdContainer != null) {
-                    nativeAdContainer.setVisibility(View.VISIBLE);
-                }
-            }
-
-            @Override
-            public void onAdFailedToLoad(LoadAdError adError) {
-                if (nativeAdContainer != null) {
-                    nativeAdContainer.setVisibility(View.GONE);
-                    nativeAdContainer.removeAllViews();
-                }
-                if (nativeBannerView != null) {
-                    nativeBannerView.destroy();
-                    nativeBannerView = null;
-                }
-            }
-        });
         nativeAdContainer.removeAllViews();
         nativeAdContainer.addView(
             nativeBannerView,
