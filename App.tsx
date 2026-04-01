@@ -55,7 +55,13 @@ const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/neqzwt2hw4eaubt23ecye/Traveling-Is-Fun.mp3?rlkey=ftv50scvsjgrxfutqg3l0fel9&st=u4iecrmb&dl=1",
   "https://www.dropbox.com/scl/fi/2maxm34hi9rivbq2w40ee/Tuna-Run.mp3?rlkey=emhzumrrheaqhl525msc3na8f&st=sz1umr9f&dl=1"   
 ];
-  
+
+/** 배경음악: WebView에서 ended 미발화·끝 구간 정지 감지용 */
+const BG_MUSIC_NEAR_END_SEC = 0.38;
+const BG_MUSIC_WATCHDOG_MS = 480;
+const BG_MUSIC_ADVANCE_DEBOUNCE_MS = 420;
+const BG_MUSIC_ERROR_SUPPRESS_MS = 400;
+
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
 const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
 
@@ -264,6 +270,11 @@ const App: React.FC = () => {
   const pendingAudioPauseRef = useRef(false);
   const lastMusicTrackRef = useRef<string | null>(null);
   const musicRetryTokenRef = useRef(0);
+  const bgMusicLastAdvanceMsRef = useRef(0);
+  const bgMusicWatchdogTimerRef = useRef<number | null>(null);
+  const bgMusicSuppressErrorAdvanceUntilRef = useRef(0);
+  const maybeAdvanceBackgroundMusicRef = useRef<(reason: 'ended' | 'error' | 'watchdog' | 'visibility') => void>(() => { });
+  const onVisibilityForBgMusicRef = useRef<() => void>(() => { });
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
@@ -1779,6 +1790,12 @@ const App: React.FC = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    if (bgMusicWatchdogTimerRef.current) {
+      clearTimeout(bgMusicWatchdogTimerRef.current);
+      bgMusicWatchdogTimerRef.current = null;
+    }
+    bgMusicSuppressErrorAdvanceUntilRef.current = Date.now() + BG_MUSIC_ERROR_SUPPRESS_MS;
+
     // Stop any in-flight fade and ensure a clean start.
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
@@ -1836,19 +1853,122 @@ const App: React.FC = () => {
     startMusicTrack(track, token);
   };
 
-  useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.addEventListener('ended', () => {
-        if (simulationActiveRef.current) {
-          playRandomMusic();
+  const maybeAdvanceBackgroundMusic = (reason: 'ended' | 'error' | 'watchdog' | 'visibility') => {
+    if (!simulationActiveRef.current || !musicOnRef.current) return;
+    if (pendingAudioPauseRef.current) return;
+    const now = Date.now();
+    if (now - bgMusicLastAdvanceMsRef.current < BG_MUSIC_ADVANCE_DEBOUNCE_MS) return;
+    bgMusicLastAdvanceMsRef.current = now;
+    if (reason === 'error') {
+      console.warn('[BgMusic] advance after error');
+    }
+    playRandomMusic();
+  };
+
+  maybeAdvanceBackgroundMusicRef.current = maybeAdvanceBackgroundMusic;
+
+  onVisibilityForBgMusicRef.current = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+    const a = audioRef.current;
+    if (!a) return;
+    if (!simulationActiveRef.current || !musicOnRef.current || pendingAudioPauseRef.current) return;
+    if (a.ended) {
+      maybeAdvanceBackgroundMusicRef.current('visibility');
+      return;
+    }
+    const d = a.duration;
+    if (Number.isFinite(d) && d > 0 && a.currentTime >= d - BG_MUSIC_NEAR_END_SEC) {
+      maybeAdvanceBackgroundMusicRef.current('visibility');
+      return;
+    }
+    if (a.paused) {
+      void a.play().catch(() => {
+        if (!simulationActiveRef.current || !musicOnRef.current || pendingAudioPauseRef.current) return;
+        const d2 = a.duration;
+        if (
+          Number.isFinite(d2) &&
+          d2 > 0 &&
+          (a.ended || a.currentTime >= d2 - BG_MUSIC_NEAR_END_SEC)
+        ) {
+          maybeAdvanceBackgroundMusicRef.current('visibility');
         }
       });
     }
+  };
+
+  useEffect(() => {
+    const clearBgMusicWatchdog = () => {
+      if (bgMusicWatchdogTimerRef.current) {
+        clearTimeout(bgMusicWatchdogTimerRef.current);
+        bgMusicWatchdogTimerRef.current = null;
+      }
+    };
+
+    const onEnded = () => {
+      clearBgMusicWatchdog();
+      maybeAdvanceBackgroundMusicRef.current('ended');
+    };
+
+    const onError = () => {
+      if (Date.now() < bgMusicSuppressErrorAdvanceUntilRef.current) return;
+      clearBgMusicWatchdog();
+      maybeAdvanceBackgroundMusicRef.current('error');
+    };
+
+    const onTimeUpdate = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (!simulationActiveRef.current || !musicOnRef.current || pendingAudioPauseRef.current) {
+        clearBgMusicWatchdog();
+        return;
+      }
+      if (audio.ended) return;
+      const d = audio.duration;
+      if (!Number.isFinite(d) || d <= 0) return;
+      if (audio.currentTime < d - BG_MUSIC_NEAR_END_SEC) {
+        clearBgMusicWatchdog();
+        return;
+      }
+      if (bgMusicWatchdogTimerRef.current) return;
+      const srcAtSchedule = audio.src;
+      bgMusicWatchdogTimerRef.current = window.setTimeout(() => {
+        bgMusicWatchdogTimerRef.current = null;
+        const a = audioRef.current;
+        if (!a || a.src !== srcAtSchedule) return;
+        if (!simulationActiveRef.current || !musicOnRef.current || pendingAudioPauseRef.current) return;
+        const d2 = a.duration;
+        if (!Number.isFinite(d2) || d2 <= 0) return;
+        if (a.ended || a.currentTime >= d2 - BG_MUSIC_NEAR_END_SEC * 0.85) {
+          maybeAdvanceBackgroundMusicRef.current('watchdog');
+        }
+      }, BG_MUSIC_WATCHDOG_MS);
+    };
+
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      const el = audioRef.current;
+      el.addEventListener('ended', onEnded);
+      el.addEventListener('error', onError);
+      el.addEventListener('timeupdate', onTimeUpdate);
+    }
     return () => {
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      clearBgMusicWatchdog();
+      if (audioRef.current) {
+        const el = audioRef.current;
+        el.removeEventListener('ended', onEnded);
+        el.removeEventListener('error', onError);
+        el.removeEventListener('timeupdate', onTimeUpdate);
+        el.pause();
+        audioRef.current = null;
+      }
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    const handler = () => onVisibilityForBgMusicRef.current();
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
   useEffect(() => {
