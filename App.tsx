@@ -1322,20 +1322,14 @@ const App: React.FC = () => {
     }
   }, [admobReady, appPhase, simulation.isActive]);
 
-  // 가로모드에서 내비게이션 숨김(immersive)이면 전면광고 닫기 컨트롤이 잘리는 경우가 있어, 노출 중에만 시스템 바를 연다.
+  // immersive(내비 숨김)이면 전면광고 닫기 컨트롤이 잘릴 수 있어, 노출 중에만 시스템 바를 연다. 닫힌 뒤에는 세로·가로 모두 내비를 다시 숨긴다.
   useEffect(() => {
     if (!admobReady) return;
     if (Capacitor.getPlatform() !== 'android') return;
 
     const restoreRideSystemBars = async () => {
-      const landscape =
-        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
       try {
-        if (landscape) {
-          await SystemBars.hide({ bar: SystemBarType.NavigationBar });
-        } else {
-          await SystemBars.show({ bar: SystemBarType.NavigationBar });
-        }
+        await SystemBars.hide({ bar: SystemBarType.NavigationBar });
       } catch (e) {
         console.warn('[AdMob] interstitial 이후 시스템 바 복원 실패', e);
       }

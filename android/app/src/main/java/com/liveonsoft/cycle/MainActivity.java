@@ -87,15 +87,9 @@ public class MainActivity extends BridgeActivity {
             if (controller == null) {
                 return;
             }
-            boolean isLandscape =
-                getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-            if (isLandscape) {
-                controller.setSystemBarsBehavior(
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-                controller.hide(WindowInsetsCompat.Type.navigationBars());
-            } else {
-                controller.show(WindowInsetsCompat.Type.navigationBars());
-            }
+            controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsetsCompat.Type.navigationBars());
         } catch (Throwable ignored) {
         }
     }
@@ -111,11 +105,8 @@ public class MainActivity extends BridgeActivity {
             ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
                 Insets insets = windowInsets.getInsets(
                     WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-                boolean isLandscape =
-                    getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-                int bottomInset = isLandscape ? 0 : insets.bottom;
                 v.setPadding(insets.left, insets.top, insets.right, 0);
-                applyAdContainerBottomInset(bottomInset);
+                applyAdContainerBottomInset(0);
                 return WindowInsetsCompat.CONSUMED;
             });
             rootInsetsListenerInstalled = true;
