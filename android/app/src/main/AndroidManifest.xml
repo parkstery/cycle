@@ -18,7 +18,7 @@
             android:value="ca-app-pub-2386721030013396~4206502843" />
 
         <activity
-            android:configChanges="keyboardHidden|keyboard|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:configChanges="keyboardHidden|keyboard|locale|orientation|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBar"

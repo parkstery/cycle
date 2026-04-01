@@ -34,6 +34,7 @@ public class MainActivity extends BridgeActivity {
     private AdView nativeBannerView;
     @Nullable
     private View insetsTargetView;
+    private boolean rootInsetsListenerInstalled;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -71,6 +72,14 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applySystemBarsForOrientation();
+        applyRootInsets();
+        scheduleNativeBannerAttach();
+    }
+
     private void applySystemBarsForOrientation() {
         try {
             WindowInsetsControllerCompat controller =
@@ -98,16 +107,19 @@ public class MainActivity extends BridgeActivity {
         }
         insetsTargetView = target;
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(
-                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            boolean isLandscape =
-                getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-            int bottomInset = isLandscape ? 0 : insets.bottom;
-            v.setPadding(insets.left, insets.top, insets.right, 0);
-            applyAdContainerBottomInset(bottomInset);
-            return WindowInsetsCompat.CONSUMED;
-        });
+        if (!rootInsetsListenerInstalled) {
+            ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
+                Insets insets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+                boolean isLandscape =
+                    getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+                int bottomInset = isLandscape ? 0 : insets.bottom;
+                v.setPadding(insets.left, insets.top, insets.right, 0);
+                applyAdContainerBottomInset(bottomInset);
+                return WindowInsetsCompat.CONSUMED;
+            });
+            rootInsetsListenerInstalled = true;
+        }
         ViewCompat.requestApplyInsets(target);
     }
 
@@ -128,12 +140,19 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * 배너는 onCreate에서만 생성·로드한다. onResume에서는 resume()만 호출한다.
-     * 컨테이너 실제 width만 사용한다(width==0이면 200ms 후 1회만 재시도).
+     * onCreate 및 화면 회전(onConfigurationChanged)에서 동일 경로로 배너를 붙인다.
+     * 컨테이너 실제 width만 사용(width==0이면 200ms 후 1회만 재시도).
      */
     private void initNativeBanner() {
+        scheduleNativeBannerAttach();
+    }
+
+    private void scheduleNativeBannerAttach() {
         if (nativeAdContainer == null) {
-            Log.w(TAG, "initNativeBanner: nativeAdContainer is null");
+            nativeAdContainer = findViewById(R.id.native_ad_container);
+        }
+        if (nativeAdContainer == null) {
+            Log.w(TAG, "scheduleNativeBannerAttach: nativeAdContainer is null");
             return;
         }
         nativeAdContainer.post(() -> attachNativeBannerIfWidthReady(false));
@@ -207,6 +226,12 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void destroyNativeBanner() {
+        if (nativeBannerView != null) {
+            try {
+                nativeBannerView.pause();
+            } catch (Throwable ignored) {
+            }
+        }
         if (nativeAdContainer != null) {
             nativeAdContainer.removeAllViews();
             nativeAdContainer.setVisibility(View.GONE);
