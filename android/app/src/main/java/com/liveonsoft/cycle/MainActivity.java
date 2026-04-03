@@ -25,7 +25,7 @@ import com.google.android.gms.ads.MobileAds;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivityAd";
-    private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-3940256099942544/6300978111";
+    private static final String ADMOB_BANNER_AD_UNIT_ID_RELEASE = "ca-app-pub-2386721030013396/2486360510";
     private static final long BANNER_LAYOUT_RETRY_DELAY_MS = 200L;
 
     @Nullable

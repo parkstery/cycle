@@ -26,7 +26,7 @@ declare var google: any;
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle_road.png`;
 
 // AdMob Units (Ride the World)..
-const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1033173712';
+const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-2386721030013396/3841473087';
 // Rewarded video ad (replace with production ad unit when ready)
 const ADMOB_REWARD_VIDEO_AD_UNIT_ID = 'ca-app-pub-2386721030013396/9109144037';
 
