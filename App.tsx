@@ -37,6 +37,9 @@ const DEFAULT_RIDE_LIMIT_M = DEFAULT_RIDE_LIMIT_KM * 1000;
 const MAX_RIDE_LIMIT_M = MAX_RIDE_LIMIT_KM * 1000;
 const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
 
+/** My Routes: maximum saved routes (slots). Display: "n of MY_ROUTES_MAX" = n saved, MY_ROUTES_MAX capacity. */
+const MY_ROUTES_MAX = 5;
+
 const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=3i57ybqu&dl=1",
   "https://www.dropbox.com/scl/fi/41z8m3j4oamnay0h1ko2q/.mp3?rlkey=sa31hghtq0vg3tdxdkis5cvx4&st=tv5kecjg&dl=1",
@@ -529,8 +532,8 @@ const App: React.FC = () => {
       localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
     } else {
       // Add
-      if (favoriteRoutes.length >= 5) {
-        alert("Maximum 5 routes can be saved. Please remove a route to save a new one.");
+      if (favoriteRoutes.length >= MY_ROUTES_MAX) {
+        alert(`Maximum ${MY_ROUTES_MAX} routes can be saved. Please remove a route to save a new one.`);
         return;
       }
 
@@ -3610,10 +3613,16 @@ const App: React.FC = () => {
               </div>
               )}
 
-              <div className={`flex-1 border-l border-slate-200 pl-1 pr-1 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
+              <div className={`flex-1 border-l border-slate-200 pl-1 pr-2 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
                 <div className="flex justify-between items-center px-1 mb-0.5">
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
-                  <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
+                  <span
+                    className="text-[9px] text-slate-300 font-medium tabular-nums shrink-0"
+                    title={`${favoriteRoutes.length} routes saved · ${MY_ROUTES_MAX} slots available`}
+                    aria-label={`${favoriteRoutes.length} routes saved, ${MY_ROUTES_MAX} slots maximum`}
+                  >
+                    {favoriteRoutes.length}/{MY_ROUTES_MAX}
+                  </span>
                 </div>
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
                   <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
