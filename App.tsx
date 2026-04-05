@@ -3610,7 +3610,7 @@ const App: React.FC = () => {
               </div>
               )}
 
-              <div className={`flex-1 border-l border-slate-200 pl-1 pr-1 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
+              <div className={`flex-1 border-l border-slate-200 pl-1 pr-2 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
                 <div className="flex justify-between items-center px-1 mb-0.5">
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
                   <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
