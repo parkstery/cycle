@@ -3610,20 +3610,20 @@ const App: React.FC = () => {
               </div>
               )}
 
-              <div className={`flex-1 border-l border-slate-200 pl-1 flex flex-col justify-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
-                <div className="flex justify-between items-center px-1 mb-1">
+              <div className={`flex-1 border-l border-slate-200 pl-1 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
+                <div className="flex justify-between items-center px-1 mb-0.5">
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
                   <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
                 </div>
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
-                  <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-0.5 transition-colors active:bg-slate-50">
-                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-tight">
+                  <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
+                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
                       <span className="font-bold mr-1">{route.origin}</span>
                       <span className="text-slate-400">to</span>
                       <span className="font-bold ml-1">{route.destination}</span>
                       {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
                     </button>
-                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-6 h-6 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={12} /></button>
+                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-5 h-5 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={11} /></button>
                   </div>
                 )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
               </div>
