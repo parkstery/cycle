@@ -12,6 +12,8 @@ import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
+import type { PluginListenerHandle } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
@@ -36,6 +38,9 @@ const MAX_RIDE_LIMIT_KM = 50;
 const DEFAULT_RIDE_LIMIT_M = DEFAULT_RIDE_LIMIT_KM * 1000;
 const MAX_RIDE_LIMIT_M = MAX_RIDE_LIMIT_KM * 1000;
 const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
+
+/** Android: 루트에서 두 번째 뒤로가기로 종료까지 허용 시간(ms) */
+const ANDROID_EXIT_DOUBLE_BACK_MS = 2000;
 
 const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=3i57ybqu&dl=1",
@@ -417,6 +422,29 @@ const App: React.FC = () => {
   // 인트로 종료 후 "Please click 2 points on the road." 3초간 표시
   const [showClickTwoPointsHint, setShowClickTwoPointsHint] = useState(false);
 
+  /** Android 뒤로가기 2회 종료 안내 토스트 */
+  const [androidExitHintVisible, setAndroidExitHintVisible] = useState(false);
+  const lastAndroidExitPressRef = useRef(0);
+  const androidExitHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const androidBackStateRef = useRef({
+    rewardOfferModalStage: null as 'FIRST' | 'SECOND' | null,
+    maxRideLimitMessage: null as string | null,
+    rideLimitMessage: null as string | null,
+    showAbout: false,
+    menuOpen: false,
+    searchExpanded: false,
+    hasClickedLocation: false,
+    showOriginSuggestions: false,
+    showDestinationSuggestions: false,
+    countdownActive: false,
+    historyExpanded: false,
+    routeSettingsPanelExpanded: true,
+    routeInputExpanded: true,
+    hasRoute: false,
+    elevationExpanded: true,
+    streetViewFullScreen: false,
+  });
+
   // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 20% 확대 유도 (3회 반복)
   const [modeButtonPulseIndex, setModeButtonPulseIndex] = useState<-1 | 0 | 1 | 2>(-1);
   const hasShownModePulseRef = useRef(false);
@@ -478,6 +506,45 @@ const App: React.FC = () => {
   });
 
   const [clickedLocation, setClickedLocation] = useState<{ lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any } | null>(null);
+
+  useEffect(() => {
+    androidBackStateRef.current = {
+      rewardOfferModalStage,
+      maxRideLimitMessage,
+      rideLimitMessage,
+      showAbout,
+      menuOpen,
+      searchExpanded,
+      hasClickedLocation: clickedLocation !== null,
+      showOriginSuggestions,
+      showDestinationSuggestions,
+      countdownActive: countdown !== null,
+      historyExpanded,
+      routeSettingsPanelExpanded,
+      routeInputExpanded,
+      hasRoute: route !== null,
+      elevationExpanded,
+      streetViewFullScreen: isSvActive && isSvFullScreen,
+    };
+  }, [
+    rewardOfferModalStage,
+    maxRideLimitMessage,
+    rideLimitMessage,
+    showAbout,
+    menuOpen,
+    searchExpanded,
+    clickedLocation,
+    showOriginSuggestions,
+    showDestinationSuggestions,
+    countdown,
+    historyExpanded,
+    routeSettingsPanelExpanded,
+    routeInputExpanded,
+    route,
+    elevationExpanded,
+    isSvActive,
+    isSvFullScreen,
+  ]);
 
   /** 이중화 테스트: URL ?elevation_provider=opentopodata 또는 ?elevation_provider=open-elevation */
   const elevationProvider = typeof window !== 'undefined' ? (() => {
@@ -1258,6 +1325,145 @@ const App: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Android 하드웨어 뒤로가기: 오버레이 역순 닫기 → 루트에서 2회 누르면 종료
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+
+    const isAppRootUi = (s: typeof androidBackStateRef.current) =>
+      !s.rewardOfferModalStage &&
+      s.maxRideLimitMessage == null &&
+      s.rideLimitMessage == null &&
+      !s.showAbout &&
+      !s.menuOpen &&
+      !s.searchExpanded &&
+      !s.hasClickedLocation &&
+      !s.showOriginSuggestions &&
+      !s.showDestinationSuggestions &&
+      !s.countdownActive &&
+      !s.historyExpanded &&
+      s.routeSettingsPanelExpanded &&
+      s.routeInputExpanded &&
+      (!s.hasRoute || s.elevationExpanded) &&
+      !s.streetViewFullScreen;
+
+    let listenerHandle: PluginListenerHandle | undefined;
+
+    void CapacitorApp.addListener('backButton', () => {
+      const s = androidBackStateRef.current;
+
+      if (s.rewardOfferModalStage) {
+        lastAndroidExitPressRef.current = 0;
+        setRewardOfferModalStage(null);
+        return;
+      }
+      if (s.maxRideLimitMessage != null) {
+        lastAndroidExitPressRef.current = 0;
+        setMaxRideLimitMessage(null);
+        return;
+      }
+      if (s.rideLimitMessage != null) {
+        lastAndroidExitPressRef.current = 0;
+        setRideLimitMessage(null);
+        return;
+      }
+      if (s.showAbout) {
+        lastAndroidExitPressRef.current = 0;
+        setShowAbout(false);
+        return;
+      }
+      if (s.menuOpen) {
+        lastAndroidExitPressRef.current = 0;
+        setMenuOpen(false);
+        setMenuView('list');
+        return;
+      }
+      if (s.searchExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setSearchExpanded(false);
+        return;
+      }
+      if (s.hasClickedLocation) {
+        lastAndroidExitPressRef.current = 0;
+        setClickedLocation(null);
+        return;
+      }
+      if (s.showOriginSuggestions) {
+        lastAndroidExitPressRef.current = 0;
+        setShowOriginSuggestions(false);
+        return;
+      }
+      if (s.showDestinationSuggestions) {
+        lastAndroidExitPressRef.current = 0;
+        setShowDestinationSuggestions(false);
+        return;
+      }
+      if (s.countdownActive) {
+        lastAndroidExitPressRef.current = 0;
+        setCountdown(null);
+        countdownDoneRef.current = null;
+        return;
+      }
+      if (s.streetViewFullScreen) {
+        lastAndroidExitPressRef.current = 0;
+        setIsSvFullScreen(false);
+        return;
+      }
+      if (s.historyExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setHistoryExpanded(false);
+        return;
+      }
+      if (!s.routeSettingsPanelExpanded && s.routeInputExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setRouteSettingsPanelExpanded(true);
+        return;
+      }
+      if (!s.routeInputExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setRouteInputExpanded(true);
+        return;
+      }
+      if (s.hasRoute && !s.elevationExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setElevationExpanded(true);
+        return;
+      }
+
+      if (isAppRootUi(s)) {
+        const now = Date.now();
+        if (
+          lastAndroidExitPressRef.current > 0 &&
+          now - lastAndroidExitPressRef.current < ANDROID_EXIT_DOUBLE_BACK_MS
+        ) {
+          void CapacitorApp.exitApp();
+          return;
+        }
+        lastAndroidExitPressRef.current = now;
+        setAndroidExitHintVisible(true);
+        if (androidExitHintTimeoutRef.current) {
+          clearTimeout(androidExitHintTimeoutRef.current);
+        }
+        androidExitHintTimeoutRef.current = window.setTimeout(() => {
+          setAndroidExitHintVisible(false);
+          androidExitHintTimeoutRef.current = null;
+        }, 2500);
+        return;
+      }
+
+      lastAndroidExitPressRef.current = 0;
+    }).then((h) => {
+      listenerHandle = h;
+    });
+
+    return () => {
+      if (androidExitHintTimeoutRef.current) {
+        clearTimeout(androidExitHintTimeoutRef.current);
+        androidExitHintTimeoutRef.current = null;
+      }
+      void listenerHandle?.remove();
+    };
   }, []);
 
   // Interstitial: show once when 실제 주행(simulation) 종료 시점에만.
@@ -3145,6 +3351,14 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
           <div className="text-white text-[120px] font-black tracking-tighter drop-shadow-2xl animate-pulse">
             {countdown === 'start' ? 'Start!' : countdown}
+          </div>
+        </div>
+      )}
+
+      {androidExitHintVisible && Capacitor.getPlatform() === 'android' && (
+        <div className="absolute bottom-24 left-1/2 z-[2100] -translate-x-1/2 pointer-events-none px-4 w-full max-w-sm flex justify-center">
+          <div className="bg-slate-900/90 text-white text-[13px] font-medium px-4 py-2.5 rounded-2xl shadow-lg text-center">
+            한 번 더 누르면 앱이 종료됩니다
           </div>
         </div>
       )}
