@@ -42,6 +42,13 @@ const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
 /** Android: 루트에서 두 번째 뒤로가기로 종료까지 허용 시간(ms) */
 const ANDROID_EXIT_DOUBLE_BACK_MS = 2000;
 
+/** 네이티브 WebView 패딩 없음 — safe-area는 CSS env()만 사용 (viewport-fit=cover) */
+const SAFE_TOP_1REM = 'calc(env(safe-area-inset-top, 0px) + 1rem)';
+const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
+const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
+const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
+const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
+
 const PLAYLIST = [
   "https://www.dropbox.com/scl/fi/0faz2sk5p3sa3faodppc9/___-Remastered.mp3?rlkey=t0tiqm3po5ktfpqodby8665hw&st=3i57ybqu&dl=1",
   "https://www.dropbox.com/scl/fi/41z8m3j4oamnay0h1ko2q/.mp3?rlkey=sa31hghtq0vg3tdxdkis5cvx4&st=tv5kecjg&dl=1",
@@ -3356,7 +3363,10 @@ const App: React.FC = () => {
       )}
 
       {androidExitHintVisible && Capacitor.getPlatform() === 'android' && (
-        <div className="absolute bottom-24 left-1/2 z-[2100] -translate-x-1/2 pointer-events-none px-4 w-full max-w-sm flex justify-center">
+        <div
+          className="absolute left-1/2 z-[2100] -translate-x-1/2 pointer-events-none px-4 w-full max-w-sm flex justify-center"
+          style={{ bottom: SAFE_BOTTOM_EXIT_TOAST }}
+        >
           <div className="bg-slate-900/90 text-white text-[13px] font-medium px-4 py-2.5 rounded-2xl shadow-lg text-center">
             한 번 더 누르면 앱이 종료됩니다
           </div>
@@ -3472,21 +3482,24 @@ const App: React.FC = () => {
       </div>
 
       {loading && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[75] pointer-events-none">
+        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none" style={{ top: SAFE_TOP_1REM }}>
           <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
             <span className="route-search-blink text-white font-bold text-sm">Searching for route...</span>
           </div>
         </div>
       )}
       {appPhase === 'PREPARING' && preparingProgress && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[75] pointer-events-none">
+        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none" style={{ top: SAFE_TOP_1REM }}>
           <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
             <span className="text-white font-bold text-sm">Preparing Street View... ({preparingProgress.k}/{preparingProgress.n})</span>
           </div>
         </div>
       )}
       {isSvActive && showSvWarning && (
-        <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
+        <div
+          className={`absolute z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}
+          style={{ left: SAFE_LEFT_1REM }}
+        >
           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
             <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
             <span className="text-white font-bold text-xs">No Street View available for this section.</span>
@@ -3494,7 +3507,10 @@ const App: React.FC = () => {
         </div>
       )}
       {isSvActive && isUserPano && (
-        <div className={`absolute left-4 z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}>
+        <div
+          className={`absolute z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}
+          style={{ left: SAFE_LEFT_1REM }}
+        >
           <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
             <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
           </div>
@@ -3503,12 +3519,18 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute top-[4.25rem] left-4 w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{
           transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
           width: (isSvActive && isSvFullScreen) ? 144 : undefined,
           height: (isSvActive && isSvFullScreen) ? 144 : undefined,
           bottom: !isSvFullScreen ? 0 : undefined,
+          ...(isSvActive && isSvFullScreen
+            ? {
+                top: 'calc(env(safe-area-inset-top, 0px) + 4.25rem)',
+                left: SAFE_LEFT_1REM,
+              }
+            : {}),
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
@@ -3521,13 +3543,13 @@ const App: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: '10px' }}
+          style={{ bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}
         >
           © OpenStreetMap contributors
         </a>
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center">
+        <div className="absolute left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center" style={{ top: SAFE_TOP_1REM }}>
           <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
             <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
           </div>
@@ -3541,7 +3563,7 @@ const App: React.FC = () => {
         className="fixed z-[1000] pointer-events-auto"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
-          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          top: SAFE_TOP_1REM,
         }}
       >
         <button
@@ -3562,7 +3584,7 @@ const App: React.FC = () => {
         className="fixed z-[1000] flex flex-col gap-1.5 pointer-events-auto"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          top: SAFE_TOP_1REM,
         }}
       >
         <button
@@ -3590,7 +3612,7 @@ const App: React.FC = () => {
         className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem + 2.4rem + 6px)',
-          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          top: SAFE_TOP_1REM,
         }}
       >
         <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
@@ -3622,8 +3644,8 @@ const App: React.FC = () => {
         )}
       </div>
       <div
-        className={`absolute left-4 z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
-        style={{ bottom: '25px' }}
+        className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
+        style={{ left: SAFE_LEFT_1REM, bottom: SAFE_BOTTOM_25 }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
@@ -3847,8 +3869,8 @@ const App: React.FC = () => {
       </div>
       {route && (
         <div
-          className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'right-4 w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'right-4 w-[2.4rem] h-[2.4rem] group'}`}
-          style={{ bottom: '25px' }}
+          className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
+          style={{ right: SAFE_RIGHT_1REM, bottom: SAFE_BOTTOM_25 }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
           <div className={`bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 overflow-hidden ${!elevationExpanded ? 'h-full p-1' : 'py-1 pl-1 pr-0'}`}>
@@ -3971,7 +3993,7 @@ const App: React.FC = () => {
         className="fixed z-[1000] w-[2.4rem] h-[2.4rem] rounded-full bg-white/95 backdrop-blur-md shadow-2xl border-2 border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all pointer-events-auto touch-manipulation"
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem)',
-          top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          top: SAFE_TOP_1REM,
         }}
         aria-label="Open menu"
       >

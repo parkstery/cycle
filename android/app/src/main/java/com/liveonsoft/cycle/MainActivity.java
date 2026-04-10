@@ -4,13 +4,11 @@ import android.content.res.Configuration;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
+import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -32,12 +30,10 @@ public class MainActivity extends BridgeActivity {
     private FrameLayout nativeAdContainer;
     @Nullable
     private AdView nativeBannerView;
-    @Nullable
-    private View insetsTargetView;
-    private boolean rootInsetsListenerInstalled;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
         applySystemBarsForOrientation();
@@ -45,7 +41,6 @@ public class MainActivity extends BridgeActivity {
         MobileAds.initialize(this, initializationStatus -> {});
         Log.i(TAG, "onCreate: nativeAdContainer=" + (nativeAdContainer != null));
         initNativeBanner();
-        applyRootInsets();
     }
 
     @Override
@@ -55,7 +50,6 @@ public class MainActivity extends BridgeActivity {
         if (nativeBannerView != null) {
             nativeBannerView.resume();
         }
-        applyRootInsets();
     }
 
     @Override
@@ -76,7 +70,6 @@ public class MainActivity extends BridgeActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         applySystemBarsForOrientation();
-        applyRootInsets();
         scheduleNativeBannerAttach();
     }
 
@@ -92,42 +85,6 @@ public class MainActivity extends BridgeActivity {
             controller.hide(WindowInsetsCompat.Type.navigationBars());
         } catch (Throwable ignored) {
         }
-    }
-
-    private void applyRootInsets() {
-        View target = resolveInsetsTargetView();
-        if (target == null) {
-            return;
-        }
-        insetsTargetView = target;
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        if (!rootInsetsListenerInstalled) {
-            ViewCompat.setOnApplyWindowInsetsListener(target, (v, windowInsets) -> {
-                Insets insets = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-                v.setPadding(insets.left, insets.top, insets.right, 0);
-                applyAdContainerBottomInset(0);
-                return WindowInsetsCompat.CONSUMED;
-            });
-            rootInsetsListenerInstalled = true;
-        }
-        ViewCompat.requestApplyInsets(target);
-    }
-
-    private void applyAdContainerBottomInset(int bottomInsetPx) {
-        if (nativeAdContainer == null) {
-            return;
-        }
-        nativeAdContainer.setPadding(0, 0, 0, Math.max(0, bottomInsetPx));
-    }
-
-    @Nullable
-    private View resolveInsetsTargetView() {
-        View content = findViewById(android.R.id.content);
-        if (content instanceof ViewGroup vg && vg.getChildCount() > 0) {
-            return vg.getChildAt(0);
-        }
-        return content;
     }
 
     /**

@@ -2,11 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global layout (no Tailwind classes on #root in HTML) */
+/* Global layout: edge-to-edge WebView — safe-area는 컴포넌트에서 env()로만 적용 */
 body,
 html,
 #root {
   height: 100%;
+  min-height: 100dvh;
   margin: 0;
   padding: 0;
   overflow: hidden;

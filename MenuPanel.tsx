@@ -389,7 +389,7 @@ interface MenuPanelProps {
 
 const appInfoBottomStyle = () =>
   ({
-    bottom: `${MAP_ATTRIBUTION_CLEARANCE_PX}px`,
+    bottom: `calc(${MAP_ATTRIBUTION_CLEARANCE_PX}px + env(safe-area-inset-bottom, 0px))`,
   }) as const;
 
 export default function MenuPanel({
