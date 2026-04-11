@@ -28,19 +28,6 @@ html,
   display: none !important;
 }
 
-/* 좌하단 Route Settings FAB와 Google 로고 겹침 완화: 저작권·단축키 줄(.gm-style-cc) 전체를 오른쪽으로 이동.
-   세로 모드는 우측 '단축키'와의 공간이 제한되어 값을 보수적으로 둠. */
-.gm-style-cc {
-  margin-left: 56px !important;
-  box-sizing: border-box !important;
-}
-
-@media (orientation: landscape) {
-  .gm-style-cc {
-    margin-left: 80px !important;
-  }
-}
-
 /* 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않음) */
 .gm-style-cc a,
 .gm-style-pbc a {
