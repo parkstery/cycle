@@ -228,31 +228,6 @@ function inputsMatch(
   return waypoints.every((w, i) => (w.name || '').trim() === (last.waypointNames[i] || '').trim());
 }
 
-/** 맵·Street View 파노라마 div 내부 Google Maps 외부 열기 링크 비활성화(표시는 유지). DOM이 갱신될 때마다 다시 호출. */
-function patchGoogleMapsAttributionLinks(root: HTMLElement) {
-  const sel =
-    'a[href*="google.com/maps"],a[href*="maps.google.com"],a[href*="www.google.com/maps"],'
-    + 'a[href*="google.com/streetview"],a[href*="maps.google.co"],'
-    + 'a[title*="이 지역 열기"],a[title*="Open this area"]';
-  root.querySelectorAll<HTMLAnchorElement>(sel).forEach((a) => {
-    const href = a.getAttribute('href') || '';
-    if (!/google\.com|maps\.google/i.test(href)) return;
-    if (a.dataset.cycleGmOutboundBlock === '1') return;
-    a.dataset.cycleGmOutboundBlock = '1';
-    const stop = (e: Event) => {
-      e.preventDefault();
-      (e as any).stopImmediatePropagation?.();
-    };
-    a.addEventListener('click', stop, true);
-    a.addEventListener('auxclick', stop, true);
-    a.addEventListener('pointerdown', stop, true);
-    a.addEventListener('touchstart', stop, { capture: true, passive: false });
-    a.addEventListener('touchend', stop, { capture: true, passive: false });
-    a.style.pointerEvents = 'none';
-    a.style.cursor = 'default';
-  });
-}
-
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -1147,49 +1122,28 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, []);
 
-  // 맵 + Street View 파노라마: Google 로고·저작권 링크 외부 열기 비활성화 (맵은 mapRef만, SV는 별도 div)
+  // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
   useEffect(() => {
-    if (!isMapsApiLoaded) return;
-
-    let debounceTimer: number | null = null;
-    const runPatch = () => {
-      if (mapRef.current && isMapReady) patchGoogleMapsAttributionLinks(mapRef.current);
-      if (svRef1.current) patchGoogleMapsAttributionLinks(svRef1.current);
-      if (svRef2.current) patchGoogleMapsAttributionLinks(svRef2.current);
+    const container = mapRef.current;
+    if (!container || !isMapReady) return;
+    const disableGoogleMapsLink = () => {
+      const anchors = container.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="google.com/maps"], a[href*="maps.google.com"], a[title*="이 지역 열기"], a[title*="Open this area"]'
+      );
+      anchors.forEach((a: HTMLAnchorElement) => {
+        a.addEventListener('click', (e: MouseEvent) => e.preventDefault(), { capture: true });
+        a.style.pointerEvents = 'none';
+        a.style.cursor = 'default';
+      });
     };
-    const schedulePatch = () => {
-      if (debounceTimer != null) window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => {
-        debounceTimer = null;
-        runPatch();
-      }, 0);
-    };
-
-    const observers: MutationObserver[] = [];
-    const observe = (el: HTMLElement | null) => {
-      if (!el) return;
-      const mo = new MutationObserver(() => schedulePatch());
-      mo.observe(el, { childList: true, subtree: true });
-      observers.push(mo);
-    };
-
-    runPatch();
-    observe(mapRef.current);
-    observe(svRef1.current);
-    observe(svRef2.current);
-
-    const t1 = window.setTimeout(runPatch, 400);
-    const t2 = window.setTimeout(runPatch, 1200);
-    const t3 = window.setTimeout(runPatch, 2600);
-
+    disableGoogleMapsLink();
+    const t1 = window.setTimeout(disableGoogleMapsLink, 500);
+    const t2 = window.setTimeout(disableGoogleMapsLink, 1500);
     return () => {
-      if (debounceTimer != null) window.clearTimeout(debounceTimer);
-      observers.forEach((o) => o.disconnect());
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
-  }, [isMapReady, isMapsApiLoaded]);
+  }, [isMapReady]);
 
   // 맵 컨테이너 리사이즈 시(상/하 전환·미니맵) Google Map resize 이벤트
   useEffect(() => {
@@ -3516,7 +3470,7 @@ const App: React.FC = () => {
       {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
       <div
         ref={svContainerRef}
-        className={`cycle-sv-host bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute top-0 left-0 right-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}
+        className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute top-0 left-0 right-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}
         style={{
           bottom: (isSvActive && isSvFullScreen)
             ? 0

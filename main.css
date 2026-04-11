@@ -35,13 +35,6 @@ html,
   cursor: default !important;
 }
 
-/* Street View는 맵과 별도 div(.cycle-sv-host)에 그려져 전역 규칙이 약할 수 있음 — 특이성 보강 */
-.cycle-sv-host .gm-style-cc a,
-.cycle-sv-host .gm-style-pbc a {
-  pointer-events: none !important;
-  cursor: default !important;
-}
-
 /* 속도 숫자 입력 상하 스피너 제거 및 박스 폭 절약 */
 .speed-input-no-spinner::-webkit-inner-spin-button,
 .speed-input-no-spinner::-webkit-outer-spin-button {
