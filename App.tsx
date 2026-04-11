@@ -3869,7 +3869,7 @@ const App: React.FC = () => {
       </div>
       {route && (
         <div
-          className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
+          className={`absolute z-[1000] flex items-end justify-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
           style={{ right: SAFE_RIGHT_1REM, bottom: SAFE_BOTTOM_25 }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
