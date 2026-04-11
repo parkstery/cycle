@@ -3874,7 +3874,7 @@ const App: React.FC = () => {
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
           <div
-            className={`bg-white/10 backdrop-blur-md rounded-[2rem] shadow-2xl flex w-full border border-slate-200 overflow-hidden ${elevationExpanded ? 'items-center py-1 pl-1 pr-0' : 'h-full items-center justify-center'}`}
+            className={`rounded-[2rem] shadow-2xl flex w-full border border-slate-200 overflow-hidden ${elevationExpanded ? 'bg-white/10 backdrop-blur-md items-center py-1 pl-1 pr-0' : 'bg-white h-full items-center justify-center'}`}
           >
             <button
               type="button"
