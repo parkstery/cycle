@@ -3894,9 +3894,17 @@ const App: React.FC = () => {
                       <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                         <MessageSquare size={16} />
                       </button>
-                      <div className="flex flex-col justify-center items-start leading-none ml-1 rounded-md px-1.5 py-0.5 bg-white/85">
-                        <span className="text-[10px] text-blue-600 font-bold truncate">{(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km</span>
-                        {(simulation.isActive || elapsedTime > 0) && (<span className={`text-[10px] text-blue-600 font-bold leading-none ${simulation.isActive ? 'animate-pulse' : ''}`}>{formatTime(elapsedTime)}</span>)}
+                      <div className="flex flex-col justify-center items-start leading-none ml-1">
+                        <span className="text-[10px] text-blue-600 font-bold truncate [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff]">
+                          {(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km
+                        </span>
+                        {(simulation.isActive || elapsedTime > 0) && (
+                          <span
+                            className={`text-[10px] text-blue-600 font-bold leading-none [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff] ${simulation.isActive ? 'animate-pulse' : ''}`}
+                          >
+                            {formatTime(elapsedTime)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
