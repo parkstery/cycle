@@ -1,6 +1,17 @@
 import type { IndoorSensorPrefs } from './sensorPrefs';
 import { loadHintMultiplier } from './sensorPrefs';
 
+/**
+ * Maps a completed 1-minute max-effort average cadence (RPM) to a suggested **base** speed (slider, km/h).
+ * Used so calibration is not only stored but also drives the default simulation scale for indoor rides.
+ * Tunable linear map, clamped to app speed limits.
+ */
+export function suggestedBaseSpeedFromCalibrationRpm(rpm: number | null | undefined): number | null {
+  if (rpm == null || !Number.isFinite(rpm) || rpm < 40) return null;
+  const v = Math.round(14 + rpm * 0.24);
+  return Math.min(70, Math.max(18, v));
+}
+
 /** effort 0..~1.2 before clamping for display */
 export function effortFromCadenceRpm(smoothedRpm: number, calibrationAvgRpm: number | null): number {
   const anchor = Math.max(calibrationAvgRpm ?? 90, 45);

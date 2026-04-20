@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import type { IndoorSensorPrefs } from './sensor/sensorPrefs';
+import { suggestedBaseSpeedFromCalibrationRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected';
 
@@ -10,9 +11,20 @@ export type SensorsModalProps = {
   onClose: () => void;
   prefs: IndoorSensorPrefs;
   onChangePrefs: (next: IndoorSensorPrefs) => void;
+  /** After a successful 1-minute test — parent should set base (slider) speed from the anchor. */
+  onCalibrationSaved?: (avgRpm: number) => void;
+  /** Re-apply saved anchor to route base speed (slider) anytime. */
+  onApplyCalibrationToBaseSpeed?: () => void;
 };
 
-export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs, onChangePrefs }) => {
+export const SensorsModal: React.FC<SensorsModalProps> = ({
+  open,
+  onClose,
+  prefs,
+  onChangePrefs,
+  onCalibrationSaved,
+  onApplyCalibrationToBaseSpeed,
+}) => {
   const hub = useMemo(() => getIndoorBleHub(), []);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
@@ -20,6 +32,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const [initError, setInitError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [calibNotice, setCalibNotice] = useState<string | null>(null);
 
   const [calibRunning, setCalibRunning] = useState(false);
   const [calibLeftSec, setCalibLeftSec] = useState(0);
@@ -32,7 +45,10 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   }, [hub]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCalibNotice(null);
+      return;
+    }
     setInitError(null);
     hub
       .initialize()
@@ -124,8 +140,19 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
         const arr = calibSamplesRef.current;
         const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
         if (avg != null && avg > 0) {
-          const next = { ...prefsRef.current, calibrationAvgRpm: Math.round(avg * 10) / 10, calibrationAt: Date.now() };
+          const avgRounded = Math.round(avg * 10) / 10;
+          const next = {
+            ...prefsRef.current,
+            calibrationAvgRpm: avgRounded,
+            calibrationAt: Date.now(),
+            calibrationBaseAnchorApplied: true,
+          };
           onChangePrefs(next);
+          onCalibrationSaved?.(avgRounded);
+          const sk = suggestedBaseSpeedFromCalibrationRpm(avgRounded);
+          if (sk != null) {
+            setCalibNotice(`Base speed (slider) set to ${sk} km/h from your anchor. Adjust anytime.`);
+          }
         }
       }
     }, 1000);
@@ -304,20 +331,44 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               </div>
             )}
             {prefs.calibrationAvgRpm != null && (
-              <p className="text-[11px] text-slate-600 mt-1">
-                Saved average: <strong>{prefs.calibrationAvgRpm}</strong> RPM
-                <button
-                  type="button"
-                  className="ml-2 text-blue-600 font-bold"
-                  onClick={() => {
-                    const next = { ...prefs, calibrationAvgRpm: null, calibrationAt: null };
-                    onChangePrefs(next);
-                  }}
-                >
-                  Clear
-                </button>
-              </p>
+              <div className="text-[11px] text-slate-600 mt-1 space-y-1">
+                <p>
+                  Saved average: <strong>{prefs.calibrationAvgRpm}</strong> RPM
+                  <button
+                    type="button"
+                    className="ml-2 text-blue-600 font-bold"
+                    onClick={() => {
+                      const next = {
+                        ...prefsRef.current,
+                        calibrationAvgRpm: null,
+                        calibrationAt: null,
+                        calibrationBaseAnchorApplied: false,
+                      };
+                      onChangePrefs(next);
+                      setCalibNotice(null);
+                    }}
+                  >
+                    Clear
+                  </button>
+                </p>
+                {onApplyCalibrationToBaseSpeed && (
+                  <button
+                    type="button"
+                    className="text-[10px] font-bold text-slate-700 underline"
+                    onClick={() => {
+                      onApplyCalibrationToBaseSpeed();
+                      const sk = suggestedBaseSpeedFromCalibrationRpm(prefsRef.current.calibrationAvgRpm);
+                      if (sk != null) {
+                        setCalibNotice(`Base speed set to ${sk} km/h from saved anchor.`);
+                      }
+                    }}
+                  >
+                    Apply saved anchor to base speed (km/h)
+                  </button>
+                )}
+              </div>
             )}
+            {calibNotice && <p className="text-[10px] text-emerald-700 font-medium leading-snug">{calibNotice}</p>}
           </section>
 
           <section className="flex items-center justify-between gap-2">

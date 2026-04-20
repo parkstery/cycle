@@ -20,6 +20,7 @@ import { decodePath, computeDistanceBetween, computeHeading, computeOffset } fro
 import { SensorsModal } from './SensorsModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import { createDualMergeState, snapshotDisplaySpeed, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
+import { suggestedBaseSpeedFromCalibrationRpm } from './sensor/effortModel';
 import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
@@ -622,6 +623,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
+  }, []);
+
+  /** One-time: if calibration exists but base speed was never synced from anchor, set slider from anchor (replaces generic 20 km/h default). */
+  useEffect(() => {
+    const p = loadIndoorSensorPrefs();
+    if (!p.calibrationAvgRpm || p.calibrationBaseAnchorApplied) return;
+    const s = suggestedBaseSpeedFromCalibrationRpm(p.calibrationAvgRpm);
+    if (s == null) return;
+    setSpeedKmH(s);
+    const next = { ...p, calibrationBaseAnchorApplied: true };
+    setSensorPrefs(next);
+    saveIndoorSensorPrefs(next);
   }, []);
 
   useEffect(() => {
@@ -3557,6 +3570,16 @@ const App: React.FC = () => {
         onChangePrefs={(next) => {
           setSensorPrefs(next);
           saveIndoorSensorPrefs(next);
+        }}
+        onCalibrationSaved={(avgRpm) => {
+          const s = suggestedBaseSpeedFromCalibrationRpm(avgRpm);
+          if (s != null) setSpeedKmH(s);
+        }}
+        onApplyCalibrationToBaseSpeed={() => {
+          const rpm = sensorPrefs.calibrationAvgRpm;
+          if (rpm == null) return;
+          const s = suggestedBaseSpeedFromCalibrationRpm(rpm);
+          if (s != null) setSpeedKmH(s);
         }}
       />
 

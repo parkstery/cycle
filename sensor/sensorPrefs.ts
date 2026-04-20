@@ -6,6 +6,11 @@ export interface IndoorSensorPrefs {
   loadHint: LoadHint;
   calibrationAvgRpm: number | null;
   calibrationAt: number | null;
+  /**
+   * After we sync the route base speed (slider) from `calibrationAvgRpm` once (migration or new test),
+   * set true so we do not overwrite the user's manual speed on every launch.
+   */
+  calibrationBaseAnchorApplied: boolean;
   speedCadenceBlendMode: SpeedCadenceBlendMode;
   /** Measured wheel RPM ÷ cadence when both channels were valid */
   wheelCadenceK: number | null;
@@ -18,6 +23,7 @@ export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   loadHint: 'normal',
   calibrationAvgRpm: null,
   calibrationAt: null,
+  calibrationBaseAnchorApplied: false,
   speedCadenceBlendMode: 'auto',
   wheelCadenceK: null,
 };
@@ -48,6 +54,7 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
           : 'auto',
       calibrationAvgRpm: typeof o.calibrationAvgRpm === 'number' && o.calibrationAvgRpm > 0 ? o.calibrationAvgRpm : null,
       calibrationAt: typeof o.calibrationAt === 'number' ? o.calibrationAt : null,
+      calibrationBaseAnchorApplied: o.calibrationBaseAnchorApplied === true,
       wheelCadenceK: typeof o.wheelCadenceK === 'number' && o.wheelCadenceK > 0 ? o.wheelCadenceK : null,
     };
   } catch {
