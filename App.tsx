@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -17,6 +17,10 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
+import { SensorsModal } from './SensorsModal';
+import { getIndoorBleHub } from './sensor/indoorBleHub';
+import { createDualMergeState, snapshotDisplaySpeed, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
+import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
 logEvent(analytics, "app_open");
@@ -365,6 +369,15 @@ const App: React.FC = () => {
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
   const [speedKmH, setSpeedKmH] = useState(20);
+  const [sensorPrefs, setSensorPrefs] = useState(() => loadIndoorSensorPrefs());
+  const [sensorsModalOpen, setSensorsModalOpen] = useState(false);
+  const [effectiveSpeedKmH, setEffectiveSpeedKmH] = useState(20);
+  const [sensorHubConnected, setSensorHubConnected] = useState(false);
+  const sensorMergeStateRef = useRef(createDualMergeState());
+  const sensorPrefsRef = useRef(sensorPrefs);
+  sensorPrefsRef.current = sensorPrefs;
+  const speedKmHRef = useRef(speedKmH);
+  speedKmHRef.current = speedKmH;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -504,6 +517,7 @@ const App: React.FC = () => {
     hasRoute: false,
     elevationExpanded: true,
     streetViewFullScreen: false,
+    sensorsModalOpen: false,
   });
 
   // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 20% 확대 유도 (3회 반복)
@@ -563,6 +577,7 @@ const App: React.FC = () => {
       hasRoute: route !== null,
       elevationExpanded,
       streetViewFullScreen: isSvActive && isSvFullScreen,
+      sensorsModalOpen,
     };
   }, [
     rewardOfferModalStage,
@@ -582,7 +597,54 @@ const App: React.FC = () => {
     elevationExpanded,
     isSvActive,
     isSvFullScreen,
+    sensorsModalOpen,
   ]);
+
+  useEffect(() => {
+    if (!sensorPrefs.sensorDriveEnabled) {
+      setEffectiveSpeedKmH(speedKmH);
+    }
+  }, [sensorPrefs.sensorDriveEnabled, speedKmH]);
+
+  useEffect(() => {
+    if (!sensorPrefs.sensorDriveEnabled) return;
+    const hub = getIndoorBleHub();
+    const snap = hub.buildSnapshot();
+    setEffectiveSpeedKmH(snapshotDisplaySpeed(speedKmH, snap, sensorPrefs, sensorMergeStateRef.current));
+  }, [
+    sensorPrefs.sensorDriveEnabled,
+    sensorPrefs.loadHint,
+    sensorPrefs.speedCadenceBlendMode,
+    sensorPrefs.calibrationAvgRpm,
+    sensorPrefs.wheelCadenceK,
+    speedKmH,
+  ]);
+
+  useEffect(() => {
+    setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
+  }, []);
+
+  useEffect(() => {
+    const hub = getIndoorBleHub();
+    return hub.subscribe(() => {
+      const p = sensorPrefsRef.current;
+      const base = speedKmHRef.current;
+      if (!p.sensorDriveEnabled) {
+        setEffectiveSpeedKmH(base);
+        setSensorHubConnected(hub.connectedCount() > 0);
+        return;
+      }
+      const snap = hub.buildSnapshot();
+      setSensorHubConnected(hub.connectedCount() > 0);
+      maybeUpdateWheelCadenceK(snap, p, (k) => {
+        const next = { ...sensorPrefsRef.current, wheelCadenceK: k };
+        sensorPrefsRef.current = next;
+        setSensorPrefs(next);
+        saveIndoorSensorPrefs(next);
+      });
+      setEffectiveSpeedKmH(snapshotDisplaySpeed(base, snap, p, sensorMergeStateRef.current));
+    });
+  }, []);
 
   /** 이중화 테스트: URL ?elevation_provider=opentopodata 또는 ?elevation_provider=open-elevation */
   const elevationProvider = typeof window !== 'undefined' ? (() => {
@@ -1448,6 +1510,7 @@ const App: React.FC = () => {
       s.maxRideLimitMessage == null &&
       s.rideLimitMessage == null &&
       !s.showAbout &&
+      !s.sensorsModalOpen &&
       !s.menuOpen &&
       !s.searchExpanded &&
       !s.hasClickedLocation &&
@@ -1483,6 +1546,11 @@ const App: React.FC = () => {
       if (s.showAbout) {
         lastAndroidExitPressRef.current = 0;
         setShowAbout(false);
+        return;
+      }
+      if (s.sensorsModalOpen) {
+        lastAndroidExitPressRef.current = 0;
+        setSensorsModalOpen(false);
         return;
       }
       if (s.menuOpen) {
@@ -1966,7 +2034,7 @@ const App: React.FC = () => {
           if (segmentSize > 0) {
             const upcomingSlice = elevation.slice(startElevIdx, startElevIdx + segmentSize);
             setIsCoachThinking(true);
-            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, speedKmH, coachData?.resistance)
+            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, effectiveSpeedKmH, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
                 setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
               })
@@ -1984,7 +2052,7 @@ const App: React.FC = () => {
           );
           setIsCoachThinking(true);
           try {
-            const newCoaching = await getAdvancedCoaching(currentElev, upcoming, speedKmH, coachData?.resistance);
+            const newCoaching = await getAdvancedCoaching(currentElev, upcoming, effectiveSpeedKmH, coachData?.resistance);
             setCoachData(newCoaching);
             speak(newCoaching.tip);
           } finally {
@@ -1998,7 +2066,7 @@ const App: React.FC = () => {
       if (nextPos) {
         try {
           const distMeters = computeDistanceBetween(currentPos, nextPos);
-          const speedMetersPerSec = (speedKmH * 1000) / 3600;
+          const speedMetersPerSec = (effectiveSpeedKmH * 1000) / 3600;
           if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
         } catch {
           // 좌표 형식 오류 시 기본 delay 유지
@@ -2007,7 +2075,7 @@ const App: React.FC = () => {
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, speedKmH, isSvFullScreen, isSvActive]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, effectiveSpeedKmH, isSvFullScreen, isSvActive]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -2015,12 +2083,12 @@ const App: React.FC = () => {
     if (simulation.isActive && route) {
       timer = window.setInterval(() => {
         setElapsedTime(prev => prev + 1);
-        const metersPerSecond = (speedKmH * 1000) / 3600;
+        const metersPerSecond = (effectiveSpeedKmH * 1000) / 3600;
         setCoveredDistance(prev => prev + metersPerSecond);
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [simulation.isActive, route, speedKmH]);
+  }, [simulation.isActive, route, effectiveSpeedKmH]);
 
   // Rewarded ad policy: 5km default limit + second offer before the limit.
   useEffect(() => {
@@ -2574,8 +2642,8 @@ const App: React.FC = () => {
   // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 300m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
   useEffect(() => {
     const prev = prevSpeedKmHRef.current;
-    if (!(prev >= SPEED_THRESHOLD_KMH && speedKmH < SPEED_THRESHOLD_KMH)) prevSpeedKmHRef.current = speedKmH;
-    if (appPhase !== 'RUNNING' || !route?.path?.length || speedKmH < SPEED_THRESHOLD_KMH || prev >= SPEED_THRESHOLD_KMH) return;
+    if (!(prev >= SPEED_THRESHOLD_KMH && effectiveSpeedKmH < SPEED_THRESHOLD_KMH)) prevSpeedKmHRef.current = effectiveSpeedKmH;
+    if (appPhase !== 'RUNNING' || !route?.path?.length || effectiveSpeedKmH < SPEED_THRESHOLD_KMH || prev >= SPEED_THRESHOLD_KMH) return;
     const path = route.path;
     const currentPathIndex = Math.min(simulation.currentIndex, path.length - 1);
     const cumDist: number[] = [0];
@@ -2602,7 +2670,7 @@ const App: React.FC = () => {
       setAppPhase('RUNNING');
       setSimulation((s) => ({ ...s, isActive: true }));
     });
-  }, [speedKmH, appPhase, route, preFetchStreetViewData]);
+  }, [effectiveSpeedKmH, appPhase, route, preFetchStreetViewData]);
 
   const clearMapOverlays = () => {
     setLockedRouteProfile(null);
@@ -3482,6 +3550,16 @@ const App: React.FC = () => {
         </div>
       )}
 
+      <SensorsModal
+        open={sensorsModalOpen}
+        onClose={() => setSensorsModalOpen(false)}
+        prefs={sensorPrefs}
+        onChangePrefs={(next) => {
+          setSensorPrefs(next);
+          saveIndoorSensorPrefs(next);
+        }}
+      />
+
       {androidExitHintVisible && Capacitor.getPlatform() === 'android' && (
         <div
           className="absolute left-1/2 z-[2100] -translate-x-1/2 pointer-events-none px-4 w-full max-w-sm flex justify-center"
@@ -3921,7 +3999,19 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 w-full px-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">Speed</span>
+                  <button
+                    type="button"
+                    onClick={() => setSensorsModalOpen(true)}
+                    title="Sensors & speed"
+                    aria-label="Sensors & speed"
+                    className="relative shrink-0 w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
+                  >
+                    <Gauge size={16} strokeWidth={2.2} />
+                    <span
+                      className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${sensorHubConnected ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      aria-hidden
+                    />
+                  </button>
                   <input type="number" min={10} max={70} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value) || 0)} onBlur={(e) => { const v = Number(e.target.value) || 10; setSpeedKmH(Math.min(70, Math.max(10, v))); }} className="speed-input-no-spinner w-6 h-5 text-[10px] font-bold text-center bg-slate-50 border border-slate-300 rounded text-slate-700 focus:outline-none focus:border-blue-500 p-0 shrink-0" />
                   <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Decrease speed" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
                   <input type="range" min={10} max={70} step={1} value={speedKmH} onChange={(e) => setSpeedKmH(Number(e.target.value))} className="w-[51.2px] h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />

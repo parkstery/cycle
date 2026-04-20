@@ -74,6 +74,7 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
             <li>Bike route exploration with interactive map</li>
             <li>Elevation profile for climbs and descents</li>
             <li>Ride simulation along selected routes</li>
+            <li>Optional BLE cadence / speed / trainer (read-only); sensor data stays on your device</li>
           </ul>
         </Section>
 
