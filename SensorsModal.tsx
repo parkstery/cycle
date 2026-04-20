@@ -89,8 +89,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     try {
       await hub.stopScan();
       await hub.connect(deviceId, name);
-      const next = { ...prefsRef.current, sensorDriveEnabled: true };
-      onChangePrefs(next);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connection failed.';
       if (/zwift|busy|133|0x85|timeout/i.test(msg)) {
@@ -105,10 +103,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     setActionError(null);
     try {
       await hub.disconnect(deviceId);
-      if (hub.connectedCount() === 0) {
-        const next = { ...prefsRef.current, sensorDriveEnabled: false };
-        onChangePrefs(next);
-      }
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : 'Disconnect failed.');
     }
@@ -244,6 +238,40 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ride mode</div>
+            <p className="text-[10px] text-slate-500 leading-snug mb-2">
+              By default the simulator uses <strong>manual speed</strong> from the route slider. Turn on <strong>sensor-based ride</strong> only when you want speed to follow your sensor or trainer.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSensorDrive(false)}
+                className={`w-full py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                  !prefs.sensorDriveEnabled
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Manual speed (route slider)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSensorDrive(true)}
+                className={`w-full py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                  prefs.sensorDriveEnabled
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Sensor-based ride
+              </button>
+            </div>
+            {prefs.sensorDriveEnabled && connected.length === 0 && (
+              <p className="text-[10px] text-amber-700 mt-1.5 leading-snug">Connect a sensor or trainer for live speed. Until then, speed may coast low.</p>
+            )}
+          </section>
+
+          <section>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -370,20 +398,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                 </button>
               </p>
             )}
-          </section>
-
-          <section className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold">Sensor-driven speed</span>
-            <button
-              type="button"
-              onClick={() => setSensorDrive(!prefs.sensorDriveEnabled)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${prefs.sensorDriveEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-              aria-pressed={prefs.sensorDriveEnabled}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${prefs.sensorDriveEnabled ? 'translate-x-5' : ''}`}
-              />
-            </button>
           </section>
 
           <section>
