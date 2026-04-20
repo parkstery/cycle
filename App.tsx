@@ -82,6 +82,8 @@ const SV_GET_PANORAMA_TIMEOUT_MS = 6000;
 
 /** setPanoramaView / setPanoramaViewByPanoId 전체 대기 상한. getPano + status OK까지 6초 허용 */
 const PANORAMA_VIEW_TIMEOUT_MS = 6000;
+/** A안 테스트: 더블 버퍼 대신 단일 파노라마를 연속 갱신해 주행 연속성 확인 */
+const USE_CONTINUOUS_SV_DRIVE_THROUGH = true;
 
 type SvResultReason = 'timeout' | 'no_pano';
 
@@ -683,6 +685,11 @@ const App: React.FC = () => {
 
   // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지). onSwapDone 호출 시 스왑 완료(첫 거리뷰 디스플레이 보장용).
   const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void, onSwapDone?: () => void) => {
+    if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
+      doSwap();
+      onSwapDone?.();
+      return;
+    }
     const safelyRemoveListener = (listener: any) => {
       if (!listener) return;
       try {
@@ -745,6 +752,19 @@ const App: React.FC = () => {
           return;
         }
         setIsUserPano(usedFallback);
+        if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
+          const currentPano = panorama1.current;
+          if (!currentPano) { resolve(); return; }
+          currentPano.setOptions({
+            pano: data.location.pano,
+            pov: { heading, pitch: 0, zoom: 0 },
+            visible: true
+          });
+          activePanoRef.current = 0;
+          setVisiblePanoIdx(0);
+          resolve();
+          return;
+        }
         const currentIdx = activePanoRef.current;
         const nextIdx = currentIdx === 0 ? 1 : 0;
         const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
@@ -796,6 +816,20 @@ const App: React.FC = () => {
       if (pendingSwapFallbackRef.current) {
         clearTimeout(pendingSwapFallbackRef.current);
         pendingSwapFallbackRef.current = null;
+      }
+      if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
+        const currentPano = panorama1.current;
+        if (!currentPano) { resolve(); return; }
+        const currentPanoId = currentPano.getPano?.();
+        if (currentPanoId !== panoId) {
+          currentPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
+        } else {
+          currentPano.setPov({ heading, pitch: 0, zoom: 0 });
+        }
+        activePanoRef.current = 0;
+        setVisiblePanoIdx(0);
+        resolve();
+        return;
       }
       const currentIdx = activePanoRef.current;
       const nextIdx = currentIdx === 0 ? 1 : 0;
@@ -1293,21 +1327,28 @@ const App: React.FC = () => {
 
   // Street View init (Panorama + Service) when Google loaded and SV divs exist
   useEffect(() => {
-    if (!isMapsApiLoaded || !svRef1.current || !svRef2.current || panorama1.current) return;
+    if (!isMapsApiLoaded || !svRef1.current || panorama1.current) return;
+    if (!USE_CONTINUOUS_SV_DRIVE_THROUGH && !svRef2.current) return;
     const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: false, motionTrackingControl: false, pov: { heading: 0, pitch: 0, zoom: 0 } };
     panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
-    panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
+    if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
+      panorama2.current = null;
+      activePanoRef.current = 0;
+      setVisiblePanoIdx(0);
+    } else {
+      panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
+    }
     svServiceRef.current = new google.maps.StreetViewService();
     const handleStatus = () => {
       const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
       if (currentPano) setSvStatus(currentPano.getStatus());
       // OK 수신 시 경고 즉시 해제. 양쪽 파노라마 모두 확인(스왑 직전에 로드된 쪽이 OK여도 해제)
-      if (panorama1.current?.getStatus() === 'OK' || panorama2.current?.getStatus() === 'OK') {
+      if (panorama1.current?.getStatus() === 'OK' || panorama2.current?.getStatus?.() === 'OK') {
         setShowSvWarning(false);
       }
     };
     panorama1.current.addListener('status_changed', handleStatus);
-    panorama2.current.addListener('status_changed', handleStatus);
+    panorama2.current?.addListener?.('status_changed', handleStatus);
   }, [isMapsApiLoaded]);
 
   useEffect(() => {
@@ -3478,7 +3519,9 @@ const App: React.FC = () => {
         }}
       >
         <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
-        <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
+        {!USE_CONTINUOUS_SV_DRIVE_THROUGH && (
+          <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
+        )}
       </div>
 
       {loading && (
