@@ -78,6 +78,10 @@ export interface SavedRoute {
   id: string;
   origin: string;
   destination: string;
+  /** DEFAULT: 앱 기본 제공 코스, USER: 사용자가 저장한 코스 */
+  source?: 'DEFAULT' | 'USER';
+  /** 기본 코스 자산 식별자 (앱 포함 기본 코스 추적용) */
+  bundledId?: string;
   waypoints: {
     name: string;
     lat: number;

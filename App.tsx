@@ -5,7 +5,7 @@ import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, 
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
-import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem } from './types';
+import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem, SavedRoutePayload } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
@@ -23,6 +23,58 @@ logEvent(analytics, "app_open");
 logEvent(analytics, "test_event");
 
 declare var google: any;
+const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
+const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
+const BUNDLED_MY_ROUTES_VERSION = 1;
+const DEFAULT_ROUTE_ASSET_PATHS = [
+  'my-routes/default-slot-1.json',
+  'my-routes/default-slot-2.json',
+  'my-routes/default-slot-3.json',
+  'my-routes/default-slot-4.json',
+  'my-routes/default-slot-5.json'
+] as const;
+
+const parseSavedRoutes = (raw: string | null): SavedRoute[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: any) => item && typeof item.origin === 'string' && typeof item.destination === 'string');
+  } catch {
+    return [];
+  }
+};
+
+const modeFromProfile = (profile: 'cycling' | 'driving' | 'foot'): TravelMode => (
+  profile === 'driving' ? TravelMode.DRIVING : profile === 'cycling' ? TravelMode.BICYCLING : TravelMode.WALKING
+);
+
+const profileFromMode = (targetMode: TravelMode): SavedRoutePayload['profile'] => (
+  targetMode === TravelMode.DRIVING ? 'driving' : targetMode === TravelMode.BICYCLING ? 'cycling' : 'foot'
+);
+
+const hydrateBundledRoute = (route: SavedRoute, idx: number, now: number): SavedRoute => ({
+  ...route,
+  id: route.id || `default-slot-${idx + 1}`,
+  source: 'DEFAULT',
+  bundledId: route.bundledId || `default-slot-${idx + 1}`,
+  timestamp: now - idx
+});
+
+const loadBundledDefaultRoutes = async (): Promise<SavedRoute[]> => {
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+  const now = Date.now();
+  const loaded = await Promise.all(
+    DEFAULT_ROUTE_ASSET_PATHS.map(async (assetPath, idx) => {
+      const response = await fetch(`${base}${assetPath}`);
+      if (!response.ok) throw new Error(`Failed to load ${assetPath}`);
+      const json = await response.json();
+      return hydrateBundledRoute(json as SavedRoute, idx, now);
+    })
+  );
+  return loaded;
+};
+
 // 자동배포문제....
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle_road.png`;
@@ -464,49 +516,10 @@ const App: React.FC = () => {
 
   // Favorites (My Routes) State
   const [favoriteRoutes, setFavoriteRoutes] = useState<SavedRoute[]>(() => {
-    const saved = localStorage.getItem('favorite_routes');
-    if (saved) return JSON.parse(saved);
-
-    // Default Routes if nothing saved
-    // Default Routes if nothing saved
-    return [
-      {
-        id: "def-roma1",
-        origin: "1441, Golden Gate Bridge East Sidewalk, San Francisco, California, 94129, United States",
-        destination: "Golden Gate Bridge East Sidewalk, San Francisco, Marin County, California, 94129, United States",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-seoul",
-        origin: "F96M+QX Oia, 그리스",
-        destination: "F9HJ+VJ Ia, 그리스",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-greece",
-        origin: "Cheongnyeongpo 2 Bridge, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
-        destination: "영월로, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-roma2",
-        origin: "هرم خفرع, شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
-        destination: "شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
-        waypoints: [],
-        timestamp: Date.now()
-      },
-      {
-        id: "def-roma2",
-        origin: "1441, Golden Gate Bridge East Sidewalk, San Francisco, California, 94129, United States",
-        destination: "Golden Gate Bridge East Sidewalk, San Francisco, Marin County, California, 94129, United States",
-        waypoints: [],
-        timestamp: Date.now()
-      }
-    ];
+    const saved = parseSavedRoutes(localStorage.getItem(FAVORITE_ROUTES_STORAGE_KEY));
+    return saved;
   });
+  const [lockedRouteProfile, setLockedRouteProfile] = useState<'cycling' | 'driving' | 'foot' | null>(null);
 
   // Recent Place Searches (SearchBar)
   const [recentPlaceSearches, setRecentPlaceSearches] = useState<string[]>(() => {
@@ -515,6 +528,22 @@ const App: React.FC = () => {
   });
 
   const [clickedLocation, setClickedLocation] = useState<{ lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any } | null>(null);
+
+  useEffect(() => {
+    if (favoriteRoutes.length > 0) return;
+    let cancelled = false;
+    loadBundledDefaultRoutes()
+      .then((defaults) => {
+        if (cancelled || defaults.length === 0) return;
+        setFavoriteRoutes(defaults);
+        localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(defaults));
+        localStorage.setItem(FAVORITE_ROUTES_INIT_VERSION_KEY, String(BUNDLED_MY_ROUTES_VERSION));
+      })
+      .catch((e) => {
+        console.warn('[MY_ROUTES] failed to seed bundled defaults', e);
+      });
+    return () => { cancelled = true; };
+  }, [favoriteRoutes.length]);
 
   useEffect(() => {
     androidBackStateRef.current = {
@@ -602,7 +631,7 @@ const App: React.FC = () => {
         saved.waypoints.every((wp, i) => wp.name === waypoints[i].name)
       ));
       setFavoriteRoutes(newFavorites);
-      localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
+      localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(newFavorites));
     } else {
       // Add
       if (favoriteRoutes.length >= 5) {
@@ -638,9 +667,14 @@ const App: React.FC = () => {
           fullGeometry
         };
       }
+      if (!routePayload?.fullGeometry?.length) {
+        alert("Only resolved OSRM routes can be saved. Create a route first, then save it.");
+        return;
+      }
 
       const newRoute: SavedRoute = {
         id: Date.now().toString(),
+        source: 'USER',
         origin,
         destination,
         waypoints: newWaypoints,
@@ -650,9 +684,25 @@ const App: React.FC = () => {
 
       const newFavorites = [newRoute, ...favoriteRoutes];
       setFavoriteRoutes(newFavorites);
-      localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
+      localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(newFavorites));
     }
   };
+
+  const updateFavoriteRoutePayload = useCallback((favoriteId: string, payload: SavedRoutePayload) => {
+    setFavoriteRoutes((prev) => {
+      const next = prev.map((item) => (
+        item.id === favoriteId
+          ? {
+              ...item,
+              routePayload: payload,
+              source: item.source === 'DEFAULT' ? ('DEFAULT' as const) : ('USER' as const)
+            }
+          : item
+      ));
+      localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const handleLoadFavorite = async (saved: SavedRoute) => {
     setOrigin(saved.origin);
@@ -671,16 +721,30 @@ const App: React.FC = () => {
       location: { lat: wp.lat, lng: wp.lng },
     }));
     setWaypoints(restoredWaypoints);
+    if (saved.routePayload?.profile) {
+      const lockedMode = modeFromProfile(saved.routePayload.profile);
+      setLockedRouteProfile(saved.routePayload.profile);
+      setMode(lockedMode);
+    } else {
+      setLockedRouteProfile(null);
+    }
     if (saved.routePayload?.fullGeometry?.length) {
       await restoreRouteFromSavedGeometryRef.current?.(saved);
+      return;
     }
+    // Legacy/default favorites without fullGeometry: one-time migrate by recalculating and persisting payload.
+    const fallbackMode = saved.routePayload?.profile ? modeFromProfile(saved.routePayload.profile) : mode;
+    const lockedProfile = profileFromMode(fallbackMode);
+    setMode(fallbackMode);
+    setLockedRouteProfile(lockedProfile);
+    await calculateRoute(fallbackMode, false, saved.origin, saved.destination, restoredWaypoints, saved.id);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const newFavorites = favoriteRoutes.filter(r => r.id !== id);
     setFavoriteRoutes(newFavorites);
-    localStorage.setItem('favorite_routes', JSON.stringify(newFavorites));
+    localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(newFavorites));
   };
 
   // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지). onSwapDone 호출 시 스왑 완료(첫 거리뷰 디스플레이 보장용).
@@ -2454,8 +2518,9 @@ const App: React.FC = () => {
           if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
         });
       }
-      const modeFromProfile = payload.profile === 'driving' ? TravelMode.DRIVING : payload.profile === 'cycling' ? TravelMode.BICYCLING : TravelMode.WALKING;
-      setMode(modeFromProfile);
+      const modeBySavedProfile = modeFromProfile(payload.profile);
+      setMode(modeBySavedProfile);
+      setLockedRouteProfile(payload.profile);
       setRoute({
         origin: saved.origin,
         destination: saved.destination,
@@ -2468,7 +2533,7 @@ const App: React.FC = () => {
         origin: saved.origin.trim(),
         destination: saved.destination.trim(),
         waypointNames: saved.waypoints.map(w => (w.name || '').trim()),
-        mode: modeFromProfile
+        mode: modeBySavedProfile
       };
       setRouteSource('OSRM');
       console.log('[SIMULATION_STOP] reason=restore_saved_route');
@@ -2540,6 +2605,7 @@ const App: React.FC = () => {
   }, [speedKmH, appPhase, route, preFetchStreetViewData]);
 
   const clearMapOverlays = () => {
+    setLockedRouteProfile(null);
     setAppPhase('IDLE');
     setPreparingProgress(null);
     setRewardOfferModalStage(null);
@@ -2720,8 +2786,10 @@ const App: React.FC = () => {
     autoStart: boolean = false,
     customOrigin?: string,
     customDestination?: string,
-    customWaypoints?: { name: string, location: any }[]
+    customWaypoints?: { name: string, location: any }[],
+    hydrateFavoriteId?: string
   ) => {
+    if (!hydrateFavoriteId) setLockedRouteProfile(null);
     const activeMode = targetMode || mode;
     const finalOrigin = customOrigin || origin;
     const finalDestination = customDestination || destination;
@@ -2910,6 +2978,17 @@ const App: React.FC = () => {
           });
         }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results ?? [] });
+        if (hydrateFavoriteId && densifiedPath.length > 0) {
+          const fullGeometry: [number, number][] = densifiedPath.map((p: any) => [Number(p.lat().toFixed(8)), Number(p.lng().toFixed(8))]);
+          const payload: SavedRoutePayload = {
+            provider: 'osrm',
+            profile: profileFromMode(activeMode),
+            distance: distText,
+            duration: durText,
+            fullGeometry
+          };
+          updateFavoriteRoutePayload(hydrateFavoriteId, payload);
+        }
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
         // [경로 전환 시 거리뷰 멈춤 방지] 새 path 설정 직후 시뮬레이션·거리뷰 ref 리셋 (방안 1·3)
@@ -2972,7 +3051,7 @@ const App: React.FC = () => {
       alert("경로를 찾을 수 없습니다.");
     }
     finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId]);
+  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
 
   /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
@@ -3863,13 +3942,13 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title="Car" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Car'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title="Bike" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Bike'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title="Foot" disabled={loading || !origin || !destination} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Foot'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
                   <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className={`ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform duration-200 flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${goButtonPulse ? 'scale-[1.2]' : 'scale-100'}`}>{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
@@ -3897,6 +3976,9 @@ const App: React.FC = () => {
                 {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
                   <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
                     <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
+                      <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
+                      </span>
                       <span className="font-bold mr-1">{route.origin}</span>
                       <span className="text-slate-400">to</span>
                       <span className="font-bold ml-1">{route.destination}</span>
