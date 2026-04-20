@@ -1,16 +1,14 @@
-export type LoadHint = 'light' | 'normal' | 'heavy';
+export type FitnessLevel = 'frail' | 'normal' | 'active' | 'high';
 export type SpeedCadenceBlendMode = 'auto' | 'speed' | 'cadence';
 
 export interface IndoorSensorPrefs {
   sensorDriveEnabled: boolean;
-  loadHint: LoadHint;
+  /** User fitness type → base simulation speed when sensor-driven (not the route slider). */
+  fitnessLevel: FitnessLevel;
   calibrationAvgRpm: number | null;
   calibrationAt: number | null;
-  /**
-   * After we sync the route base speed (slider) from `calibrationAvgRpm` once (migration or new test),
-   * set true so we do not overwrite the user's manual speed on every launch.
-   */
-  calibrationBaseAnchorApplied: boolean;
+  /** Personal cadence capacity (EWMA); initialized from 1-min test as test_rpm / 0.9 */
+  capacityRpm: number | null;
   speedCadenceBlendMode: SpeedCadenceBlendMode;
   /** Measured wheel RPM ÷ cadence when both channels were valid */
   wheelCadenceK: number | null;
@@ -20,41 +18,47 @@ const STORAGE_KEY = 'indoor_sensor_prefs_v1';
 
 export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   sensorDriveEnabled: false,
-  loadHint: 'normal',
+  fitnessLevel: 'normal',
   calibrationAvgRpm: null,
   calibrationAt: null,
-  calibrationBaseAnchorApplied: false,
+  capacityRpm: null,
   speedCadenceBlendMode: 'auto',
   wheelCadenceK: null,
 };
-
-const LOAD_HINT_MULT: Record<LoadHint, number> = {
-  light: 0.92,
-  normal: 1,
-  heavy: 1.08,
-};
-
-export function loadHintMultiplier(hint: LoadHint): number {
-  return LOAD_HINT_MULT[hint] ?? 1;
-}
 
 export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
   if (typeof localStorage === 'undefined') return { ...DEFAULT_INDOOR_SENSOR_PREFS };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_INDOOR_SENSOR_PREFS };
-    const o = JSON.parse(raw) as Partial<IndoorSensorPrefs>;
+    const o = JSON.parse(raw) as Partial<IndoorSensorPrefs> & { loadHint?: string };
+    let fitnessLevel: FitnessLevel = 'normal';
+    if (o.fitnessLevel === 'frail' || o.fitnessLevel === 'normal' || o.fitnessLevel === 'active' || o.fitnessLevel === 'high') {
+      fitnessLevel = o.fitnessLevel;
+    } else if (o.loadHint === 'light') {
+      fitnessLevel = 'frail';
+    } else if (o.loadHint === 'heavy') {
+      fitnessLevel = 'active';
+    }
+
+    const calibrationAvgRpm =
+      typeof o.calibrationAvgRpm === 'number' && o.calibrationAvgRpm > 0 ? o.calibrationAvgRpm : null;
+    let capacityRpm = typeof o.capacityRpm === 'number' && o.capacityRpm > 30 ? o.capacityRpm : null;
+    if (capacityRpm == null && calibrationAvgRpm != null) {
+      capacityRpm = calibrationAvgRpm / 0.9;
+    }
+
     return {
       ...DEFAULT_INDOOR_SENSOR_PREFS,
       ...o,
-      loadHint: o.loadHint === 'light' || o.loadHint === 'heavy' ? o.loadHint : 'normal',
+      fitnessLevel,
       speedCadenceBlendMode:
         o.speedCadenceBlendMode === 'speed' || o.speedCadenceBlendMode === 'cadence'
           ? o.speedCadenceBlendMode
           : 'auto',
-      calibrationAvgRpm: typeof o.calibrationAvgRpm === 'number' && o.calibrationAvgRpm > 0 ? o.calibrationAvgRpm : null,
+      calibrationAvgRpm,
       calibrationAt: typeof o.calibrationAt === 'number' ? o.calibrationAt : null,
-      calibrationBaseAnchorApplied: o.calibrationBaseAnchorApplied === true,
+      capacityRpm,
       wheelCadenceK: typeof o.wheelCadenceK === 'number' && o.wheelCadenceK > 0 ? o.wheelCadenceK : null,
     };
   } catch {

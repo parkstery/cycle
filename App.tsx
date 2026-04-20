@@ -19,8 +19,8 @@ import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 import { SensorsModal } from './SensorsModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
-import { createDualMergeState, snapshotDisplaySpeed, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
-import { suggestedBaseSpeedFromCalibrationRpm } from './sensor/effortModel';
+import { createDualMergeState, pickRpmForIntensity, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
+import { computeIndoorSensorRideSpeedKmh } from './sensor/effortModel';
 import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
@@ -379,6 +379,10 @@ const App: React.FC = () => {
   sensorPrefsRef.current = sensorPrefs;
   const speedKmHRef = useRef(speedKmH);
   speedKmHRef.current = speedKmH;
+  /** EMA(alpha=0.2) of RPM used for intensity */
+  const sensorRpmEmaRef = useRef<number | null>(null);
+  const sensorCapacityLiveRef = useRef(90);
+  const sensorCapacitySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -608,33 +612,44 @@ const App: React.FC = () => {
   }, [sensorPrefs.sensorDriveEnabled, speedKmH]);
 
   useEffect(() => {
+    const cap0 =
+      sensorPrefs.capacityRpm ??
+      (sensorPrefs.calibrationAvgRpm != null ? sensorPrefs.calibrationAvgRpm / 0.9 : null) ??
+      90;
+    sensorCapacityLiveRef.current = Math.max(35, cap0);
+  }, [sensorPrefs.capacityRpm, sensorPrefs.calibrationAvgRpm]);
+
+  useEffect(() => {
     if (!sensorPrefs.sensorDriveEnabled) return;
     const hub = getIndoorBleHub();
     const snap = hub.buildSnapshot();
-    setEffectiveSpeedKmH(snapshotDisplaySpeed(speedKmH, snap, sensorPrefs, sensorMergeStateRef.current));
+    const raw = pickRpmForIntensity(snap, sensorPrefs, sensorMergeStateRef.current);
+    const ema = sensorRpmEmaRef.current;
+    const cap = sensorCapacityLiveRef.current;
+    setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(sensorPrefs.fitnessLevel, ema, cap));
   }, [
     sensorPrefs.sensorDriveEnabled,
-    sensorPrefs.loadHint,
+    sensorPrefs.fitnessLevel,
     sensorPrefs.speedCadenceBlendMode,
     sensorPrefs.calibrationAvgRpm,
     sensorPrefs.wheelCadenceK,
-    speedKmH,
+    sensorPrefs.capacityRpm,
   ]);
 
   useEffect(() => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
   }, []);
 
-  /** One-time: if calibration exists but base speed was never synced from anchor, set slider from anchor (replaces generic 20 km/h default). */
-  useEffect(() => {
-    const p = loadIndoorSensorPrefs();
-    if (!p.calibrationAvgRpm || p.calibrationBaseAnchorApplied) return;
-    const s = suggestedBaseSpeedFromCalibrationRpm(p.calibrationAvgRpm);
-    if (s == null) return;
-    setSpeedKmH(s);
-    const next = { ...p, calibrationBaseAnchorApplied: true };
-    setSensorPrefs(next);
-    saveIndoorSensorPrefs(next);
+  const scheduleSensorCapacityPersist = useCallback((cap: number) => {
+    if (sensorCapacitySaveTimerRef.current) clearTimeout(sensorCapacitySaveTimerRef.current);
+    sensorCapacitySaveTimerRef.current = setTimeout(() => {
+      sensorCapacitySaveTimerRef.current = null;
+      const rounded = Math.round(cap * 100) / 100;
+      const next = { ...sensorPrefsRef.current, capacityRpm: rounded };
+      sensorPrefsRef.current = next;
+      setSensorPrefs(next);
+      saveIndoorSensorPrefs(next);
+    }, 2500);
   }, []);
 
   useEffect(() => {
@@ -643,6 +658,7 @@ const App: React.FC = () => {
       const p = sensorPrefsRef.current;
       const base = speedKmHRef.current;
       if (!p.sensorDriveEnabled) {
+        sensorRpmEmaRef.current = null;
         setEffectiveSpeedKmH(base);
         setSensorHubConnected(hub.connectedCount() > 0);
         return;
@@ -655,8 +671,35 @@ const App: React.FC = () => {
         setSensorPrefs(next);
         saveIndoorSensorPrefs(next);
       });
-      setEffectiveSpeedKmH(snapshotDisplaySpeed(base, snap, p, sensorMergeStateRef.current));
+
+      const raw = pickRpmForIntensity(snap, p, sensorMergeStateRef.current);
+      const prevEma = sensorRpmEmaRef.current;
+      let ema: number | null;
+      if (raw != null && raw > 0) {
+        ema = prevEma == null ? raw : 0.2 * raw + 0.8 * prevEma;
+      } else {
+        ema = prevEma == null ? null : prevEma * 0.88;
+      }
+      sensorRpmEmaRef.current = ema;
+
+      let cap = sensorCapacityLiveRef.current;
+      if (ema != null && ema > 5) {
+        cap = Math.max(35, cap * 0.995 + ema * 0.005);
+        sensorCapacityLiveRef.current = cap;
+        scheduleSensorCapacityPersist(cap);
+      }
+
+      setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
     });
+  }, [scheduleSensorCapacityPersist]);
+
+  useEffect(() => {
+    return () => {
+      if (sensorCapacitySaveTimerRef.current) {
+        clearTimeout(sensorCapacitySaveTimerRef.current);
+        sensorCapacitySaveTimerRef.current = null;
+      }
+    };
   }, []);
 
   /** 이중화 테스트: URL ?elevation_provider=opentopodata 또는 ?elevation_provider=open-elevation */
@@ -3570,16 +3613,6 @@ const App: React.FC = () => {
         onChangePrefs={(next) => {
           setSensorPrefs(next);
           saveIndoorSensorPrefs(next);
-        }}
-        onCalibrationSaved={(avgRpm) => {
-          const s = suggestedBaseSpeedFromCalibrationRpm(avgRpm);
-          if (s != null) setSpeedKmH(s);
-        }}
-        onApplyCalibrationToBaseSpeed={() => {
-          const rpm = sensorPrefs.calibrationAvgRpm;
-          if (rpm == null) return;
-          const s = suggestedBaseSpeedFromCalibrationRpm(rpm);
-          if (s != null) setSpeedKmH(s);
         }}
       />
 

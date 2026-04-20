@@ -1,30 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
-import type { IndoorSensorPrefs } from './sensor/sensorPrefs';
-import { suggestedBaseSpeedFromCalibrationRpm } from './sensor/effortModel';
+import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
+import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected';
+
+const FITNESS_OPTIONS: { id: FitnessLevel; label: string }[] = [
+  { id: 'frail', label: 'Light' },
+  { id: 'normal', label: 'Average' },
+  { id: 'active', label: 'Active' },
+  { id: 'high', label: 'Strong' },
+];
 
 export type SensorsModalProps = {
   open: boolean;
   onClose: () => void;
   prefs: IndoorSensorPrefs;
   onChangePrefs: (next: IndoorSensorPrefs) => void;
-  /** After a successful 1-minute test — parent should set base (slider) speed from the anchor. */
-  onCalibrationSaved?: (avgRpm: number) => void;
-  /** Re-apply saved anchor to route base speed (slider) anytime. */
-  onApplyCalibrationToBaseSpeed?: () => void;
 };
 
-export const SensorsModal: React.FC<SensorsModalProps> = ({
-  open,
-  onClose,
-  prefs,
-  onChangePrefs,
-  onCalibrationSaved,
-  onApplyCalibrationToBaseSpeed,
-}) => {
+export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs, onChangePrefs }) => {
   const hub = useMemo(() => getIndoorBleHub(), []);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
@@ -32,7 +28,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
   const [initError, setInitError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [calibNotice, setCalibNotice] = useState<string | null>(null);
+  const [testFinished, setTestFinished] = useState(false);
 
   const [calibRunning, setCalibRunning] = useState(false);
   const [calibLeftSec, setCalibLeftSec] = useState(0);
@@ -45,10 +41,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
   }, [hub]);
 
   useEffect(() => {
-    if (!open) {
-      setCalibNotice(null);
-      return;
-    }
+    if (!open) return;
     setInitError(null);
     hub
       .initialize()
@@ -123,6 +116,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
 
   const startCalibration = () => {
     if (calibRunning) return;
+    setTestFinished(false);
     calibSamplesRef.current = [];
     calibSecRef.current = 60;
     setCalibRunning(true);
@@ -141,18 +135,15 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
         const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
         if (avg != null && avg > 0) {
           const avgRounded = Math.round(avg * 10) / 10;
+          const cap = initialCapacityFromTestRpm(avgRounded);
           const next = {
             ...prefsRef.current,
             calibrationAvgRpm: avgRounded,
             calibrationAt: Date.now(),
-            calibrationBaseAnchorApplied: true,
+            capacityRpm: cap,
           };
           onChangePrefs(next);
-          onCalibrationSaved?.(avgRounded);
-          const sk = suggestedBaseSpeedFromCalibrationRpm(avgRounded);
-          if (sk != null) {
-            setCalibNotice(`Base speed (slider) set to ${sk} km/h from your anchor. Adjust anytime.`);
-          }
+          setTestFinished(true);
         }
       }
     }, 1000);
@@ -175,8 +166,8 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
     onChangePrefs({ ...prefsRef.current, speedCadenceBlendMode });
   };
 
-  const setLoadHint = (loadHint: IndoorSensorPrefs['loadHint']) => {
-    onChangePrefs({ ...prefsRef.current, loadHint });
+  const setFitnessLevel = (fitnessLevel: FitnessLevel) => {
+    onChangePrefs({ ...prefsRef.current, fitnessLevel });
   };
 
   const setSensorDrive = (sensorDriveEnabled: boolean) => {
@@ -314,61 +305,71 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
           )}
 
           <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">1-minute calibration</div>
-            <p className="text-[10px] text-slate-500 leading-snug mb-1">
-              Set the bike to <strong>highest resistance</strong>, then pedal hard for one minute. We store your <strong>average RPM</strong> as your personal anchor.
-            </p>
-            {!calibRunning ? (
-              <button type="button" onClick={startCalibration} className="text-[11px] font-bold bg-slate-800 text-white px-2 py-1 rounded">
-                Start 1-minute test
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-[14px] font-black text-blue-700 tabular-nums">{calibLeftSec}s</span>
-                <button type="button" onClick={cancelCalibration} className="text-[11px] text-slate-500 underline">
-                  Cancel
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Fitness (base pace)</div>
+            <p className="text-[10px] text-slate-500 leading-snug mb-1">How you would describe your usual stamina — this sets the baseline when using sensors.</p>
+            <div className="grid grid-cols-2 gap-1">
+              {FITNESS_OPTIONS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setFitnessLevel(id)}
+                  className={`py-1.5 rounded text-[10px] font-bold border ${
+                    prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'
+                  }`}
+                >
+                  {label}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">1-minute calibration (optional)</div>
+            <p className="text-[10px] text-slate-500 leading-snug mb-1">
+              Set the bike to <strong>highest resistance</strong>, then pedal hard for one minute. We use your <strong>average RPM</strong> as your personal capacity anchor.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {!calibRunning ? (
+                <>
+                  <button type="button" onClick={startCalibration} className="text-[11px] font-bold bg-slate-800 text-white px-2 py-1 rounded shrink-0">
+                    Start 1-minute test
+                  </button>
+                  {testFinished && (
+                    <span className="text-[11px] font-semibold text-emerald-600" role="status">
+                      Test finished
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-[14px] font-black text-blue-700 tabular-nums">{calibLeftSec}s</span>
+                  <button type="button" onClick={cancelCalibration} className="text-[11px] text-slate-500 underline">
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
             {prefs.calibrationAvgRpm != null && (
-              <div className="text-[11px] text-slate-600 mt-1 space-y-1">
-                <p>
-                  Saved average: <strong>{prefs.calibrationAvgRpm}</strong> RPM
-                  <button
-                    type="button"
-                    className="ml-2 text-blue-600 font-bold"
-                    onClick={() => {
-                      const next = {
-                        ...prefsRef.current,
-                        calibrationAvgRpm: null,
-                        calibrationAt: null,
-                        calibrationBaseAnchorApplied: false,
-                      };
-                      onChangePrefs(next);
-                      setCalibNotice(null);
-                    }}
-                  >
-                    Clear
-                  </button>
-                </p>
-                {onApplyCalibrationToBaseSpeed && (
-                  <button
-                    type="button"
-                    className="text-[10px] font-bold text-slate-700 underline"
-                    onClick={() => {
-                      onApplyCalibrationToBaseSpeed();
-                      const sk = suggestedBaseSpeedFromCalibrationRpm(prefsRef.current.calibrationAvgRpm);
-                      if (sk != null) {
-                        setCalibNotice(`Base speed set to ${sk} km/h from saved anchor.`);
-                      }
-                    }}
-                  >
-                    Apply saved anchor to base speed (km/h)
-                  </button>
-                )}
-              </div>
+              <p className="text-[11px] text-slate-600 mt-1">
+                Saved average: <strong>{prefs.calibrationAvgRpm}</strong> RPM
+                <button
+                  type="button"
+                  className="ml-2 text-blue-600 font-bold"
+                  onClick={() => {
+                    const next = {
+                      ...prefsRef.current,
+                      calibrationAvgRpm: null,
+                      calibrationAt: null,
+                      capacityRpm: null,
+                    };
+                    onChangePrefs(next);
+                    setTestFinished(false);
+                  }}
+                >
+                  Clear
+                </button>
+              </p>
             )}
-            {calibNotice && <p className="text-[10px] text-emerald-700 font-medium leading-snug">{calibNotice}</p>}
           </section>
 
           <section className="flex items-center justify-between gap-2">
@@ -383,24 +384,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({
                 className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${prefs.sensorDriveEnabled ? 'translate-x-5' : ''}`}
               />
             </button>
-          </section>
-
-          <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Load hint</div>
-            <div className="flex gap-1">
-              {(['light', 'normal', 'heavy'] as const).map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => setLoadHint(h)}
-                  className={`flex-1 py-1 rounded text-[10px] font-bold border ${
-                    prefs.loadHint === h ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'
-                  }`}
-                >
-                  {h[0].toUpperCase() + h.slice(1)}
-                </button>
-              ))}
-            </div>
           </section>
 
           <section>

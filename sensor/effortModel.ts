@@ -1,44 +1,53 @@
-import type { IndoorSensorPrefs } from './sensorPrefs';
-import { loadHintMultiplier } from './sensorPrefs';
+import type { FitnessLevel } from './sensorPrefs';
 
-/**
- * Maps a completed 1-minute max-effort average cadence (RPM) to a suggested **base** speed (slider, km/h).
- * Used so calibration is not only stored but also drives the default simulation scale for indoor rides.
- * Tunable linear map, clamped to app speed limits.
- */
-export function suggestedBaseSpeedFromCalibrationRpm(rpm: number | null | undefined): number | null {
-  if (rpm == null || !Number.isFinite(rpm) || rpm < 40) return null;
-  const v = Math.round(14 + rpm * 0.24);
-  return Math.min(70, Math.max(18, v));
+/** Base ride speed (km/h) from user fitness — not the manual route slider when sensor-driven. */
+const BASE_SPEED_KMH: Record<FitnessLevel, number> = {
+  frail: 14,
+  normal: 18,
+  active: 22,
+  high: 26,
+};
+
+export function baseSpeedFromFitnessLevel(level: FitnessLevel): number {
+  return BASE_SPEED_KMH[level] ?? BASE_SPEED_KMH.normal;
 }
 
-/** effort 0..~1.2 before clamping for display */
-export function effortFromCadenceRpm(smoothedRpm: number, calibrationAvgRpm: number | null): number {
-  const anchor = Math.max(calibrationAvgRpm ?? 90, 45);
-  return Math.min(1.25, Math.max(0, smoothedRpm / anchor));
-}
-
-/** Optional FTMS power path — threshold from calibration (W ≈ linear from cadence anchor) */
-export function effortFromPowerWatts(watts: number, calibrationAvgRpm: number | null): number {
-  const thr = Math.max((calibrationAvgRpm ?? 90) * 2.2, 80);
-  return Math.min(1.25, Math.max(0, watts / thr));
+/** Conservative capacity from 1-minute average RPM (max effort). */
+export function initialCapacityFromTestRpm(testAvgRpm: number): number {
+  return Math.max(35, testAvgRpm / 0.9);
 }
 
 /**
- * Maps normalized effort to a multiplier applied to base (slider) speed.
- * Low effort still moves a little (indoor coast / light spin).
+ * Free-tier linear intensity curve: f(x) = 0.7 + 0.6 * x
+ * x = current_rpm / capacity (intensity).
  */
-export function speedMultiplierFromEffort(effort: number): number {
-  const e = Math.min(1, Math.max(0, effort));
-  return 0.12 + 0.88 * Math.pow(e, 0.52);
+export function fIntensity(intensity: number): number {
+  const x = Math.min(1.6, Math.max(0, intensity));
+  return 0.7 + 0.6 * x;
 }
 
-export function displaySpeedFromBaseAndEffort(
-  baseSpeedKmh: number,
-  effort: number,
-  prefs: Pick<IndoorSensorPrefs, 'loadHint'>
+/**
+ * Live sensor-driven speed: base from fitness, scale from intensity vs personal capacity.
+ * @param smoothedRpm EMA-smoothed cadence (or wheel proxy) from the BLE layer
+ * @param capacityRpm running capacity (includes micro EWMA updates)
+ */
+export function computeIndoorSensorRideSpeedKmh(
+  fitnessLevel: FitnessLevel,
+  smoothedRpm: number | null,
+  capacityRpm: number
 ): number {
-  const m = speedMultiplierFromEffort(effort) * loadHintMultiplier(prefs.loadHint);
-  const v = baseSpeedKmh * m;
-  return Math.min(70, Math.max(10, v));
+  const base = baseSpeedFromFitnessLevel(fitnessLevel);
+  const cap = Math.max(35, capacityRpm);
+
+  if (smoothedRpm == null || smoothedRpm <= 0) {
+    return Math.min(70, Math.max(10, base * 0.55));
+  }
+
+  const intensity = smoothedRpm / cap;
+  let speed = base * fIntensity(intensity);
+  speed = Math.min(70, Math.max(10, speed));
+  if (smoothedRpm < 40) {
+    speed *= 0.5;
+  }
+  return Math.min(70, Math.max(10, speed));
 }
