@@ -3901,12 +3901,12 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
+      {/* Current Speed / Avg Speed / Current RPM - top-right overlay (as specified in design image, placed below first button row and to the left of the pegman column to avoid overlapping with the top-center coaching banner) */}
       <div
         className="fixed z-[1000] flex flex-col items-end leading-none pointer-events-none select-none"
         style={{
-          right: 'calc(env(safe-area-inset-right, 0px) + 4rem + 2.4rem + 0.5rem)',
-          top: SAFE_TOP_1REM,
+          right: 'calc(env(safe-area-inset-right, 0px) + 1rem + 2.4rem + 0.5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 1rem + 2.4rem + 0.5rem)',
         }}
       >
         <span
@@ -3922,8 +3922,8 @@ const App: React.FC = () => {
           {(elapsedTime > 0 ? (coveredDistance / 1000) / (elapsedTime / 3600) : 0).toFixed(1)} km/h
         </span>
         <span
-          className="mt-0.5 text-[12px] font-black text-red-500 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-          title="Current RPM"
+          className="mt-0.5 text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          title="Current cadence (RPM)"
         >
           {currentRpm != null && currentRpm > 0 ? Math.round(currentRpm) : '—'} RPM
         </span>
