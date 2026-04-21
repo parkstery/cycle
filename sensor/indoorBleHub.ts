@@ -9,6 +9,9 @@ const INDOOR_BIKE_DATA = numberToUUID(0x2ad2);
 const EMA_A = 0.38;
 const NOTIFY_THROTTLE_MS = 125;
 const MIN_CADENCE_VALID = 6;
+const CADENCE_STALE_MS = 3000;
+const WHEEL_STALE_MS = 3000;
+const POWER_STALE_MS = 3000;
 
 type DeviceCrankState = { rev: number; t1024: number };
 type DeviceWheelState = { rev: number; t1024: number };
@@ -123,6 +126,7 @@ class IndoorBleHubImpl {
   private smooth = new Map<string, DeviceSmooth>();
 
   private notifyStops = new Map<string, Array<{ service: string; characteristic: string }>>();
+  private lastSensorPacketAtMs = 0;
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -187,6 +191,10 @@ class IndoorBleHubImpl {
     return this.order.length;
   }
 
+  getLastSensorPacketAtMs(): number {
+    return this.lastSensorPacketAtMs;
+  }
+
   buildSnapshot(): BleSnapshot {
     const now = Date.now();
     let cadenceRpm: number | null = null;
@@ -219,6 +227,19 @@ class IndoorBleHubImpl {
         powerW = s.powerW;
         powerTs = s.powerTs;
       }
+    }
+
+    if (cadenceTs > 0 && now - cadenceTs > CADENCE_STALE_MS) {
+      cadenceRpm = null;
+      cadenceTs = 0;
+    }
+    if (wheelTs > 0 && now - wheelTs > WHEEL_STALE_MS) {
+      wheelRpm = null;
+      wheelTs = 0;
+    }
+    if (powerTs > 0 && now - powerTs > POWER_STALE_MS) {
+      powerW = null;
+      powerTs = 0;
     }
 
     return { now, cadenceRpm, cadenceTs, wheelRpm, wheelTs, powerW, powerTs };
@@ -270,9 +291,10 @@ class IndoorBleHubImpl {
     let ftms = false;
     try {
       await BleClient.startNotifications(deviceId, FTMS_SERVICE, INDOOR_BIKE_DATA, (value) => {
+        this.lastSensorPacketAtMs = Date.now();
         const p = parseIndoorBikeData(value);
         const sm = this.ensureSmooth(deviceId);
-        const t = Date.now();
+        const t = this.lastSensorPacketAtMs;
         if (p.cadence != null && Number.isFinite(p.cadence)) {
           sm.cadenceRpm = ema(sm.cadenceRpm, p.cadence);
           sm.cadenceTs = t;
@@ -291,13 +313,14 @@ class IndoorBleHubImpl {
 
     if (!ftms) {
       await BleClient.startNotifications(deviceId, CSC_SERVICE, CSC_MEASUREMENT, (value) => {
+        this.lastSensorPacketAtMs = Date.now();
         const prevC = this.crankPrev.get(deviceId) ?? null;
         const prevW = this.wheelPrev.get(deviceId) ?? null;
         const { cadenceRpm, wheelRpm, nextCrank, nextWheel } = parseCscMeasurement(value, prevC, prevW);
         this.crankPrev.set(deviceId, nextCrank);
         this.wheelPrev.set(deviceId, nextWheel);
         const sm = this.ensureSmooth(deviceId);
-        const t = Date.now();
+        const t = this.lastSensorPacketAtMs;
         if (cadenceRpm != null && Number.isFinite(cadenceRpm)) {
           sm.cadenceRpm = ema(sm.cadenceRpm, cadenceRpm);
           sm.cadenceTs = t;

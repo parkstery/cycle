@@ -396,6 +396,9 @@ const App: React.FC = () => {
   const SENSOR_MOVE_STOP_KMH = 0.2;
   const SENSOR_STOP_GRACE_MS = 2200;
   const SENSOR_PEDALING_RPM_THRESHOLD = 8;
+  const SENSOR_NO_PACKET_FORCE_ZERO_MS = 3500;
+  const SENSOR_HARD_STOP_MS = 3000;
+  const SENSOR_DISPLAY_ZERO_RPM = 1;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -726,6 +729,23 @@ const App: React.FC = () => {
       }
     });
   }, [scheduleSensorCapacityPersist]);
+
+  useEffect(() => {
+    const hub = getIndoorBleHub();
+    const timer = window.setInterval(() => {
+      const p = sensorPrefsRef.current;
+      if (!p.sensorDriveEnabled) return;
+      const lastPacketAt = hub.getLastSensorPacketAtMs();
+      if (lastPacketAt <= 0) return;
+      if (Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS) return;
+      sensorRpmEmaRef.current = null;
+      sensorLastValidRpmRef.current = null;
+      sensorLastValidRpmAtRef.current = 0;
+      setCurrentRpm(0);
+      setEffectiveSpeedKmH(0);
+    }, 300);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -2153,13 +2173,20 @@ const App: React.FC = () => {
       }
       const sensorDriveOn = sensorPrefsRef.current.sensorDriveEnabled;
       const emaRpm = sensorRpmEmaRef.current ?? 0;
-      const pedalingActive = sensorDriveOn && emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
+      const hub = getIndoorBleHub();
+      const lastPacketAt = hub.getLastSensorPacketAtMs();
+      const freshSensorSignal = lastPacketAt > 0 && Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS;
+      const pedalingActive = sensorDriveOn && freshSensorSignal && emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
       const keepMoving = effectiveSpeedKmH > SENSOR_MOVE_STOP_KMH || pedalingActive;
       if (keepMoving) {
         sensorBelowMoveThresholdSinceRef.current = null;
       } else {
         if (sensorBelowMoveThresholdSinceRef.current == null) {
           sensorBelowMoveThresholdSinceRef.current = Date.now();
+        } else if (Date.now() - sensorBelowMoveThresholdSinceRef.current >= SENSOR_HARD_STOP_MS) {
+          setCurrentRpm(0);
+          setEffectiveSpeedKmH(0);
+          return () => clearTimeout(0);
         } else if (Date.now() - sensorBelowMoveThresholdSinceRef.current >= SENSOR_STOP_GRACE_MS) {
           return () => clearTimeout(0);
         }
@@ -3949,13 +3976,13 @@ const App: React.FC = () => {
           className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current cadence (RPM)"
         >
-          {currentRpm != null && currentRpm > 0 ? Math.round(currentRpm) : '—'} RPM
+          {currentRpm != null && currentRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(currentRpm) : '0'} RPM
         </span>
         <span
           className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Average cadence (RPM)"
         >
-          {averageRpm > 0 ? Math.round(averageRpm) : '—'} RPM
+          {averageRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(averageRpm) : '0'} RPM
         </span>
       </div>
 

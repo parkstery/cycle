@@ -40,7 +40,6 @@ export function createDualMergeState(): DualMergeState {
  */
 export function pickRpmForIntensity(s: BleSnapshot, prefs: IndoorSensorPrefs, st: DualMergeState): number | null {
   const mode = prefs.speedCadenceBlendMode;
-  const k = prefs.wheelCadenceK;
 
   const sv = speedChannelValid(s);
   const cv = cadenceChannelValid(s);
@@ -62,19 +61,15 @@ export function pickRpmForIntensity(s: BleSnapshot, prefs: IndoorSensorPrefs, st
   }
 
   const cadScaled = cadRpm * cadBoost;
-  const wheelProxyFromCadence = k != null && k > 0 && cadScaled > 0 ? cadScaled * k : null;
-
   let pick: number | null = null;
 
   if (mode === 'cadence') {
     if (cv) pick = cadScaled;
     else if (sv) pick = wheelRpm;
-    else if (wheelProxyFromCadence != null) pick = wheelProxyFromCadence;
   } else {
     // Auto mode defaults to cadence-first for indoor bikes where wheel channel can be absent/noisy.
     if (cv) pick = cadScaled;
     else if (sv) pick = wheelRpm;
-    else if (wheelProxyFromCadence != null) pick = wheelProxyFromCadence;
   }
 
   st.lastWheelRpm = s.wheelRpm;
