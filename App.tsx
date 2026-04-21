@@ -379,6 +379,8 @@ const App: React.FC = () => {
   const rpmSampleSumRef = useRef(0);
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
+  /** BLE was disconnected last tick — used to turn on sensor-based ride only on connect edge. */
+  const prevBleSensorConnectedRef = useRef(false);
   const sensorMergeStateRef = useRef(createDualMergeState());
   const sensorPrefsRef = useRef(sensorPrefs);
   sensorPrefsRef.current = sensorPrefs;
@@ -695,6 +697,23 @@ const App: React.FC = () => {
   useEffect(() => {
     const hub = getIndoorBleHub();
     return hub.subscribe(() => {
+      const connected = hub.connectedCount() > 0;
+      setSensorHubConnected(connected);
+
+      if (connected) {
+        if (!prevBleSensorConnectedRef.current) {
+          prevBleSensorConnectedRef.current = true;
+          if (!sensorPrefsRef.current.sensorDriveEnabled) {
+            const next = { ...sensorPrefsRef.current, sensorDriveEnabled: true };
+            sensorPrefsRef.current = next;
+            setSensorPrefs(next);
+            saveIndoorSensorPrefs(next);
+          }
+        }
+      } else {
+        prevBleSensorConnectedRef.current = false;
+      }
+
       const p = sensorPrefsRef.current;
       const base = speedKmHRef.current;
       if (!p.sensorDriveEnabled) {
@@ -703,11 +722,9 @@ const App: React.FC = () => {
         sensorLastValidRpmAtRef.current = 0;
         setEffectiveSpeedKmH(base);
         setCurrentRpm(null);
-        setSensorHubConnected(hub.connectedCount() > 0);
         return;
       }
       const snap = hub.buildSnapshot();
-      setSensorHubConnected(hub.connectedCount() > 0);
       maybeUpdateWheelCadenceK(snap, p, (k) => {
         const next = { ...sensorPrefsRef.current, wheelCadenceK: k };
         sensorPrefsRef.current = next;
