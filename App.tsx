@@ -373,13 +373,18 @@ const App: React.FC = () => {
   const [sensorPrefs, setSensorPrefs] = useState(() => loadIndoorSensorPrefs());
   const [sensorsModalOpen, setSensorsModalOpen] = useState(false);
   const [effectiveSpeedKmH, setEffectiveSpeedKmH] = useState(20);
+  const effectiveSpeedKmHRef = useRef(effectiveSpeedKmH);
   const [currentRpm, setCurrentRpm] = useState<number | null>(null);
+  const [averageRpm, setAverageRpm] = useState(0);
+  const rpmSampleSumRef = useRef(0);
+  const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   const sensorMergeStateRef = useRef(createDualMergeState());
   const sensorPrefsRef = useRef(sensorPrefs);
   sensorPrefsRef.current = sensorPrefs;
   const speedKmHRef = useRef(speedKmH);
   speedKmHRef.current = speedKmH;
+  effectiveSpeedKmHRef.current = effectiveSpeedKmH;
   /** EMA(alpha=0.2) of RPM used for intensity */
   const sensorRpmEmaRef = useRef<number | null>(null);
   const sensorLastValidRpmRef = useRef<number | null>(null);
@@ -714,6 +719,11 @@ const App: React.FC = () => {
 
       setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
       setCurrentRpm(ema != null && ema > 0 ? ema : null);
+      if (simulationActiveRef.current && ema != null && ema > 0) {
+        rpmSampleSumRef.current += ema;
+        rpmSampleCountRef.current += 1;
+        setAverageRpm(rpmSampleSumRef.current / rpmSampleCountRef.current);
+      }
     });
   }, [scheduleSensorCapacityPersist]);
 
@@ -2172,16 +2182,18 @@ const App: React.FC = () => {
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
-    let timer: number;
+    let timer: number | null = null;
     if (simulation.isActive && route) {
       timer = window.setInterval(() => {
         setElapsedTime(prev => prev + 1);
-        const metersPerSecond = (effectiveSpeedKmH * 1000) / 3600;
+        const metersPerSecond = (effectiveSpeedKmHRef.current * 1000) / 3600;
         setCoveredDistance(prev => prev + metersPerSecond);
       }, 1000);
     }
-    return () => clearInterval(timer);
-  }, [simulation.isActive, route, effectiveSpeedKmH]);
+    return () => {
+      if (timer != null) clearInterval(timer);
+    };
+  }, [simulation.isActive, route]);
 
   // Rewarded ad policy: 5km default limit + second offer before the limit.
   useEffect(() => {
@@ -2809,6 +2821,9 @@ const App: React.FC = () => {
     setIsUserPano(false);
     setElapsedTime(0);
     setCoveredDistance(0);
+    setAverageRpm(0);
+    rpmSampleSumRef.current = 0;
+    rpmSampleCountRef.current = 0;
   };
 
   const restartSimulation = () => {
@@ -2824,6 +2839,9 @@ const App: React.FC = () => {
       lastSpokenValidUntilPathIndex.current = null;
       setElapsedTime(0);
       setCoveredDistance(0);
+      setAverageRpm(0);
+      rpmSampleSumRef.current = 0;
+      rpmSampleCountRef.current = 0;
 
       const startPos = route.path[0];
       const nextPos = route.path.length > 1 ? route.path[1] : startPos;
@@ -2858,6 +2876,9 @@ const App: React.FC = () => {
 
     setIsCoachThinking(false);
     setCoachData(null);
+    setAverageRpm(0);
+    rpmSampleSumRef.current = 0;
+    rpmSampleCountRef.current = 0;
     lastSpokenValidUntilPathIndex.current = null;
     safeSpeechCancel();
   };
@@ -2978,6 +2999,9 @@ const App: React.FC = () => {
     setRouteSource(null);
     setElapsedTime(0);
     setCoveredDistance(0);
+    setAverageRpm(0);
+    rpmSampleSumRef.current = 0;
+    rpmSampleCountRef.current = 0;
     lastCoachedIndex.current = -1;
     if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
     // OSRM only (no Google Directions). Geocoding: Nominatim only.
@@ -3922,10 +3946,16 @@ const App: React.FC = () => {
           {(elapsedTime > 0 ? (coveredDistance / 1000) / (elapsedTime / 3600) : 0).toFixed(1)} km/h
         </span>
         <span
-          className="mt-0.5 text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current cadence (RPM)"
         >
           {currentRpm != null && currentRpm > 0 ? Math.round(currentRpm) : '—'} RPM
+        </span>
+        <span
+          className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          title="Average cadence (RPM)"
+        >
+          {averageRpm > 0 ? Math.round(averageRpm) : '—'} RPM
         </span>
       </div>
 
