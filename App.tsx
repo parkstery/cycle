@@ -2200,6 +2200,24 @@ const App: React.FC = () => {
           }
         })();
       }
+      // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
+    return () => clearTimeout(timer);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, isSvFullScreen, isSvActive]);
+
+  // Simulation progression driver: runs continuously while simulation is active,
+  // accumulates distance from live speed, and advances currentIndex by path segments.
+  // Decoupled from currentIndex/speed state so speed fluctuations cannot tear down the timer.
+  useEffect(() => {
+    if (!simulation.isActive) return;
+    if (!route?.path?.length) return;
+    const path = route.path;
+    let lastTickMs = Date.now();
+    let pendingMeters = 0;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      const dtSec = Math.max(0, (now - lastTickMs) / 1000);
+      lastTickMs = now;
+
       const sensorDriveOn = sensorPrefsRef.current.sensorDriveEnabled;
       const emaRpm = sensorRpmEmaRef.current ?? 0;
       const hub = getIndoorBleHub();
@@ -2207,40 +2225,43 @@ const App: React.FC = () => {
       const lastValidRpmAt = sensorLastValidRpmAtRef.current;
       const freshSensorSignal =
         lastPacketAt > 0 &&
-        Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS &&
+        now - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS &&
         lastValidRpmAt > 0 &&
-        Date.now() - lastValidRpmAt < SENSOR_HARD_ZERO_MS;
+        now - lastValidRpmAt < SENSOR_HARD_ZERO_MS;
       const pedalingActive = sensorDriveOn && freshSensorSignal && emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
       const effSpeed = effectiveSpeedKmHRef.current;
       const keepMoving = effSpeed > SENSOR_MOVE_STOP_KMH || pedalingActive;
-      if (keepMoving) {
-        sensorBelowMoveThresholdSinceRef.current = null;
-      } else {
-        if (sensorBelowMoveThresholdSinceRef.current == null) {
-          sensorBelowMoveThresholdSinceRef.current = Date.now();
-        } else if (Date.now() - sensorBelowMoveThresholdSinceRef.current >= SENSOR_HARD_STOP_MS) {
-          setCurrentRpm(0);
-          setEffectiveSpeedKmH(0);
-          return () => clearTimeout(0);
-        } else if (Date.now() - sensorBelowMoveThresholdSinceRef.current >= SENSOR_STOP_GRACE_MS) {
-          return () => clearTimeout(0);
+      if (!keepMoving) return;
+
+      pendingMeters += (effSpeed * 1000 / 3600) * dtSec;
+
+      setSimulation(prev => {
+        let idx = prev.currentIndex;
+        const maxIdx = path.length - 1;
+        let safety = 2000;
+        while (pendingMeters > 0 && idx < maxIdx && safety-- > 0) {
+          const p1 = path[idx];
+          const p2 = path[idx + 1];
+          if (!p1 || !p2) {
+            idx += 1;
+            continue;
+          }
+          let segDist = 2;
+          try { segDist = computeDistanceBetween(p1, p2); } catch { /* keep fallback */ }
+          if (!Number.isFinite(segDist) || segDist <= 0) segDist = 2;
+          if (pendingMeters >= segDist) {
+            pendingMeters -= segDist;
+            idx += 1;
+          } else {
+            break;
+          }
         }
-      }
-      let delay = 100;
-      const nextPos = route.path[currentIdx + 1];
-      if (nextPos) {
-        try {
-          const distMeters = computeDistanceBetween(currentPos, nextPos);
-          const speedMetersPerSec = (effSpeed * 1000) / 3600;
-          if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
-        } catch {
-          // 좌표 형식 오류 시 기본 delay 유지
-        }
-      }
-      if (delay < 50) delay = 50;
-      timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
-    return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, isSvFullScreen, isSvActive]);
+        if (idx === prev.currentIndex) return prev;
+        return { ...prev, currentIndex: idx };
+      });
+    }, 100);
+    return () => clearInterval(interval);
+  }, [simulation.isActive, route?.path]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
