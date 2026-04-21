@@ -392,13 +392,14 @@ const App: React.FC = () => {
   const sensorBelowMoveThresholdSinceRef = useRef<number | null>(null);
   const sensorCapacityLiveRef = useRef(90);
   const sensorCapacitySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const SENSOR_RPM_HOLD_MS = 2600;
+  const SENSOR_RPM_HOLD_MS = 2000;
   const SENSOR_MOVE_STOP_KMH = 0.2;
   const SENSOR_STOP_GRACE_MS = 2200;
   const SENSOR_PEDALING_RPM_THRESHOLD = 8;
   const SENSOR_NO_PACKET_FORCE_ZERO_MS = 3500;
   const SENSOR_HARD_STOP_MS = 3000;
   const SENSOR_DISPLAY_ZERO_RPM = 1;
+  const SENSOR_HARD_ZERO_MS = 2500;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -692,26 +693,40 @@ const App: React.FC = () => {
 
       const now = Date.now();
       const picked = pickRpmForIntensity(snap, p, sensorMergeStateRef.current);
-      let raw = picked;
-      if (
-        (raw == null || raw <= 0) &&
+      const pickedValid = picked != null && picked > 0;
+
+      if (pickedValid) {
+        sensorLastValidRpmRef.current = picked;
+        sensorLastValidRpmAtRef.current = now;
+      }
+
+      const lastValidAt = sensorLastValidRpmAtRef.current;
+      const sinceLastValid = lastValidAt > 0 ? now - lastValidAt : Number.POSITIVE_INFINITY;
+      const hardZero = sinceLastValid >= SENSOR_HARD_ZERO_MS;
+
+      let raw: number | null = null;
+      if (pickedValid) {
+        raw = picked;
+      } else if (
+        !hardZero &&
         sensorLastValidRpmRef.current != null &&
-        now - sensorLastValidRpmAtRef.current <= SENSOR_RPM_HOLD_MS
+        sinceLastValid <= SENSOR_RPM_HOLD_MS
       ) {
         raw = sensorLastValidRpmRef.current;
       }
-      if (raw != null && raw > 0) {
-        sensorLastValidRpmRef.current = raw;
-        sensorLastValidRpmAtRef.current = now;
-      }
+
       const prevEma = sensorRpmEmaRef.current;
       let ema: number | null;
-      if (raw != null && raw > 0) {
+      if (hardZero) {
+        ema = 0;
+        sensorRpmEmaRef.current = null;
+      } else if (raw != null && raw > 0) {
         ema = prevEma == null ? raw : 0.2 * raw + 0.8 * prevEma;
+        sensorRpmEmaRef.current = ema;
       } else {
         ema = prevEma == null ? null : prevEma * 0.94;
+        sensorRpmEmaRef.current = ema;
       }
-      sensorRpmEmaRef.current = ema;
 
       let cap = sensorCapacityLiveRef.current;
       if (ema != null && ema > 5) {
@@ -720,8 +735,13 @@ const App: React.FC = () => {
         scheduleSensorCapacityPersist(cap);
       }
 
-      setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
-      setCurrentRpm(ema != null && ema > 0 ? ema : null);
+      if (hardZero) {
+        setEffectiveSpeedKmH(0);
+        setCurrentRpm(0);
+      } else {
+        setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
+        setCurrentRpm(ema != null && ema > 0 ? ema : 0);
+      }
       if (simulationActiveRef.current && ema != null && ema > 0) {
         rpmSampleSumRef.current += ema;
         rpmSampleCountRef.current += 1;
@@ -735,12 +755,21 @@ const App: React.FC = () => {
     const timer = window.setInterval(() => {
       const p = sensorPrefsRef.current;
       if (!p.sensorDriveEnabled) return;
+
+      const now = Date.now();
       const lastPacketAt = hub.getLastSensorPacketAtMs();
-      if (lastPacketAt <= 0) return;
-      if (Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS) return;
+      const noPacket = lastPacketAt > 0 && now - lastPacketAt >= SENSOR_NO_PACKET_FORCE_ZERO_MS;
+
+      const lastValidAt = sensorLastValidRpmAtRef.current;
+      const staleRpm = lastValidAt > 0 && now - lastValidAt >= SENSOR_HARD_ZERO_MS;
+
+      if (!noPacket && !staleRpm) return;
+
       sensorRpmEmaRef.current = null;
-      sensorLastValidRpmRef.current = null;
-      sensorLastValidRpmAtRef.current = 0;
+      if (noPacket) {
+        sensorLastValidRpmRef.current = null;
+        sensorLastValidRpmAtRef.current = 0;
+      }
       setCurrentRpm(0);
       setEffectiveSpeedKmH(0);
     }, 300);
@@ -2144,7 +2173,7 @@ const App: React.FC = () => {
           if (segmentSize > 0) {
             const upcomingSlice = elevation.slice(startElevIdx, startElevIdx + segmentSize);
             setIsCoachThinking(true);
-            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, effectiveSpeedKmH, coachData?.resistance)
+            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, effectiveSpeedKmHRef.current, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
                 setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
               })
@@ -2162,7 +2191,7 @@ const App: React.FC = () => {
           );
           setIsCoachThinking(true);
           try {
-            const newCoaching = await getAdvancedCoaching(currentElev, upcoming, effectiveSpeedKmH, coachData?.resistance);
+            const newCoaching = await getAdvancedCoaching(currentElev, upcoming, effectiveSpeedKmHRef.current, coachData?.resistance);
             setCoachData(newCoaching);
             speak(newCoaching.tip);
           } finally {
@@ -2175,9 +2204,15 @@ const App: React.FC = () => {
       const emaRpm = sensorRpmEmaRef.current ?? 0;
       const hub = getIndoorBleHub();
       const lastPacketAt = hub.getLastSensorPacketAtMs();
-      const freshSensorSignal = lastPacketAt > 0 && Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS;
+      const lastValidRpmAt = sensorLastValidRpmAtRef.current;
+      const freshSensorSignal =
+        lastPacketAt > 0 &&
+        Date.now() - lastPacketAt < SENSOR_NO_PACKET_FORCE_ZERO_MS &&
+        lastValidRpmAt > 0 &&
+        Date.now() - lastValidRpmAt < SENSOR_HARD_ZERO_MS;
       const pedalingActive = sensorDriveOn && freshSensorSignal && emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
-      const keepMoving = effectiveSpeedKmH > SENSOR_MOVE_STOP_KMH || pedalingActive;
+      const effSpeed = effectiveSpeedKmHRef.current;
+      const keepMoving = effSpeed > SENSOR_MOVE_STOP_KMH || pedalingActive;
       if (keepMoving) {
         sensorBelowMoveThresholdSinceRef.current = null;
       } else {
@@ -2196,7 +2231,7 @@ const App: React.FC = () => {
       if (nextPos) {
         try {
           const distMeters = computeDistanceBetween(currentPos, nextPos);
-          const speedMetersPerSec = (effectiveSpeedKmH * 1000) / 3600;
+          const speedMetersPerSec = (effSpeed * 1000) / 3600;
           if (speedMetersPerSec > 0) { delay = (distMeters / speedMetersPerSec) * 1000; }
         } catch {
           // 좌표 형식 오류 시 기본 delay 유지
@@ -2205,7 +2240,7 @@ const App: React.FC = () => {
       if (delay < 50) delay = 50;
       timer = window.setTimeout(() => { setSimulation(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 })); }, delay);
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, effectiveSpeedKmH, isSvFullScreen, isSvActive]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, isSvFullScreen, isSvActive]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -3964,7 +3999,7 @@ const App: React.FC = () => {
           className="text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current speed"
         >
-          {effectiveSpeedKmH < 0.05 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
+          {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
         </span>
         <span
           className="mt-0.5 text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
