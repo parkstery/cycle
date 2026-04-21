@@ -71,8 +71,9 @@ export function pickRpmForIntensity(s: BleSnapshot, prefs: IndoorSensorPrefs, st
     else if (sv) pick = wheelRpm;
     else if (wheelProxyFromCadence != null) pick = wheelProxyFromCadence;
   } else {
-    if (sv) pick = wheelRpm;
-    else if (cv) pick = cadScaled;
+    // Auto mode defaults to cadence-first for indoor bikes where wheel channel can be absent/noisy.
+    if (cv) pick = cadScaled;
+    else if (sv) pick = wheelRpm;
     else if (wheelProxyFromCadence != null) pick = wheelProxyFromCadence;
   }
 

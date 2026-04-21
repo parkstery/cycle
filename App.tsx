@@ -373,6 +373,7 @@ const App: React.FC = () => {
   const [sensorPrefs, setSensorPrefs] = useState(() => loadIndoorSensorPrefs());
   const [sensorsModalOpen, setSensorsModalOpen] = useState(false);
   const [effectiveSpeedKmH, setEffectiveSpeedKmH] = useState(20);
+  const [currentRpm, setCurrentRpm] = useState<number | null>(null);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   const sensorMergeStateRef = useRef(createDualMergeState());
   const sensorPrefsRef = useRef(sensorPrefs);
@@ -381,8 +382,15 @@ const App: React.FC = () => {
   speedKmHRef.current = speedKmH;
   /** EMA(alpha=0.2) of RPM used for intensity */
   const sensorRpmEmaRef = useRef<number | null>(null);
+  const sensorLastValidRpmRef = useRef<number | null>(null);
+  const sensorLastValidRpmAtRef = useRef(0);
+  const sensorBelowMoveThresholdSinceRef = useRef<number | null>(null);
   const sensorCapacityLiveRef = useRef(90);
   const sensorCapacitySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SENSOR_RPM_HOLD_MS = 2600;
+  const SENSOR_MOVE_STOP_KMH = 0.2;
+  const SENSOR_STOP_GRACE_MS = 2200;
+  const SENSOR_PEDALING_RPM_THRESHOLD = 8;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
@@ -658,7 +666,10 @@ const App: React.FC = () => {
       const base = speedKmHRef.current;
       if (!p.sensorDriveEnabled) {
         sensorRpmEmaRef.current = null;
+        sensorLastValidRpmRef.current = null;
+        sensorLastValidRpmAtRef.current = 0;
         setEffectiveSpeedKmH(base);
+        setCurrentRpm(null);
         setSensorHubConnected(hub.connectedCount() > 0);
         return;
       }
@@ -671,13 +682,26 @@ const App: React.FC = () => {
         saveIndoorSensorPrefs(next);
       });
 
-      const raw = pickRpmForIntensity(snap, p, sensorMergeStateRef.current);
+      const now = Date.now();
+      const picked = pickRpmForIntensity(snap, p, sensorMergeStateRef.current);
+      let raw = picked;
+      if (
+        (raw == null || raw <= 0) &&
+        sensorLastValidRpmRef.current != null &&
+        now - sensorLastValidRpmAtRef.current <= SENSOR_RPM_HOLD_MS
+      ) {
+        raw = sensorLastValidRpmRef.current;
+      }
+      if (raw != null && raw > 0) {
+        sensorLastValidRpmRef.current = raw;
+        sensorLastValidRpmAtRef.current = now;
+      }
       const prevEma = sensorRpmEmaRef.current;
       let ema: number | null;
       if (raw != null && raw > 0) {
         ema = prevEma == null ? raw : 0.2 * raw + 0.8 * prevEma;
       } else {
-        ema = prevEma == null ? null : prevEma * 0.88;
+        ema = prevEma == null ? null : prevEma * 0.94;
       }
       sensorRpmEmaRef.current = ema;
 
@@ -689,6 +713,7 @@ const App: React.FC = () => {
       }
 
       setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
+      setCurrentRpm(ema != null && ema > 0 ? ema : null);
     });
   }, [scheduleSensorCapacityPersist]);
 
@@ -2116,8 +2141,18 @@ const App: React.FC = () => {
           }
         })();
       }
-      if (effectiveSpeedKmH <= 0.5) {
-        return () => clearTimeout(0);
+      const sensorDriveOn = sensorPrefsRef.current.sensorDriveEnabled;
+      const emaRpm = sensorRpmEmaRef.current ?? 0;
+      const pedalingActive = sensorDriveOn && emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
+      const keepMoving = effectiveSpeedKmH > SENSOR_MOVE_STOP_KMH || pedalingActive;
+      if (keepMoving) {
+        sensorBelowMoveThresholdSinceRef.current = null;
+      } else {
+        if (sensorBelowMoveThresholdSinceRef.current == null) {
+          sensorBelowMoveThresholdSinceRef.current = Date.now();
+        } else if (Date.now() - sensorBelowMoveThresholdSinceRef.current >= SENSOR_STOP_GRACE_MS) {
+          return () => clearTimeout(0);
+        }
       }
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];
@@ -3866,6 +3901,34 @@ const App: React.FC = () => {
         )}
       </div>
 
+      {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
+      <div
+        className="fixed z-[1000] flex flex-col items-end leading-none pointer-events-none select-none"
+        style={{
+          right: 'calc(env(safe-area-inset-right, 0px) + 4rem + 2.4rem + 0.5rem)',
+          top: SAFE_TOP_1REM,
+        }}
+      >
+        <span
+          className="text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          title="Current speed"
+        >
+          {effectiveSpeedKmH < 0.05 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
+        </span>
+        <span
+          className="mt-0.5 text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          title="Average speed"
+        >
+          {(elapsedTime > 0 ? (coveredDistance / 1000) / (elapsedTime / 3600) : 0).toFixed(1)} km/h
+        </span>
+        <span
+          className="mt-0.5 text-[12px] font-black text-red-500 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          title="Current RPM"
+        >
+          {currentRpm != null && currentRpm > 0 ? Math.round(currentRpm) : '—'} RPM
+        </span>
+      </div>
+
       <div
         className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
         style={{
@@ -4176,14 +4239,6 @@ const App: React.FC = () => {
                             className={`text-[10px] text-blue-600 font-bold leading-none [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff] ${simulation.isActive ? 'animate-pulse' : ''}`}
                           >
                             {formatTime(elapsedTime)}
-                          </span>
-                        )}
-                        {sensorPrefs.sensorDriveEnabled && (simulation.isActive || elapsedTime > 0) && (
-                          <span
-                            className="mt-0.5 block text-[11px] font-black text-sky-700 tabular-nums leading-none [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff]"
-                            title="Speed from sensors (simulation)"
-                          >
-                            {effectiveSpeedKmH < 0.05 ? '0' : effectiveSpeedKmH.toFixed(1)} km/h
                           </span>
                         )}
                       </div>

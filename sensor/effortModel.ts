@@ -18,12 +18,13 @@ export function initialCapacityFromTestRpm(testAvgRpm: number): number {
 }
 
 /**
- * Free-tier linear intensity curve: f(x) = 0.7 + 0.6 * x
+ * Linear intensity curve.
  * x = current_rpm / capacity (intensity).
  */
 export function fIntensity(intensity: number): number {
-  const x = Math.min(1.6, Math.max(0, intensity));
-  return 0.7 + 0.6 * x;
+  // Expand the high-intensity headroom so users do not hit an early ceiling (e.g. ~26.6 km/h).
+  const x = Math.min(2.4, Math.max(0, intensity));
+  return 0.55 + 0.95 * x;
 }
 
 /**
