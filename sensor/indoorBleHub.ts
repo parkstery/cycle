@@ -110,6 +110,8 @@ function parseCscMeasurement(
 
 type Listener = () => void;
 
+type AutoConnectPhase = 'idle' | 'scanning' | 'connecting' | 'waiting';
+
 class IndoorBleHubImpl {
   private initPromise: Promise<void> | null = null;
   private listeners = new Set<Listener>();
@@ -127,6 +129,14 @@ class IndoorBleHubImpl {
 
   private notifyStops = new Map<string, Array<{ service: string; characteristic: string }>>();
   private lastSensorPacketAtMs = 0;
+
+  /** deviceId -> display name of sensors we want to keep reconnecting to. */
+  private reconnectWanted = new Map<string, string>();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectBackoffIdx = 0;
+  private autoConnectInFlight = false;
+  private autoConnectPhase: AutoConnectPhase = 'idle';
+  private allowUnknownConnect = false;
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -274,9 +284,13 @@ class IndoorBleHubImpl {
       throw new Error('At most two sensors can be connected. Disconnect one first.');
     }
 
-    await BleClient.connect(deviceId, (id) => this.handleDisconnect(id));
+    await BleClient.connect(deviceId, (id) => {
+      void this.handleDisconnect(id);
+    });
     this.deviceNames.set(deviceId, advertisedName);
     if (!this.order.includes(deviceId)) this.order.push(deviceId);
+    this.reconnectWanted.set(deviceId, advertisedName);
+    this.reconnectBackoffIdx = 0;
     this.crankPrev.set(deviceId, null);
     this.wheelPrev.set(deviceId, null);
     this.ensureSmooth(deviceId);
@@ -339,8 +353,18 @@ class IndoorBleHubImpl {
   }
 
   private async handleDisconnect(deviceId: string): Promise<void> {
+    const savedName = this.deviceNames.get(deviceId);
     await this.cleanupDevice(deviceId, false);
     this.emit();
+    if (savedName && this.reconnectWanted.has(deviceId)) {
+      // Refresh name in case it was cleared by cleanup.
+      this.reconnectWanted.set(deviceId, savedName);
+    }
+    if (this.reconnectWanted.size > 0 || this.allowUnknownConnect) {
+      // Give the sensor a short moment to settle before the first retry.
+      this.reconnectBackoffIdx = 0;
+      this.scheduleReconnectLoop(2500);
+    }
   }
 
   private async cleanupDevice(deviceId: string, disconnectRemote: boolean): Promise<void> {
@@ -368,48 +392,256 @@ class IndoorBleHubImpl {
   }
 
   async disconnect(deviceId: string): Promise<void> {
+    // Explicit user disconnect: forget auto-reconnect intent for this device.
+    this.reconnectWanted.delete(deviceId);
+    if (this.reconnectWanted.size === 0) {
+      this.allowUnknownConnect = false;
+      this.clearReconnectTimer();
+      this.setAutoPhase('idle');
+    }
     await this.cleanupDevice(deviceId, true);
     this.emit();
   }
 
   async disconnectAll(): Promise<void> {
     const ids = [...this.order];
+    this.reconnectWanted.clear();
+    this.clearReconnectTimer();
     for (const id of ids) {
       await this.cleanupDevice(id, true);
     }
     this.emit();
   }
 
+  isAutoConnecting(): boolean {
+    return this.autoConnectPhase !== 'idle';
+  }
+
+  getAutoConnectPhase(): AutoConnectPhase {
+    return this.autoConnectPhase;
+  }
+
+  private setAutoPhase(p: AutoConnectPhase) {
+    if (this.autoConnectPhase === p) return;
+    this.autoConnectPhase = p;
+    this.lastNotify = 0;
+    this.emit();
+  }
+
+  /** Wanted ids (for external inspection). */
+  getReconnectWanted(): Array<{ deviceId: string; name: string }> {
+    return [...this.reconnectWanted.entries()].map(([deviceId, name]) => ({ deviceId, name }));
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
   /**
-   * Best-effort silent reconnect to previously paired sensors.
-   * - Never throws; unreachable devices are skipped.
-   * - Skips devices already connected.
-   * - Per-device timeout (default 10s) so a powered-off trainer cannot hang startup.
-   * Returns the list of deviceIds that ended up connected (including pre-existing ones).
+   * Scan-first auto-connect. Call this on app launch, after manual connect, and whenever a
+   * previously paired device drops.
+   *
+   * - savedDevices: previously paired sensors (priority, in order).
+   * - options.allowUnknown: when true AND savedDevices is empty, auto-connects to the first
+   *   discovered CSC/FTMS device (used for the very first app launch).
+   * - options.scanDurationMs: maximum scan window. Resolves earlier as soon as a saved device
+   *   appears in the scan results.
+   * - Never throws. Failures (BT off, permissions, no device in range) leave the hub idle.
+   *
+   * Returns the list of deviceIds that ended up connected.
    */
   async tryAutoReconnect(
-    devices: Array<{ deviceId: string; name: string }>,
-    timeoutMs = 10000
+    savedDevices: Array<{ deviceId: string; name: string }>,
+    options: { allowUnknown?: boolean; scanDurationMs?: number } = {}
   ): Promise<string[]> {
-    if (!devices || devices.length === 0) return [];
+    const scanDurationMs = options.scanDurationMs ?? 12000;
+    const allowUnknown = options.allowUnknown ?? false;
+
+    if (this.autoConnectInFlight) return [...this.order];
+    if (this.order.length >= 2) return [...this.order];
+
+    this.autoConnectInFlight = true;
     try {
-      await this.initialize();
-    } catch {
-      return [...this.order];
-    }
-    for (const d of devices) {
-      if (this.order.length >= 2) break;
-      if (this.order.includes(d.deviceId)) continue;
       try {
-        await Promise.race([
-          this.connect(d.deviceId, d.name),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('auto-reconnect timeout')), timeoutMs)),
-        ]);
+        await this.initialize();
       } catch {
-        // swallow: device may be off / out of range / unpaired
+        return [...this.order];
       }
+
+      const savedSet = new Set(savedDevices.map((d) => d.deviceId));
+      const savedMap = new Map(savedDevices.map((d) => [d.deviceId, d.name]));
+      const foundDuringScan = new Map<string, { name: string; rssi: number }>();
+
+      if (this.scanning) {
+        try {
+          await this.stopScan();
+        } catch {
+          // ignore
+        }
+      }
+
+      this.setAutoPhase('scanning');
+      try {
+        this.scanning = true;
+        this.scanHits.clear();
+        this.emit();
+        await BleClient.requestLEScan({ services: [CSC_SERVICE, FTMS_SERVICE] }, (result) => {
+          const id = result.device.deviceId;
+          const name = result.localName ?? result.device.name ?? savedMap.get(id) ?? 'Sensor';
+          const prev = this.scanHits.get(id);
+          const rssi = result.rssi ?? prev?.rssi ?? 0;
+          this.scanHits.set(id, { name, rssi });
+          foundDuringScan.set(id, { name, rssi });
+          this.emit();
+        });
+      } catch {
+        try {
+          await this.stopScan();
+        } catch {
+          // ignore
+        }
+        this.setAutoPhase('idle');
+        return [...this.order];
+      }
+
+      await new Promise<void>((resolve) => {
+        const start = Date.now();
+        const poll = () => {
+          for (const id of savedSet) {
+            if (foundDuringScan.has(id)) return resolve();
+          }
+          if (savedSet.size === 0 && allowUnknown && foundDuringScan.size > 0 && Date.now() - start > 3000) {
+            return resolve();
+          }
+          if (Date.now() - start > scanDurationMs) return resolve();
+          setTimeout(poll, 400);
+        };
+        poll();
+      });
+
+      try {
+        await this.stopScan();
+      } catch {
+        // ignore
+      }
+
+      const candidates: Array<{ deviceId: string; name: string }> = [];
+      for (const d of savedDevices) {
+        if (foundDuringScan.has(d.deviceId)) {
+          const hit = foundDuringScan.get(d.deviceId)!;
+          candidates.push({ deviceId: d.deviceId, name: d.name || hit.name });
+        }
+      }
+      if (candidates.length === 0 && allowUnknown && savedDevices.length === 0) {
+        const byRssi = [...foundDuringScan.entries()]
+          .map(([deviceId, v]) => ({ deviceId, name: v.name, rssi: v.rssi }))
+          .sort((a, b) => b.rssi - a.rssi);
+        if (byRssi.length > 0) {
+          candidates.push({ deviceId: byRssi[0].deviceId, name: byRssi[0].name });
+        }
+      }
+
+      if (candidates.length === 0) {
+        this.setAutoPhase('idle');
+        return [...this.order];
+      }
+
+      this.setAutoPhase('connecting');
+      for (const c of candidates) {
+        if (this.order.length >= 2) break;
+        if (this.order.includes(c.deviceId)) continue;
+        try {
+          await Promise.race([
+            this.connect(c.deviceId, c.name),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('auto-connect timeout')), 12000)
+            ),
+          ]);
+          this.reconnectBackoffIdx = 0;
+        } catch {
+          // next candidate / give up
+        }
+      }
+
+      this.setAutoPhase('idle');
+      return [...this.order];
+    } finally {
+      this.autoConnectInFlight = false;
     }
-    return [...this.order];
+  }
+
+  /**
+   * Declare intent to keep sensors connected. Call after manual connect or at app start.
+   * Triggers the retry loop if any requested device is currently missing.
+   */
+  requestPersistentConnection(
+    devices: Array<{ deviceId: string; name: string }>,
+    options: { allowUnknown?: boolean } = {}
+  ): void {
+    this.allowUnknownConnect = options.allowUnknown === true || this.allowUnknownConnect;
+    for (const d of devices) {
+      if (d.deviceId) this.reconnectWanted.set(d.deviceId, d.name || this.deviceNames.get(d.deviceId) || 'Sensor');
+    }
+    this.scheduleReconnectLoop(0);
+  }
+
+  /** Disable auto-reconnect entirely (e.g. user toggled off in settings). */
+  stopPersistentConnection(): void {
+    this.reconnectWanted.clear();
+    this.allowUnknownConnect = false;
+    this.clearReconnectTimer();
+    this.setAutoPhase('idle');
+  }
+
+  private scheduleReconnectLoop(delayMs?: number): void {
+    this.clearReconnectTimer();
+    const needsWork =
+      this.reconnectWanted.size > 0 || (this.allowUnknownConnect && this.order.length === 0);
+    if (!needsWork) {
+      this.setAutoPhase('idle');
+      return;
+    }
+
+    const backoffs = [0, 4000, 8000, 16000, 30000, 60000];
+    const wait = delayMs ?? backoffs[Math.min(this.reconnectBackoffIdx, backoffs.length - 1)];
+    this.setAutoPhase(wait > 0 ? 'waiting' : 'scanning');
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.runReconnectAttempt();
+    }, wait);
+  }
+
+  private async runReconnectAttempt(): Promise<void> {
+    const wanted = [...this.reconnectWanted.entries()].map(([deviceId, name]) => ({ deviceId, name }));
+    const missing = wanted.filter((w) => !this.order.includes(w.deviceId));
+    const needUnknown = this.allowUnknownConnect && this.order.length === 0 && wanted.length === 0;
+
+    if (missing.length === 0 && !needUnknown) {
+      this.reconnectBackoffIdx = 0;
+      this.setAutoPhase('idle');
+      return;
+    }
+
+    try {
+      await this.tryAutoReconnect(missing, { allowUnknown: needUnknown, scanDurationMs: 10000 });
+    } catch {
+      // ignore
+    }
+
+    const stillMissing =
+      [...this.reconnectWanted.keys()].some((id) => !this.order.includes(id)) ||
+      (this.allowUnknownConnect && this.order.length === 0);
+    if (stillMissing) {
+      this.reconnectBackoffIdx = Math.min(this.reconnectBackoffIdx + 1, 5);
+      this.scheduleReconnectLoop();
+    } else {
+      this.reconnectBackoffIdx = 0;
+      this.setAutoPhase('idle');
+    }
   }
 
   hasLiveCadenceOrPower(): boolean {

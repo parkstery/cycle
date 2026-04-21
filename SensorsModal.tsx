@@ -5,7 +5,7 @@ import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
 import { upsertSavedDevice, removeSavedDevice } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
-type ConnState = 'disconnected' | 'scanning' | 'connected';
+type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
 
 const FITNESS_OPTIONS: { id: FitnessLevel; label: string }[] = [
   { id: 'frail', label: 'Light' },
@@ -54,12 +54,14 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const connected = hub.getConnected();
   const scanning = hub.isScanning();
   const scanList = hub.listScanResults();
+  const autoPhase = hub.getAutoConnectPhase();
 
   const connState: ConnState = useMemo(() => {
-    if (scanning) return 'scanning';
     if (connected.length > 0) return 'connected';
+    if (scanning) return 'scanning';
+    if (autoPhase !== 'idle') return 'reconnecting';
     return 'disconnected';
-  }, [scanning, connected.length]);
+  }, [scanning, connected.length, autoPhase]);
 
   const snap = hub.buildSnapshot();
   const rpmDisplay = snap.cadenceRpm != null ? Math.round(snap.cadenceRpm) : '—';
@@ -93,6 +95,9 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
       const cur = prefsRef.current;
       const nextList = upsertSavedDevice(cur.lastConnectedDevices, { deviceId, name });
       onChangePrefs({ ...cur, lastConnectedDevices: nextList });
+      if (cur.autoReconnectEnabled) {
+        hub.requestPersistentConnection([{ deviceId, name }]);
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connection failed.';
       if (/zwift|busy|133|0x85|timeout/i.test(msg)) {
@@ -166,6 +171,12 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
   const setAutoReconnect = (autoReconnectEnabled: boolean) => {
     onChangePrefs({ ...prefsRef.current, autoReconnectEnabled });
+    if (!autoReconnectEnabled) {
+      hub.stopPersistentConnection();
+    } else {
+      const saved = prefsRef.current.lastConnectedDevices ?? [];
+      hub.requestPersistentConnection(saved, { allowUnknown: saved.length === 0 });
+    }
   };
 
   const forgetSavedDevice = (deviceId: string) => {
@@ -175,6 +186,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
   const forgetAllSavedDevices = () => {
     onChangePrefs({ ...prefsRef.current, lastConnectedDevices: [] });
+    hub.stopPersistentConnection();
   };
 
   const setFitnessLevel = (fitnessLevel: FitnessLevel) => {
@@ -232,7 +244,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             <div className="flex flex-wrap items-center gap-2 text-[12px]">
               {connState === 'connected' ? (
                 <Bluetooth size={16} className="text-emerald-600 shrink-0" />
-              ) : connState === 'scanning' ? (
+              ) : connState === 'scanning' || connState === 'reconnecting' ? (
                 <Bluetooth size={16} className="text-amber-500 animate-pulse shrink-0" />
               ) : (
                 <BluetoothOff size={16} className="text-slate-400 shrink-0" />
@@ -240,6 +252,8 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <span className="min-w-0">
                 {connState === 'disconnected' && 'Disconnected'}
                 {connState === 'scanning' && 'Scanning…'}
+                {connState === 'reconnecting' &&
+                  (autoPhase === 'connecting' ? 'Connecting…' : autoPhase === 'waiting' ? 'Waiting for sensor…' : 'Auto-scanning…')}
                 {connState === 'connected' && `Connected (${connected.length})`}
               </span>
               <div className="flex items-center gap-1.5 shrink-0">

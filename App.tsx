@@ -656,20 +656,27 @@ const App: React.FC = () => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
   }, []);
 
-  // Phase 1: silent auto-reconnect to previously paired sensors on app launch.
-  // Runs once after mount. Failures (BT off, trainer not powered, etc.) are ignored.
+  // Silent auto-connect to sensors on app launch.
+  // - If user has paired sensors before, scan-then-connect to them as soon as they advertise.
+  // - If this is the very first launch (no saved devices), scan briefly and auto-connect to the
+  //   first CSC/FTMS sensor that shows up. Avoids forcing the user into the Sensors modal.
+  // - A background retry loop keeps trying whenever the sensor drops and re-advertises
+  //   (e.g., cadence sensor sleeps between rides and wakes up on the next pedal stroke).
   useEffect(() => {
     const p = sensorPrefsRef.current;
     if (!p.autoReconnectEnabled) return;
-    if (!p.lastConnectedDevices || p.lastConnectedDevices.length === 0) return;
     const hub = getIndoorBleHub();
+    const savedDevices = p.lastConnectedDevices ?? [];
+    const allowUnknown = savedDevices.length === 0;
+
+    hub.requestPersistentConnection(savedDevices, { allowUnknown });
     hub
-      .tryAutoReconnect(p.lastConnectedDevices)
+      .tryAutoReconnect(savedDevices, { allowUnknown, scanDurationMs: 12000 })
       .then(() => {
         setSensorHubConnected(hub.connectedCount() > 0);
       })
       .catch(() => {
-        // silent — user can open the Sensors modal to connect manually
+        // Silent: user can still open the Sensors modal to connect manually.
       });
   }, []);
 
