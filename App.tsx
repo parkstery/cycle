@@ -4178,6 +4178,14 @@ const App: React.FC = () => {
                             {formatTime(elapsedTime)}
                           </span>
                         )}
+                        {sensorPrefs.sensorDriveEnabled && (simulation.isActive || elapsedTime > 0) && (
+                          <span
+                            className="mt-0.5 block text-[11px] font-black text-sky-700 tabular-nums leading-none [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff]"
+                            title="Speed from sensors (simulation)"
+                          >
+                            {effectiveSpeedKmH < 0.05 ? '0' : effectiveSpeedKmH.toFixed(1)} km/h
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -51,11 +51,21 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
       capacityRpm = calibrationAvgRpm / 0.9;
     }
 
+    let preferredRideMode: RideMode = DEFAULT_INDOOR_SENSOR_PREFS.preferredRideMode;
+    if (o.preferredRideMode === 'sensor' || o.preferredRideMode === 'manual') {
+      preferredRideMode = o.preferredRideMode;
+    } else if (o.sensorDriveEnabled === true) {
+      preferredRideMode = 'sensor';
+    }
+
+    const sensorDriveEnabled =
+      typeof o.sensorDriveEnabled === 'boolean' ? o.sensorDriveEnabled : preferredRideMode === 'sensor';
+
     return {
       ...DEFAULT_INDOOR_SENSOR_PREFS,
       ...o,
-      sensorDriveEnabled: o.preferredRideMode === 'sensor' ? true : o.preferredRideMode === 'manual' ? false : o.sensorDriveEnabled === true,
-      preferredRideMode: o.preferredRideMode === 'sensor' ? 'sensor' : 'manual',
+      sensorDriveEnabled,
+      preferredRideMode,
       fitnessLevel,
       speedCadenceBlendMode:
         o.speedCadenceBlendMode === 'speed' || o.speedCadenceBlendMode === 'cadence'

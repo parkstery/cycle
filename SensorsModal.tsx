@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
-import type { FitnessLevel, IndoorSensorPrefs, RideMode } from './sensor/sensorPrefs';
+import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected';
@@ -168,8 +168,11 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     onChangePrefs({ ...prefsRef.current, sensorDriveEnabled });
   };
 
-  const setPreferredRideMode = (mode: RideMode) => {
-    onChangePrefs({ ...prefsRef.current, preferredRideMode: mode, sensorDriveEnabled: mode === 'sensor' });
+  const saveCurrentModeAsDefault = () => {
+    onChangePrefs({
+      ...prefsRef.current,
+      preferredRideMode: prefsRef.current.sensorDriveEnabled ? 'sensor' : 'manual',
+    });
   };
 
   const onBackdrop = useCallback(
@@ -209,7 +212,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
           <section>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">1) Scan & connect</div>
-            <div className="flex items-center gap-2 text-[12px]">
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
               {connState === 'connected' ? (
                 <Bluetooth size={16} className="text-emerald-600 shrink-0" />
               ) : connState === 'scanning' ? (
@@ -217,20 +220,41 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               ) : (
                 <BluetoothOff size={16} className="text-slate-400 shrink-0" />
               )}
-              <span>
+              <span className="min-w-0">
                 {connState === 'disconnected' && 'Disconnected'}
                 {connState === 'scanning' && 'Scanning…'}
                 {connState === 'connected' && `Connected (${connected.length})`}
               </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void handleScan()}
+                  disabled={scanning}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 text-white text-[10px] font-bold disabled:opacity-50"
+                >
+                  <Scan size={13} />
+                  {scanning ? 'Scanning…' : 'Scan'}
+                </button>
+                {scanning && (
+                  <button
+                    type="button"
+                    className="text-[10px] font-bold text-slate-600 px-2 py-1 rounded-md border border-slate-200 bg-white"
+                    onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}
+                  >
+                    Stop
+                  </button>
+                )}
+              </div>
             </div>
+
             {connected.length > 0 && (
-              <ul className="mt-1 space-y-1">
+              <ul className="mt-1.5 space-y-1">
                 {connected.map((c) => (
-                  <li key={c.deviceId} className="flex items-center justify-between gap-2 bg-slate-50 rounded px-2 py-1">
-                    <span className="truncate font-medium text-[11px]">{c.name}</span>
+                  <li key={c.deviceId} className="flex items-center gap-1.5 bg-slate-50 rounded-md px-2 py-1 min-w-0">
+                    <span className="truncate font-medium text-[11px] text-slate-800 flex-1 min-w-0">{c.name}</span>
                     <button
                       type="button"
-                      className="text-[10px] font-bold text-red-600 hover:underline shrink-0"
+                      className="shrink-0 text-[10px] font-bold text-red-700 bg-white border border-red-200 rounded-md px-2 py-0.5 active:scale-[0.98]"
                       onClick={() => void handleDisconnect(c.deviceId)}
                     >
                       Disconnect
@@ -239,21 +263,65 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                 ))}
               </ul>
             )}
+
+            {scanList.length > 0 && (
+              <ul className="mt-1.5 max-h-28 overflow-y-auto border border-slate-100 rounded-md divide-y divide-slate-100">
+                {scanList.map((d) => (
+                  <li key={d.deviceId} className="flex items-center gap-1.5 px-2 py-1 min-w-0">
+                    <span className="truncate text-[11px] font-medium text-slate-800 flex-1 min-w-0">{d.name}</span>
+                    <button
+                      type="button"
+                      disabled={connected.some((c) => c.deviceId === d.deviceId)}
+                      className="shrink-0 text-[10px] font-bold text-blue-700 bg-white border border-blue-200 rounded-md px-2 py-0.5 disabled:text-slate-400 disabled:border-slate-100 active:scale-[0.98]"
+                      onClick={() => void handleConnect(d.deviceId, d.name)}
+                    >
+                      Connect
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {!scanning && scanList.length === 0 && connected.length === 0 && (
+              <p className="text-[10px] text-slate-400 mt-1 leading-snug">Tap Scan, then Connect next to your sensor or trainer.</p>
+            )}
+
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Live</div>
+              <div className="flex items-baseline gap-3">
+                <div>
+                  <span className="text-[24px] font-black text-slate-900 tabular-nums">{rpmDisplay}</span>
+                  <span className="text-[10px] font-bold text-slate-500 ml-1">RPM</span>
+                </div>
+                {wattDisplay != null && (
+                  <div>
+                    <span className="text-[16px] font-black text-slate-800 tabular-nums">{wattDisplay}</span>
+                    <span className="text-[10px] font-bold text-slate-500 ml-1">W</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
+
+          {dualBadge && (
+            <div className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-2 py-1">
+              Dual sensors: speed + cadence
+            </div>
+          )}
 
           <section>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">2) Ride mode</div>
-            <p className="text-[10px] text-slate-500 leading-snug mb-2">
-              Default app mode is <strong>manual speed</strong>. You can switch now and save your own default mode.
+            <p className="text-[10px] text-slate-500 leading-snug mb-1.5">
+              Default app mode is <strong>manual speed</strong>. Switch for this session, then save your default if you want.
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
-                className={`py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                className={`min-h-[2.5rem] px-1.5 py-1.5 rounded-lg text-[10px] font-bold border text-center leading-tight transition-colors ${
                   !prefs.sensorDriveEnabled
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 Manual speed
@@ -261,21 +329,18 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <button
                 type="button"
                 onClick={() => setSensorDrive(true)}
-                className={`py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                className={`min-h-[2.5rem] px-1.5 py-1.5 rounded-lg text-[10px] font-bold border text-center leading-tight transition-colors ${
                   prefs.sensorDriveEnabled
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-emerald-100 text-emerald-950 border-emerald-500 ring-2 ring-emerald-400 shadow-sm'
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
                 }`}
+                style={prefs.sensorDriveEnabled ? { color: '#022c22', WebkitTextFillColor: '#022c22' } : undefined}
               >
                 Sensor-based ride
               </button>
             </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <button
-                type="button"
-                className="text-[10px] font-bold text-blue-600 underline"
-                onClick={() => setPreferredRideMode(prefs.sensorDriveEnabled ? 'sensor' : 'manual')}
-              >
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <button type="button" className="text-[10px] font-bold text-blue-600 underline" onClick={saveCurrentModeAsDefault}>
                 Set current mode as default
               </button>
               <span className="text-[10px] text-slate-400">
@@ -288,78 +353,18 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleScan()}
-                disabled={scanning}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-[11px] font-bold disabled:opacity-50"
-              >
-                <Scan size={14} />
-                {scanning ? 'Scanning…' : 'Scan'}
-              </button>
-              {scanning && (
-                <button type="button" className="text-[11px] text-slate-500 underline" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
-                  Stop scan
-                </button>
-              )}
-            </div>
-            {scanList.length > 0 && (
-              <ul className="mt-2 max-h-32 overflow-y-auto border border-slate-100 rounded divide-y divide-slate-100">
-                {scanList.map((d) => (
-                  <li key={d.deviceId} className="flex items-center justify-between px-2 py-1 gap-2">
-                    <span className="truncate text-[11px] font-medium">{d.name}</span>
-                    <button
-                      type="button"
-                      disabled={connected.some((c) => c.deviceId === d.deviceId)}
-                      className="text-[10px] font-bold text-blue-600 disabled:text-slate-300 shrink-0"
-                      onClick={() => void handleConnect(d.deviceId, d.name)}
-                    >
-                      Connect
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {!scanning && scanList.length === 0 && (
-              <p className="text-[10px] text-slate-400 mt-1">No devices in list yet. Tap Scan, then choose your sensor or trainer.</p>
-            )}
-          </section>
-
-          <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Live</div>
-            <div className="flex items-baseline gap-3">
-              <div>
-                <span className="text-[28px] font-black text-slate-900 tabular-nums">{rpmDisplay}</span>
-                <span className="text-[11px] font-bold text-slate-500 ml-1">RPM</span>
-              </div>
-              {wattDisplay != null && (
-                <div>
-                  <span className="text-[18px] font-black text-slate-800 tabular-nums">{wattDisplay}</span>
-                  <span className="text-[11px] font-bold text-slate-500 ml-1">W</span>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {dualBadge && (
-            <div className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-2 py-1">
-              Dual sensors: speed + cadence
-            </div>
-          )}
-
-          <section>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">3) Fitness (base pace)</div>
             <p className="text-[10px] text-slate-500 leading-snug mb-1">How you would describe your usual stamina — this sets the baseline when using sensors.</p>
-            <div className="grid grid-cols-2 gap-1">
+            <div className="grid grid-cols-4 gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setFitnessLevel(id)}
-                  className={`py-1.5 rounded text-[10px] font-bold border ${
-                    prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'
+                  className={`py-1 px-0.5 rounded-md text-[9px] font-bold border leading-tight ${
+                    prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                   }`}
+                  style={prefs.fitnessLevel === id ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
                 >
                   {label}
                 </button>
