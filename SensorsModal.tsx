@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
+import { upsertSavedDevice, removeSavedDevice } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected';
@@ -89,6 +90,9 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     try {
       await hub.stopScan();
       await hub.connect(deviceId, name);
+      const cur = prefsRef.current;
+      const nextList = upsertSavedDevice(cur.lastConnectedDevices, { deviceId, name });
+      onChangePrefs({ ...cur, lastConnectedDevices: nextList });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connection failed.';
       if (/zwift|busy|133|0x85|timeout/i.test(msg)) {
@@ -158,6 +162,19 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
   const setBlendMode = (speedCadenceBlendMode: IndoorSensorPrefs['speedCadenceBlendMode']) => {
     onChangePrefs({ ...prefsRef.current, speedCadenceBlendMode });
+  };
+
+  const setAutoReconnect = (autoReconnectEnabled: boolean) => {
+    onChangePrefs({ ...prefsRef.current, autoReconnectEnabled });
+  };
+
+  const forgetSavedDevice = (deviceId: string) => {
+    const cur = prefsRef.current;
+    onChangePrefs({ ...cur, lastConnectedDevices: removeSavedDevice(cur.lastConnectedDevices, deviceId) });
+  };
+
+  const forgetAllSavedDevices = () => {
+    onChangePrefs({ ...prefsRef.current, lastConnectedDevices: [] });
   };
 
   const setFitnessLevel = (fitnessLevel: FitnessLevel) => {
@@ -427,14 +444,58 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               Advanced
             </button>
             {advancedOpen && (
-              <div className="mt-2 space-y-1 pl-1 border-l-2 border-slate-100">
-                <p className="text-[10px] text-slate-500 mb-1">Speed / cadence merge priority</p>
-                {(['auto', 'speed', 'cadence'] as const).map((m) => (
-                  <label key={m} className="flex items-center gap-2 text-[11px] cursor-pointer">
-                    <input type="radio" name="blend" checked={prefs.speedCadenceBlendMode === m} onChange={() => setBlendMode(m)} />
-                    <span>{m === 'auto' ? 'Auto (default)' : m === 'speed' ? 'Speed priority' : 'Cadence priority'}</span>
+              <div className="mt-2 space-y-3 pl-1 border-l-2 border-slate-100">
+                <div>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={prefs.autoReconnectEnabled}
+                      onChange={(e) => setAutoReconnect(e.target.checked)}
+                    />
+                    <span className="font-semibold text-slate-700">Auto-reconnect on app launch</span>
                   </label>
-                ))}
+                  <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                    Silently reconnects to the last used sensors when the app opens. No buttons needed.
+                  </p>
+                  {prefs.lastConnectedDevices.length > 0 && (
+                    <div className="mt-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-slate-500">Saved sensors</p>
+                        <button
+                          type="button"
+                          className="text-[10px] font-bold text-red-600 underline"
+                          onClick={forgetAllSavedDevices}
+                        >
+                          Forget all
+                        </button>
+                      </div>
+                      <ul className="mt-1 space-y-1">
+                        {prefs.lastConnectedDevices.map((d) => (
+                          <li key={d.deviceId} className="flex items-center gap-1.5 bg-slate-50 rounded-md px-2 py-1 min-w-0">
+                            <span className="truncate text-[11px] text-slate-800 flex-1 min-w-0">{d.name}</span>
+                            <button
+                              type="button"
+                              className="shrink-0 text-[10px] font-bold text-slate-600 bg-white border border-slate-200 rounded-md px-2 py-0.5 active:scale-[0.98]"
+                              onClick={() => forgetSavedDevice(d.deviceId)}
+                            >
+                              Forget
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-1">Speed / cadence merge priority</p>
+                  {(['auto', 'speed', 'cadence'] as const).map((m) => (
+                    <label key={m} className="flex items-center gap-2 text-[11px] cursor-pointer">
+                      <input type="radio" name="blend" checked={prefs.speedCadenceBlendMode === m} onChange={() => setBlendMode(m)} />
+                      <span>{m === 'auto' ? 'Auto (default)' : m === 'speed' ? 'Speed priority' : 'Cadence priority'}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </section>

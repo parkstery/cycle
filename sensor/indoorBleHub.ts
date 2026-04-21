@@ -380,6 +380,38 @@ class IndoorBleHubImpl {
     this.emit();
   }
 
+  /**
+   * Best-effort silent reconnect to previously paired sensors.
+   * - Never throws; unreachable devices are skipped.
+   * - Skips devices already connected.
+   * - Per-device timeout (default 10s) so a powered-off trainer cannot hang startup.
+   * Returns the list of deviceIds that ended up connected (including pre-existing ones).
+   */
+  async tryAutoReconnect(
+    devices: Array<{ deviceId: string; name: string }>,
+    timeoutMs = 10000
+  ): Promise<string[]> {
+    if (!devices || devices.length === 0) return [];
+    try {
+      await this.initialize();
+    } catch {
+      return [...this.order];
+    }
+    for (const d of devices) {
+      if (this.order.length >= 2) break;
+      if (this.order.includes(d.deviceId)) continue;
+      try {
+        await Promise.race([
+          this.connect(d.deviceId, d.name),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('auto-reconnect timeout')), timeoutMs)),
+        ]);
+      } catch {
+        // swallow: device may be off / out of range / unpaired
+      }
+    }
+    return [...this.order];
+  }
+
   hasLiveCadenceOrPower(): boolean {
     const s = this.buildSnapshot();
     return (s.cadenceRpm != null && s.cadenceRpm >= MIN_CADENCE_VALID) || (s.powerW != null && s.powerW > 0);

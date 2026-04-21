@@ -656,6 +656,23 @@ const App: React.FC = () => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
   }, []);
 
+  // Phase 1: silent auto-reconnect to previously paired sensors on app launch.
+  // Runs once after mount. Failures (BT off, trainer not powered, etc.) are ignored.
+  useEffect(() => {
+    const p = sensorPrefsRef.current;
+    if (!p.autoReconnectEnabled) return;
+    if (!p.lastConnectedDevices || p.lastConnectedDevices.length === 0) return;
+    const hub = getIndoorBleHub();
+    hub
+      .tryAutoReconnect(p.lastConnectedDevices)
+      .then(() => {
+        setSensorHubConnected(hub.connectedCount() > 0);
+      })
+      .catch(() => {
+        // silent — user can open the Sensors modal to connect manually
+      });
+  }, []);
+
   const scheduleSensorCapacityPersist = useCallback((cap: number) => {
     if (sensorCapacitySaveTimerRef.current) clearTimeout(sensorCapacitySaveTimerRef.current);
     sensorCapacitySaveTimerRef.current = setTimeout(() => {

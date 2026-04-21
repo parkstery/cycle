@@ -2,6 +2,11 @@ export type FitnessLevel = 'frail' | 'normal' | 'active' | 'high';
 export type SpeedCadenceBlendMode = 'auto' | 'speed' | 'cadence';
 export type RideMode = 'manual' | 'sensor';
 
+export interface SavedSensorDevice {
+  deviceId: string;
+  name: string;
+}
+
 export interface IndoorSensorPrefs {
   sensorDriveEnabled: boolean;
   preferredRideMode: RideMode;
@@ -14,6 +19,39 @@ export interface IndoorSensorPrefs {
   speedCadenceBlendMode: SpeedCadenceBlendMode;
   /** Measured wheel RPM ÷ cadence when both channels were valid */
   wheelCadenceK: number | null;
+  /** Up to 2 most recently connected sensors; used for silent auto-reconnect on app launch. */
+  lastConnectedDevices: SavedSensorDevice[];
+  /** When true, the app will attempt silent reconnect to lastConnectedDevices on launch. */
+  autoReconnectEnabled: boolean;
+}
+
+const MAX_SAVED_DEVICES = 2;
+
+function parseSavedDevices(value: unknown): SavedSensorDevice[] {
+  if (!Array.isArray(value)) return [];
+  const out: SavedSensorDevice[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as { deviceId?: unknown; name?: unknown };
+    if (typeof rec.deviceId !== 'string' || !rec.deviceId) continue;
+    const name = typeof rec.name === 'string' && rec.name ? rec.name : 'Sensor';
+    if (out.some((d) => d.deviceId === rec.deviceId)) continue;
+    out.push({ deviceId: rec.deviceId, name });
+    if (out.length >= MAX_SAVED_DEVICES) break;
+  }
+  return out;
+}
+
+export function upsertSavedDevice(
+  list: SavedSensorDevice[],
+  device: SavedSensorDevice
+): SavedSensorDevice[] {
+  const filtered = list.filter((d) => d.deviceId !== device.deviceId);
+  return [device, ...filtered].slice(0, MAX_SAVED_DEVICES);
+}
+
+export function removeSavedDevice(list: SavedSensorDevice[], deviceId: string): SavedSensorDevice[] {
+  return list.filter((d) => d.deviceId !== deviceId);
 }
 
 const STORAGE_KEY = 'indoor_sensor_prefs_v1';
@@ -27,6 +65,8 @@ export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   capacityRpm: null,
   speedCadenceBlendMode: 'auto',
   wheelCadenceK: null,
+  lastConnectedDevices: [],
+  autoReconnectEnabled: true,
 };
 
 export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
@@ -75,6 +115,9 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
       calibrationAt: typeof o.calibrationAt === 'number' ? o.calibrationAt : null,
       capacityRpm,
       wheelCadenceK: typeof o.wheelCadenceK === 'number' && o.wheelCadenceK > 0 ? o.wheelCadenceK : null,
+      lastConnectedDevices: parseSavedDevices((o as { lastConnectedDevices?: unknown }).lastConnectedDevices),
+      autoReconnectEnabled:
+        typeof o.autoReconnectEnabled === 'boolean' ? o.autoReconnectEnabled : DEFAULT_INDOOR_SENSOR_PREFS.autoReconnectEnabled,
     };
   } catch {
     return { ...DEFAULT_INDOOR_SENSOR_PREFS };
