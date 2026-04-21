@@ -2,10 +2,10 @@ import type { FitnessLevel } from './sensorPrefs';
 
 /** Base ride speed (km/h) from user fitness — not the manual route slider when sensor-driven. */
 const BASE_SPEED_KMH: Record<FitnessLevel, number> = {
-  frail: 14,
-  normal: 18,
-  active: 22,
-  high: 26,
+  frail: 12,
+  normal: 16,
+  active: 20,
+  high: 24,
 };
 
 export function baseSpeedFromFitnessLevel(level: FitnessLevel): number {
