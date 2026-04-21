@@ -622,8 +622,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!sensorPrefs.sensorDriveEnabled) return;
     const hub = getIndoorBleHub();
-    const snap = hub.buildSnapshot();
-    const raw = pickRpmForIntensity(snap, sensorPrefs, sensorMergeStateRef.current);
+    hub.buildSnapshot();
     const ema = sensorRpmEmaRef.current;
     const cap = sensorCapacityLiveRef.current;
     setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(sensorPrefs.fitnessLevel, ema, cap));
@@ -2116,6 +2115,9 @@ const App: React.FC = () => {
             lastCoachedIndex.current = currentIdx;
           }
         })();
+      }
+      if (effectiveSpeedKmH <= 0.5) {
+        return () => clearTimeout(0);
       }
       let delay = 100;
       const nextPos = route.path[currentIdx + 1];

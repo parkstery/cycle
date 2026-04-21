@@ -1,8 +1,10 @@
 export type FitnessLevel = 'frail' | 'normal' | 'active' | 'high';
 export type SpeedCadenceBlendMode = 'auto' | 'speed' | 'cadence';
+export type RideMode = 'manual' | 'sensor';
 
 export interface IndoorSensorPrefs {
   sensorDriveEnabled: boolean;
+  preferredRideMode: RideMode;
   /** User fitness type → base simulation speed when sensor-driven (not the route slider). */
   fitnessLevel: FitnessLevel;
   calibrationAvgRpm: number | null;
@@ -18,6 +20,7 @@ const STORAGE_KEY = 'indoor_sensor_prefs_v1';
 
 export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   sensorDriveEnabled: false,
+  preferredRideMode: 'manual',
   fitnessLevel: 'normal',
   calibrationAvgRpm: null,
   calibrationAt: null,
@@ -51,6 +54,8 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
     return {
       ...DEFAULT_INDOOR_SENSOR_PREFS,
       ...o,
+      sensorDriveEnabled: o.preferredRideMode === 'sensor' ? true : o.preferredRideMode === 'manual' ? false : o.sensorDriveEnabled === true,
+      preferredRideMode: o.preferredRideMode === 'sensor' ? 'sensor' : 'manual',
       fitnessLevel,
       speedCadenceBlendMode:
         o.speedCadenceBlendMode === 'speed' || o.speedCadenceBlendMode === 'cadence'

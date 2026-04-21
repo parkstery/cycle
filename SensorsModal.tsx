@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
-import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
+import type { FitnessLevel, IndoorSensorPrefs, RideMode } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected';
@@ -168,6 +168,10 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     onChangePrefs({ ...prefsRef.current, sensorDriveEnabled });
   };
 
+  const setPreferredRideMode = (mode: RideMode) => {
+    onChangePrefs({ ...prefsRef.current, preferredRideMode: mode, sensorDriveEnabled: mode === 'sensor' });
+  };
+
   const onBackdrop = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) onClose();
@@ -204,7 +208,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           {actionError && <p className="text-red-600 text-[11px] leading-snug">{actionError}</p>}
 
           <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Connection</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">1) Scan & connect</div>
             <div className="flex items-center gap-2 text-[12px]">
               {connState === 'connected' ? (
                 <Bluetooth size={16} className="text-emerald-600 shrink-0" />
@@ -238,26 +242,26 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ride mode</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">2) Ride mode</div>
             <p className="text-[10px] text-slate-500 leading-snug mb-2">
-              By default the simulator uses <strong>manual speed</strong> from the route slider. Turn on <strong>sensor-based ride</strong> only when you want speed to follow your sensor or trainer.
+              Default app mode is <strong>manual speed</strong>. You can switch now and save your own default mode.
             </p>
-            <div className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
-                className={`w-full py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                className={`py-2 rounded-lg text-[11px] font-bold border transition-colors ${
                   !prefs.sensorDriveEnabled
                     ? 'bg-slate-800 text-white border-slate-800'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                Manual speed (route slider)
+                Manual speed
               </button>
               <button
                 type="button"
                 onClick={() => setSensorDrive(true)}
-                className={`w-full py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+                className={`py-2 rounded-lg text-[11px] font-bold border transition-colors ${
                   prefs.sensorDriveEnabled
                     ? 'bg-emerald-600 text-white border-emerald-600'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -265,6 +269,18 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               >
                 Sensor-based ride
               </button>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <button
+                type="button"
+                className="text-[10px] font-bold text-blue-600 underline"
+                onClick={() => setPreferredRideMode(prefs.sensorDriveEnabled ? 'sensor' : 'manual')}
+              >
+                Set current mode as default
+              </button>
+              <span className="text-[10px] text-slate-400">
+                Current default: {prefs.preferredRideMode === 'sensor' ? 'Sensor-based' : 'Manual'}
+              </span>
             </div>
             {prefs.sensorDriveEnabled && connected.length === 0 && (
               <p className="text-[10px] text-amber-700 mt-1.5 leading-snug">Connect a sensor or trainer for live speed. Until then, speed may coast low.</p>
@@ -333,7 +349,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           )}
 
           <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Fitness (base pace)</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">3) Fitness (base pace)</div>
             <p className="text-[10px] text-slate-500 leading-snug mb-1">How you would describe your usual stamina — this sets the baseline when using sensors.</p>
             <div className="grid grid-cols-2 gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
@@ -352,7 +368,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">1-minute calibration (optional)</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">4) 1-minute calibration (optional)</div>
             <p className="text-[10px] text-slate-500 leading-snug mb-1">
               Set the bike to <strong>highest resistance</strong>, then pedal hard for one minute. We use your <strong>average RPM</strong> as your personal capacity anchor.
             </p>
@@ -360,7 +376,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               {!calibRunning ? (
                 <>
                   <button type="button" onClick={startCalibration} className="text-[11px] font-bold bg-slate-800 text-white px-2 py-1 rounded shrink-0">
-                    Start 1-minute test
+                    {prefs.calibrationAvgRpm != null ? 'Retest 1 minute' : 'Start 1-minute test'}
                   </button>
                   {testFinished && (
                     <span className="text-[11px] font-semibold text-emerald-600" role="status">
