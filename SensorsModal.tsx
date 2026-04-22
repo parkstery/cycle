@@ -258,17 +258,17 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
-                className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[10px] font-bold border whitespace-nowrap ${
+                className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                   !prefs.sensorDriveEnabled ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                 }`}
                 style={!prefs.sensorDriveEnabled ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
               >
-                Manual Mode
+                Manual(No Sensor)
               </button>
               <button
                 type="button"
                 onClick={() => setSensorDrive(true)}
-                className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[10px] font-bold border whitespace-nowrap ${
+                className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                   prefs.sensorDriveEnabled ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                 }`}
                 style={prefs.sensorDriveEnabled ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
@@ -294,12 +294,12 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   type="button"
                   onClick={() => void handleScan()}
                   disabled={scanning}
-                  className="h-8 flex items-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[10px] font-bold disabled:opacity-50"
+                  className="h-8 flex items-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
                 >
                   <Scan size={13} />
                   Scan
                 </button>
-                <button type="button" onClick={() => setMenuOpen((v) => !v)} className="h-8 px-2 rounded-md border border-slate-200 text-[10px] font-bold text-slate-600 bg-white">
+                <button type="button" onClick={() => setMenuOpen((v) => !v)} className="h-8 px-2 rounded-md border border-slate-200 text-[12px] font-bold text-slate-600 bg-white">
                   Menu
                 </button>
               </div>
@@ -308,7 +308,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             {menuOpen && (
               <div className="border border-slate-100 rounded-md p-2 space-y-1.5 bg-slate-50">
                 {scanning && (
-                  <button type="button" className="h-8 text-[10px] font-bold text-slate-600 px-2 rounded-md border border-slate-200 bg-white" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
+                  <button type="button" className="h-8 text-[12px] font-bold text-slate-600 px-2 rounded-md border border-slate-200 bg-white" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
                     Stop scan
                   </button>
                 )}
@@ -317,7 +317,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                     {connected.map((c) => (
                       <li key={c.deviceId} className="grid grid-cols-[1fr_auto] items-center gap-1.5 min-w-0">
                         <span className="truncate font-medium text-[11px] text-slate-800 min-w-0">{c.name}</span>
-                        <button type="button" className="h-7 text-[10px] font-bold text-red-700 bg-white border border-red-200 rounded-md px-2" onClick={() => void handleDisconnect(c.deviceId)}>
+                        <button type="button" className="h-7 text-[12px] font-bold text-red-700 bg-white border border-red-200 rounded-md px-2" onClick={() => void handleDisconnect(c.deviceId)}>
                           Disconnect
                         </button>
                       </li>
@@ -332,7 +332,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                         <button
                           type="button"
                           disabled={connected.some((c) => c.deviceId === d.deviceId)}
-                          className="h-7 text-[10px] font-bold text-blue-700 bg-white border border-blue-200 rounded-md px-2 disabled:text-slate-400 disabled:border-slate-100"
+                          className="h-7 text-[12px] font-bold text-blue-700 bg-white border border-blue-200 rounded-md px-2 disabled:text-slate-400 disabled:border-slate-100"
                           onClick={() => void handleConnect(d.deviceId, d.name)}
                         >
                           Connect
@@ -344,7 +344,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                 {prefs.lastConnectedDevices.length > 0 && (
                   <div className="grid grid-cols-[1fr_auto] gap-1">
                     <span className="text-[10px] text-slate-500 self-center">Saved {prefs.lastConnectedDevices.length}</span>
-                    <button type="button" className="h-7 px-2 text-[10px] font-bold text-red-600 border border-red-200 rounded-md bg-white" onClick={forgetAllSavedDevices}>
+                    <button type="button" className="h-7 px-2 text-[12px] font-bold text-red-600 border border-red-200 rounded-md bg-white" onClick={forgetAllSavedDevices}>
                       Clear
                     </button>
                   </div>
@@ -361,7 +361,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   key={id}
                   type="button"
                   onClick={() => setFitnessLevel(id)}
-                  className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[10px] font-bold border whitespace-nowrap ${
+                  className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                     prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                   }`}
                   style={prefs.fitnessLevel === id ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
@@ -373,7 +373,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-1">
-            <button type="button" className="h-8 flex items-center gap-1 text-[11px] font-bold text-slate-700" onClick={() => setCalibrationOpen((v) => !v)}>
+            <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setCalibrationOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${calibrationOpen ? 'rotate-180' : ''}`} />
               Calibration
             </button>
@@ -381,14 +381,14 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center pl-5">
                 {!calibRunning ? (
                   <>
-                    <button type="button" onClick={startCalibration} className="h-8 text-[10px] font-bold bg-slate-800 text-white px-2 rounded-md">
+                    <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-slate-800 text-white px-2 rounded-md">
                       Start Test
                     </button>
                     <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
                     {prefs.calibrationAvgRpm != null && (
                       <button
                         type="button"
-                        className="h-7 px-2 text-[10px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
+                        className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
                         onClick={() => {
                           const next = {
                             ...prefsRef.current,
@@ -408,7 +408,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   <>
                     <span className="text-[13px] font-black text-blue-700 tabular-nums">{calibLeftSec}s</span>
                     <span className="text-[10px] text-emerald-600">{testFinished ? 'Done' : ''}</span>
-                    <button type="button" onClick={cancelCalibration} className="h-7 px-2 text-[10px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
+                    <button type="button" onClick={cancelCalibration} className="h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
                       Cancel
                     </button>
                   </>
@@ -418,7 +418,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-1">
-            <button type="button" className="h-8 flex items-center gap-1 text-[11px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
+            <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
               Advanced
             </button>
@@ -456,7 +456,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
                 <span className="text-[10px] text-slate-500">Default</span>
                 <div className="flex items-center gap-1">
-                  <button type="button" className="h-8 px-2 text-[10px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" onClick={saveCurrentModeAsDefault}>
+                  <button type="button" className="h-8 px-2 text-[12px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" onClick={saveCurrentModeAsDefault}>
                     Save
                   </button>
                   <span className="text-[10px] text-slate-400">{prefs.preferredRideMode === 'sensor' ? 'Sensor' : 'Manual'}</span>
