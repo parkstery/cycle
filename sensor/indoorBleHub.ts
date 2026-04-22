@@ -12,6 +12,7 @@ const MIN_CADENCE_VALID = 6;
 const CADENCE_STALE_MS = 3000;
 const WHEEL_STALE_MS = 3000;
 const POWER_STALE_MS = 3000;
+const TRAINER_SPEED_STALE_MS = 3000;
 
 type DeviceCrankState = { rev: number; t1024: number };
 type DeviceWheelState = { rev: number; t1024: number };
@@ -23,6 +24,8 @@ type DeviceSmooth = {
   wheelTs: number;
   powerW: number | null;
   powerTs: number;
+  trainerSpeedKmh: number | null;
+  trainerSpeedTs: number;
 };
 
 function ema(prev: number | null, next: number): number {
@@ -30,34 +33,69 @@ function ema(prev: number | null, next: number): number {
   return prev * (1 - EMA_A) + next * EMA_A;
 }
 
-function parseIndoorBikeData(view: DataView): { cadence?: number; power?: number } {
-  const out: { cadence?: number; power?: number } = {};
+/**
+ * FTMS Indoor Bike Data (0x2AD2) parser.
+ *
+ * Field layout per the Bluetooth FTMS spec (flags are uint16 LE at offset 0):
+ *   bit 0  More Data          — when SET, Instantaneous Speed is NOT present
+ *                                (i.e. inst speed is present by default)
+ *   bit 1  Average Speed Present        (uint16, 0.01 km/h)
+ *   bit 2  Instantaneous Cadence Present (uint16, 0.5 rpm)
+ *   bit 3  Average Cadence Present       (uint16, 0.5 rpm)
+ *   bit 4  Total Distance Present        (uint24, m)
+ *   bit 5  Resistance Level Present      (sint16)
+ *   bit 6  Instantaneous Power Present   (sint16, W)
+ *   bit 7  Average Power Present         (sint16, W)
+ *   ...
+ * Previous parser skipped Instantaneous Speed entirely and read every subsequent
+ * field from the wrong offset. This rewrites the whole parse.
+ */
+function parseIndoorBikeData(view: DataView): {
+  instSpeedKmh?: number;
+  cadence?: number;
+  power?: number;
+} {
+  const out: { instSpeedKmh?: number; cadence?: number; power?: number } = {};
   if (view.byteLength < 2) return out;
   const flags = view.getUint16(0, true);
   let o = 2;
-  if (flags & 0x02) {
+
+  // Instantaneous Speed is present unless bit 0 (More Data) is SET.
+  const instSpeedPresent = (flags & 0x0001) === 0;
+  if (instSpeedPresent) {
+    if (o + 2 > view.byteLength) return out;
+    const raw = view.getUint16(o, true);
+    o += 2;
+    const kmh = raw / 100;
+    // Guard against firmware glitches (uninitialized fields, wrap-around).
+    if (Number.isFinite(kmh) && kmh >= 0 && kmh <= 80) {
+      out.instSpeedKmh = kmh;
+    }
+  }
+
+  if (flags & 0x0002) {
     if (o + 2 > view.byteLength) return out;
     o += 2;
   }
-  if (flags & 0x04) {
+  if (flags & 0x0004) {
     if (o + 2 > view.byteLength) return out;
     const raw = view.getUint16(o, true);
     o += 2;
     out.cadence = raw / 2;
   }
-  if (flags & 0x08) {
+  if (flags & 0x0008) {
     if (o + 2 > view.byteLength) return out;
     o += 2;
   }
-  if (flags & 0x10) {
+  if (flags & 0x0010) {
     if (o + 3 > view.byteLength) return out;
     o += 3;
   }
-  if (flags & 0x20) {
+  if (flags & 0x0020) {
     if (o + 2 > view.byteLength) return out;
     o += 2;
   }
-  if (flags & 0x40) {
+  if (flags & 0x0040) {
     if (o + 2 > view.byteLength) return out;
     out.power = view.getInt16(o, true);
     o += 2;
@@ -213,6 +251,8 @@ class IndoorBleHubImpl {
     let wheelTs = 0;
     let powerW: number | null = null;
     let powerTs = 0;
+    let trainerSpeedKmh: number | null = null;
+    let trainerSpeedTs = 0;
 
     for (const id of this.order) {
       const s = this.smooth.get(id);
@@ -238,6 +278,14 @@ class IndoorBleHubImpl {
         powerTs = s.powerTs;
       }
     }
+    for (const id of this.order) {
+      const s = this.smooth.get(id);
+      if (!s) continue;
+      if (trainerSpeedKmh == null && s.trainerSpeedKmh != null && s.trainerSpeedKmh >= 0) {
+        trainerSpeedKmh = s.trainerSpeedKmh;
+        trainerSpeedTs = s.trainerSpeedTs;
+      }
+    }
 
     if (cadenceTs > 0 && now - cadenceTs > CADENCE_STALE_MS) {
       cadenceRpm = null;
@@ -251,8 +299,18 @@ class IndoorBleHubImpl {
       powerW = null;
       powerTs = 0;
     }
+    if (trainerSpeedTs > 0 && now - trainerSpeedTs > TRAINER_SPEED_STALE_MS) {
+      trainerSpeedKmh = null;
+      trainerSpeedTs = 0;
+    }
 
-    return { now, cadenceRpm, cadenceTs, wheelRpm, wheelTs, powerW, powerTs };
+    return {
+      now,
+      cadenceRpm, cadenceTs,
+      wheelRpm, wheelTs,
+      powerW, powerTs,
+      trainerSpeedKmh, trainerSpeedTs,
+    };
   }
 
   /** Raw smoothed cadence (first active device) — for calibration average */
@@ -271,6 +329,8 @@ class IndoorBleHubImpl {
         wheelTs: 0,
         powerW: null,
         powerTs: 0,
+        trainerSpeedKmh: null,
+        trainerSpeedTs: 0,
       };
       this.smooth.set(deviceId, s);
     }
@@ -309,6 +369,10 @@ class IndoorBleHubImpl {
         const p = parseIndoorBikeData(value);
         const sm = this.ensureSmooth(deviceId);
         const t = this.lastSensorPacketAtMs;
+        if (p.instSpeedKmh != null && Number.isFinite(p.instSpeedKmh)) {
+          sm.trainerSpeedKmh = ema(sm.trainerSpeedKmh, p.instSpeedKmh);
+          sm.trainerSpeedTs = t;
+        }
         if (p.cadence != null && Number.isFinite(p.cadence)) {
           sm.cadenceRpm = ema(sm.cadenceRpm, p.cadence);
           sm.cadenceTs = t;

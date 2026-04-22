@@ -12,6 +12,9 @@ export type BleSnapshot = {
   wheelTs: number;
   powerW: number | null;
   powerTs: number;
+  /** FTMS Indoor Bike Data instantaneous speed (km/h). Null when absent or out of range. */
+  trainerSpeedKmh: number | null;
+  trainerSpeedTs: number;
 };
 
 export function speedChannelValid(s: BleSnapshot): boolean {
