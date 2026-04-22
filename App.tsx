@@ -4613,7 +4613,7 @@ const App: React.FC = () => {
                     <Gauge size={16} strokeWidth={2.2} />
                     <span className="text-[11px] font-bold leading-none">Sensor</span>
                     <span
-                      className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white ${sensorHubConnected ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white ${sensorHubConnected ? 'bg-emerald-500 animate-sensor-led' : 'bg-slate-300'}`}
                       aria-hidden
                     />
                   </button>
