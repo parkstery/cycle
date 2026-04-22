@@ -682,9 +682,8 @@ const App: React.FC = () => {
   }, []);
 
   // Silent auto-connect to sensors on app launch.
-  // - If user has paired sensors before, scan-then-connect to them as soon as they advertise.
-  // - If this is the very first launch (no saved devices), scan briefly and auto-connect to the
-  //   first CSC/FTMS sensor that shows up. Avoids forcing the user into the Sensors modal.
+  // - On launch, always keep a background scan/connect loop so advertising sensors can auto-join.
+  // - Saved devices still have priority; unknown CSC/FTMS sensors can fill free slots.
   // - A background retry loop keeps trying whenever the sensor drops and re-advertises
   //   (e.g., cadence sensor sleeps between rides and wakes up on the next pedal stroke).
   useEffect(() => {
@@ -692,7 +691,7 @@ const App: React.FC = () => {
     if (!p.autoReconnectEnabled) return;
     const hub = getIndoorBleHub();
     const savedDevices = p.lastConnectedDevices ?? [];
-    const allowUnknown = savedDevices.length === 0;
+    const allowUnknown = true;
 
     hub.requestPersistentConnection(savedDevices, { allowUnknown });
     hub
@@ -4373,16 +4372,16 @@ const App: React.FC = () => {
                     onClick={() => setSensorsModalOpen(true)}
                     title="Sensors & speed"
                     aria-label="Sensors & speed"
-                    className="relative shrink-0 h-7 min-w-[68px] px-2 flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
+                    className="relative shrink-0 h-7 min-w-[34px] px-2 flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
                   >
                     <Gauge size={16} strokeWidth={2.2} />
-                    <span className="text-[10px] font-bold leading-none">Sensor</span>
+                    <span className="text-[11px] font-bold leading-none">Sensor</span>
                     <span
                       className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white ${sensorHubConnected ? 'bg-emerald-500' : 'bg-slate-300'}`}
                       aria-hidden
                     />
                   </button>
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Decrease speed" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Decrease speed" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
                   <input
                     type="number"
                     min={10}
@@ -4393,10 +4392,10 @@ const App: React.FC = () => {
                       const v = Number(e.target.value) || 10;
                       setSpeedKmH(Math.min(70, Math.max(10, v)));
                     }}
-                    className="speed-input-no-spinner w-[58px] h-7 text-[11px] font-bold text-center bg-white border border-slate-300 rounded-md text-slate-700 focus:outline-none focus:border-blue-500 px-1 shrink-0"
+                    className="speed-input-no-spinner w-[29px] h-6 text-[11px] font-bold text-center bg-white border border-slate-300 rounded-md text-slate-700 focus:outline-none focus:border-blue-500 px-1 shrink-0"
                     aria-label="Speed"
                   />
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Increase speed" className="w-[14.4px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Increase speed" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
                   <div className="flex items-center gap-1 ml-auto shrink-0">
                     <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
 

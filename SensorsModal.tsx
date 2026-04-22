@@ -104,7 +104,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
       const nextList = upsertSavedDevice(cur.lastConnectedDevices, { deviceId, name });
       onChangePrefs({ ...cur, lastConnectedDevices: nextList });
       if (cur.autoReconnectEnabled) {
-        hub.requestPersistentConnection([{ deviceId, name }]);
+        hub.requestPersistentConnection([{ deviceId, name }], { allowUnknown: true });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connection failed.';
@@ -183,7 +183,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
       hub.stopPersistentConnection();
     } else {
       const saved = prefsRef.current.lastConnectedDevices ?? [];
-      hub.requestPersistentConnection(saved, { allowUnknown: saved.length === 0 });
+      hub.requestPersistentConnection(saved, { allowUnknown: true });
     }
   };
 
