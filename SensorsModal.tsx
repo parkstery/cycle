@@ -252,14 +252,13 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           {initError && <p className="text-red-600 text-[11px] leading-snug">{initError}</p>}
           {actionError && <p className="text-red-600 text-[11px] leading-snug">{actionError}</p>}
 
-          <section className="grid grid-cols-[auto_1fr] gap-2 items-center">
-            <span className="text-[10px] font-semibold text-slate-500">Mode</span>
-            <div className="h-7 inline-grid grid-cols-2 p-0.5 rounded-md border border-slate-200 bg-slate-100">
-            
+          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
+            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Mode</span>
+            <div className="h-7 grid w-full min-w-0 grid-cols-2 p-0.5 rounded-md border border-slate-200 bg-slate-100">
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
-                className={`h-full px-2 rounded-[5px] text-[10px] font-bold leading-none transition-colors ${
+                className={`h-full min-w-0 flex items-center justify-center px-1 rounded-[5px] text-[10px] font-bold leading-none transition-colors whitespace-nowrap ${
                   !prefs.sensorDriveEnabled ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                 }`}
               >
@@ -268,7 +267,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <button
                 type="button"
                 onClick={() => setSensorDrive(true)}
-                className={`h-full px-2 rounded-[5px] text-[10px] font-bold leading-none transition-colors ${
+                className={`h-full min-w-0 flex items-center justify-center px-1 rounded-[5px] text-[10px] font-bold leading-none transition-colors whitespace-nowrap ${
                   prefs.sensorDriveEnabled ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                 }`}
               >
