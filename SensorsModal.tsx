@@ -41,6 +41,8 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const [calibrationOpen, setCalibrationOpen] = useState(false);
 
   const [calibRunning, setCalibRunning] = useState(false);
+  /** 캘리브레이션 직후 사용자 안내 (성공/실패 요약) */
+  const [calibResultMessage, setCalibResultMessage] = useState<string | null>(null);
   const [calibLeftSec, setCalibLeftSec] = useState(0);
   const calibSamplesRef = useRef<number[]>([]);
   const calibTimerRef = useRef<number | null>(null);
@@ -72,6 +74,12 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const scanning = hub.isScanning();
   const scanList = hub.listScanResults();
   const autoPhase = hub.getAutoConnectPhase();
+
+  /** 이미 Connected에 나온 장치는 Found에서 숨김(연결 시 중복 표시 방지) */
+  const foundDevicesNotYetConnected = useMemo(
+    () => scanList.filter((d) => !connected.some((c) => c.deviceId === d.deviceId)),
+    [scanList, connected]
+  );
 
   const connState: ConnState = useMemo(() => {
     if (connected.length > 0) return 'connected';
@@ -134,6 +142,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
   const startCalibration = () => {
     if (calibRunning) return;
+    setCalibResultMessage(null);
     calibSamplesRef.current = [];
     calibSecRef.current = 60;
     setCalibRunning(true);
@@ -153,6 +162,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
         if (avg != null && avg > 0) {
           const avgRounded = Math.round(avg * 10) / 10;
           const cap = initialCapacityFromTestRpm(avgRounded);
+          const capRounded = Math.round(cap * 10) / 10;
           const next = {
             ...prefsRef.current,
             calibrationAvgRpm: avgRounded,
@@ -160,6 +170,13 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             capacityRpm: cap,
           };
           onChangePrefs(next);
+          setCalibResultMessage(
+            `Calibration done: average ${avgRounded} RPM · personal capacity set to ~${capRounded} RPM.`
+          );
+        } else {
+          setCalibResultMessage(
+            'No cadence samples over 10 RPM. Pedal steadily during the test and try again.'
+          );
         }
       }
     }, 1000);
@@ -170,6 +187,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     calibTimerRef.current = null;
     setCalibRunning(false);
     setCalibLeftSec(0);
+    setCalibResultMessage(null);
   };
 
   useEffect(() => {
@@ -252,7 +270,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           {actionError && <p className="text-red-600 text-[11px] leading-snug mb-2">{actionError}</p>}
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 pb-3">
-            <span className="text-[12px] font-semibold text-slate-500 shrink-0">*Riding Mode</span>
+            <span className="text-[12px] font-semibold text-slate-500 shrink-0">* Riding Mode</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               <button
                 type="button"
@@ -278,7 +296,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-2 border-t border-slate-200 pt-3 pb-3">
-            <div className="text-[12px] font-semibold text-slate-500">*Sensor Connection</div>
+            <div className="text-[12px] font-semibold text-slate-500">* Sensor Connection</div>
             <div className="min-w-0 flex items-center gap-2 text-[11px]">
               {connState === 'connected' ? <Bluetooth size={15} className="text-emerald-600 shrink-0" /> : connState === 'scanning' || connState === 'reconnecting' ? <Bluetooth size={15} className="text-amber-500 animate-pulse shrink-0" /> : <BluetoothOff size={15} className="text-slate-400 shrink-0" />}
               <span className="truncate font-semibold text-slate-700">
@@ -325,11 +343,11 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   </ul>
                 </div>
               )}
-              {scanList.length > 0 && (
+              {foundDevicesNotYetConnected.length > 0 && (
                 <div>
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Found</div>
                   <ul className="max-h-28 overflow-y-auto space-y-1">
-                    {scanList.map((d) => (
+                    {foundDevicesNotYetConnected.map((d) => (
                       <li key={d.deviceId} className="grid grid-cols-[1fr_auto] items-center gap-1.5 min-w-0">
                         <span className="truncate text-[11px] text-slate-700 min-w-0">{d.name}</span>
                         <button
@@ -352,7 +370,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 border-t border-slate-200 pt-3 pb-3">
-            <span className="text-[12px] font-bold text-slate-500 shrink-0">*Your Fittness</span>
+            <span className="text-[12px] font-bold text-slate-500 shrink-0">* Your Fittness</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
                 <button
@@ -382,27 +400,33 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             {calibrationOpen && (
               <div className="pl-5">
                 {!calibRunning ? (
-                  <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-                    <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
-                      Start Test
-                    </button>
-                    <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
-                    {prefs.calibrationAvgRpm != null && (
-                      <button
-                        type="button"
-                        className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
-                        onClick={() => {
-                          const next = {
-                            ...prefsRef.current,
-                            calibrationAvgRpm: null,
-                            calibrationAt: null,
-                            capacityRpm: null,
-                          };
-                          onChangePrefs(next);
-                        }}
-                      >
-                        Clear
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
+                      <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
+                        Start Test
                       </button>
+                      <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
+                      {prefs.calibrationAvgRpm != null && (
+                        <button
+                          type="button"
+                          className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
+                          onClick={() => {
+                            const next = {
+                              ...prefsRef.current,
+                              calibrationAvgRpm: null,
+                              calibrationAt: null,
+                              capacityRpm: null,
+                            };
+                            onChangePrefs(next);
+                            setCalibResultMessage(null);
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {calibResultMessage && (
+                      <p className="text-[11px] font-medium text-emerald-700 leading-snug pr-1">{calibResultMessage}</p>
                     )}
                   </div>
                 ) : (
@@ -425,7 +449,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           <section className="space-y-1 border-t border-slate-200 pt-3 pb-1">
             <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-              Advanced
+              Others
             </button>
             {advancedOpen && (
               <div className="pl-5 grid grid-cols-2 gap-2 items-center">
@@ -459,7 +483,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   <option value="cadence">Cadence</option>
                 </select>
 
-                <span className="text-[12px] font-bold text-slate-500">Selected Riding Mode</span>
+                <span className="text-[10px] font-bold text-slate-500">Selected Riding Mode</span>
                 <div className="flex items-center gap-1">
                   <button type="button" className="h-8 px-2 text-[12px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" onClick={saveCurrentModeAsDefault}>
                     Save
