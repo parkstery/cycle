@@ -268,33 +268,37 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-2 border-t border-slate-200 pt-3 pb-3">
-            <div className="grid grid-cols-[1fr_auto] items-center gap-2">
-              <div className="min-w-0 flex items-center gap-2 text-[11px]">
-                {connState === 'connected' ? <Bluetooth size={15} className="text-emerald-600 shrink-0" /> : connState === 'scanning' || connState === 'reconnecting' ? <Bluetooth size={15} className="text-amber-500 animate-pulse shrink-0" /> : <BluetoothOff size={15} className="text-slate-400 shrink-0" />}
-                <span className="truncate font-semibold text-slate-700">
-                  {connState === 'disconnected' && `Disconnected | ${connectedLabel}`}
-                  {connState === 'scanning' && `Scanning... | ${connectedLabel}`}
-                  {connState === 'reconnecting' && `${autoPhase === 'connecting' ? 'Connecting...' : autoPhase === 'waiting' ? 'Waiting...' : 'Auto-scan...'} | ${connectedLabel}`}
-                  {connState === 'connected' && `Connected (${connected.length}) | ${connectedLabel}`}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleScan()}
-                disabled={scanning}
-                className="h-8 shrink-0 flex items-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
-              >
-                <Scan size={13} />
-                Scan
-              </button>
+            <div className="min-w-0 flex items-center gap-2 text-[11px]">
+              {connState === 'connected' ? <Bluetooth size={15} className="text-emerald-600 shrink-0" /> : connState === 'scanning' || connState === 'reconnecting' ? <Bluetooth size={15} className="text-amber-500 animate-pulse shrink-0" /> : <BluetoothOff size={15} className="text-slate-400 shrink-0" />}
+              <span className="truncate font-semibold text-slate-700">
+                {connState === 'disconnected' && `Disconnected | ${connectedLabel}`}
+                {connState === 'scanning' && `Scanning... | ${connectedLabel}`}
+                {connState === 'reconnecting' && `${autoPhase === 'connecting' ? 'Connecting...' : autoPhase === 'waiting' ? 'Waiting...' : 'Auto-scan...'} | ${connectedLabel}`}
+                {connState === 'connected' && `Connected (${connected.length}) | ${connectedLabel}`}
+              </span>
             </div>
 
             <div className="border border-slate-100 rounded-md p-2 space-y-1.5 bg-slate-50">
-              {scanning && (
-                <button type="button" className="h-8 w-full text-[12px] font-bold text-slate-600 px-2 rounded-md border border-slate-200 bg-white" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
-                  Stop scan
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => void handleScan()}
+                  disabled={scanning}
+                  className="h-8 min-w-0 flex-1 flex items-center justify-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
+                >
+                  <Scan size={13} />
+                  Scan
                 </button>
-              )}
+                {scanning && (
+                  <button
+                    type="button"
+                    className="h-8 shrink-0 px-2 text-[11px] font-bold text-slate-600 rounded-md border border-slate-200 bg-white whitespace-nowrap"
+                    onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}
+                  >
+                    Stop scan
+                  </button>
+                )}
+              </div>
               {connected.length > 0 && (
                 <div>
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Connected</div>
