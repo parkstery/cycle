@@ -383,6 +383,7 @@ const App: React.FC = () => {
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
+  const [hasCadenceSignal, setHasCadenceSignal] = useState(false);
   const [bikeProfileModalOpen, setBikeProfileModalOpen] = useState(false);
   const bikeProfileModalOpenRef = useRef(false);
   bikeProfileModalOpenRef.current = bikeProfileModalOpen;
@@ -745,9 +746,12 @@ const App: React.FC = () => {
         setEffectiveSpeedKmH(base);
         setCurrentRpm(null);
         setSpeedSource('manual');
+        setHasCadenceSignal(false);
         return;
       }
       const snap = hub.buildSnapshot();
+      const cadenceNowValid = snap.cadenceRpm != null && snap.cadenceRpm >= 6 && snap.now - snap.cadenceTs < 3000;
+      setHasCadenceSignal(cadenceNowValid);
       maybeUpdateWheelCadenceK(snap, p, (k) => {
         const next = { ...sensorPrefsRef.current, wheelCadenceK: k };
         sensorPrefsRef.current = next;
@@ -4146,7 +4150,9 @@ const App: React.FC = () => {
           className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current cadence (RPM)"
         >
-          {currentRpm != null && currentRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(currentRpm) : '0'} RPM
+          {speedSource === 'wheel' && !hasCadenceSignal
+            ? '---'
+            : `${currentRpm != null && currentRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(currentRpm) : '0'} RPM`}
         </span>
         <span
           className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
