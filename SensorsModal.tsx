@@ -302,6 +302,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   </button>
                 )}
               </div>
+              <span className="text-[10px] text-slate-500">Move sensor to auto-scan</span>
             </div>
 
             {connected.length > 0 && (
