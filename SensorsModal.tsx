@@ -8,10 +8,10 @@ import { initialCapacityFromTestRpm } from './sensor/effortModel';
 type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
 
 const FITNESS_OPTIONS: { id: FitnessLevel; label: string }[] = [
-  { id: 'frail', label: 'Light' },
-  { id: 'normal', label: 'Average' },
-  { id: 'active', label: 'Active' },
-  { id: 'high', label: 'Strong' },
+  { id: 'frail', label: 'Low' },
+  { id: 'normal', label: 'Medium' },
+  { id: 'active', label: 'High' },
+  { id: 'high', label: 'Very High' },
 ];
 
 export type SensorsModalProps = {
@@ -253,7 +253,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           {actionError && <p className="text-red-600 text-[11px] leading-snug">{actionError}</p>}
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
-            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Mode</span>
+            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Riding Mode</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               <button
                 type="button"
@@ -354,7 +354,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
-            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Level</span>
+            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Your FitnessLevel</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
                 <button
@@ -373,9 +373,13 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-1">
-            <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setCalibrationOpen((v) => !v)}>
-              <ChevronDown size={14} className={`transition-transform ${calibrationOpen ? 'rotate-180' : ''}`} />
-              Calibration
+            <button
+              type="button"
+              className="h-8 w-full min-w-0 flex items-center gap-1 text-left text-[12px] font-bold text-slate-700 rounded-md hover:bg-slate-50"
+              onClick={() => setCalibrationOpen((v) => !v)}
+            >
+              <ChevronDown size={14} className={`shrink-0 transition-transform ${calibrationOpen ? 'rotate-180' : ''}`} />
+              <span>Sensor Calibration (Optional)</span>
             </button>
             {calibrationOpen && (
               <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center pl-5">
@@ -443,7 +447,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   Auto
                 </label>
 
-                <span className="text-[10px] text-slate-500">Merge</span>
+                <span className="text-[10px] text-slate-500">Sensor Speed Merge</span>
                 <select
                   className="h-8 px-2 rounded-md border border-slate-200 text-[11px] bg-white"
                   value={prefs.speedCadenceBlendMode}
