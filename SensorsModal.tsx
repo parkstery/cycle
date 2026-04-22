@@ -252,7 +252,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           {actionError && <p className="text-red-600 text-[11px] leading-snug mb-2">{actionError}</p>}
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 pb-3">
-            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Riding Mode</span>
+            <span className="text-[12px] font-semibold text-slate-500 shrink-0">*Riding Mode</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               <button
                 type="button"
@@ -278,6 +278,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-2 border-t border-slate-200 pt-3 pb-3">
+            <div className="text-[12px] font-semibold text-slate-500">*Sensor Connection</div>
             <div className="min-w-0 flex items-center gap-2 text-[11px]">
               {connState === 'connected' ? <Bluetooth size={15} className="text-emerald-600 shrink-0" /> : connState === 'scanning' || connState === 'reconnecting' ? <Bluetooth size={15} className="text-amber-500 animate-pulse shrink-0" /> : <BluetoothOff size={15} className="text-slate-400 shrink-0" />}
               <span className="truncate font-semibold text-slate-700">
@@ -351,7 +352,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 border-t border-slate-200 pt-3 pb-3">
-            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Your FitnessLevel</span>
+            <span className="text-[12px] font-bold text-slate-500 shrink-0">*Your Fittness</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
                 <button
@@ -458,7 +459,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   <option value="cadence">Cadence</option>
                 </select>
 
-                <span className="text-[10px] text-slate-500">Default</span>
+                <span className="text-[12px] font-bold text-slate-500">Selected Riding Mode</span>
                 <div className="flex items-center gap-1">
                   <button type="button" className="h-8 px-2 text-[12px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" onClick={saveCurrentModeAsDefault}>
                     Save
