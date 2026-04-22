@@ -4160,6 +4160,22 @@ const App: React.FC = () => {
         >
           {averageRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(averageRpm) : '0'} RPM
         </span>
+        {route && (
+          <>
+            <span
+              className="mt-1 text-[11px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+              title="Covered / total distance"
+            >
+              {(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km
+            </span>
+            <span
+              className={`mt-0.5 text-[11px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000] ${simulation.isActive ? 'animate-pulse' : ''}`}
+              title="Elapsed time"
+            >
+              {formatTime(elapsedTime)}
+            </span>
+          </>
+        )}
       </div>
 
       <div
@@ -4457,43 +4473,23 @@ const App: React.FC = () => {
             {elevationExpanded && (
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
               <div className="flex-1 min-w-0 pl-1 pr-0 py-1 flex flex-col gap-1.5">
-                <div className="flex justify-between items-center">
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
-                        <MessageSquare size={16} />
-                      </button>
-                      <div className="flex flex-col justify-center items-start leading-none ml-1">
-                        <span className="text-[10px] text-blue-600 font-bold truncate [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff]">
-                          {(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km
-                        </span>
-                        {(simulation.isActive || elapsedTime > 0) && (
-                          <span
-                            className={`text-[10px] text-blue-600 font-bold leading-none [text-shadow:0_0_2px_#fff,0_0_4px_#fff,0_0_8px_#fff,1px_0_0_#fff,-1px_0_0_#fff,0_1px_0_#fff,0_-1px_0_#fff] ${simulation.isActive ? 'animate-pulse' : ''}`}
-                          >
-                            {formatTime(elapsedTime)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 items-center shrink-0">
-                    <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
-                    <button onClick={handleToggleSimulation} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
-                    <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
-                      <Square size={14} fill="currentColor" />
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
+                    <MessageSquare size={16} />
+                  </button>
+                  <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
+                    <Mic size={16} />
+                  </button>
+                  <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
+                    <Music size={16} />
+                  </button>
+                  <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
+                  <button onClick={handleToggleSimulation} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                  <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
+                    <Square size={14} fill="currentColor" />
+                  </button>
                 </div>
                 <div className="h-10 w-full flex items-stretch gap-1">
-                  <div className="flex flex-col justify-center gap-1 shrink-0">
-                    <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
-                      <Mic size={16} />
-                    </button>
-                    <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
-                      <Music size={16} />
-                    </button>
-                  </div>
                   <div className="flex-1 min-w-0 bg-slate-900 rounded-xl pl-1 pt-1 pb-1 pr-0.5 relative overflow-hidden">
                     <ElevationChartView data={route.elevation} currentIndex={simulation.currentIndex} pathLength={route.path.length} />
                     <button
