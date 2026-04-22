@@ -237,11 +237,11 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </button>
         </div>
 
-        <div className="px-3 py-2 space-y-2 text-[12px]">
-          {initError && <p className="text-red-600 text-[11px] leading-snug">{initError}</p>}
-          {actionError && <p className="text-red-600 text-[11px] leading-snug">{actionError}</p>}
+        <div className="px-3 py-2 text-[12px]">
+          {initError && <p className="text-red-600 text-[11px] leading-snug mb-2">{initError}</p>}
+          {actionError && <p className="text-red-600 text-[11px] leading-snug mb-2">{actionError}</p>}
 
-          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
+          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 pb-3">
             <span className="text-[10px] font-semibold text-slate-500 shrink-0">Riding Mode</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               <button
@@ -267,7 +267,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             </div>
           </section>
 
-          <section className="space-y-2">
+          <section className="space-y-2 border-t border-slate-200 pt-3 pb-3">
             <div className="grid grid-cols-[1fr_auto] items-center gap-2">
               <div className="min-w-0 flex items-center gap-2 text-[11px]">
                 {connState === 'connected' ? <Bluetooth size={15} className="text-emerald-600 shrink-0" /> : connState === 'scanning' || connState === 'reconnecting' ? <Bluetooth size={15} className="text-amber-500 animate-pulse shrink-0" /> : <BluetoothOff size={15} className="text-slate-400 shrink-0" />}
@@ -336,7 +336,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             </div>
           </section>
 
-          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
+          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0 border-t border-slate-200 pt-3 pb-3">
             <span className="text-[10px] font-semibold text-slate-500 shrink-0">Your FitnessLevel</span>
             <div className="flex w-full min-w-0 items-center gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
@@ -355,7 +355,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             </div>
           </section>
 
-          <section className="space-y-1">
+          <section className="space-y-1 border-t border-slate-200 pt-3 pb-3">
             <button
               type="button"
               className="h-8 w-full min-w-0 flex items-center gap-1 text-left text-[12px] font-bold text-slate-700 rounded-md hover:bg-slate-50"
@@ -404,7 +404,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             )}
           </section>
 
-          <section className="space-y-1">
+          <section className="space-y-1 border-t border-slate-200 pt-3 pb-1">
             <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
               Advanced
