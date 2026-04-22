@@ -4214,7 +4214,7 @@ const App: React.FC = () => {
         )}
       </div>
       <div
-        className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[300px] min-w-[300px] max-w-[300px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
+        className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[282px] min-w-[282px] max-w-[282px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
         style={{ left: SAFE_LEFT_1REM, bottom: SAFE_BOTTOM_25 }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
@@ -4428,7 +4428,7 @@ const App: React.FC = () => {
               </div>
               )}
 
-              <div className={`flex-1 border-l border-slate-200 pl-1 pr-2 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
+              <div className={`border-l border-slate-200 pl-1 pr-2 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'flex-1 opacity-100 translate-x-0' : 'flex-none w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
                 <div className="flex justify-between items-center px-1 mb-0.5">
                   <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
                   <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
@@ -4454,7 +4454,7 @@ const App: React.FC = () => {
       </div>
       {route && (
         <div
-          className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'justify-end w-[72%] max-w-[317px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
+          className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'justify-end w-[72%] max-w-[272px] [@media(orientation:landscape)]:w-[57%] [@media(orientation:landscape)]:max-w-[253px]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{ right: SAFE_RIGHT_1REM, bottom: SAFE_BOTTOM_25 }}
         >
           {/* <div className="bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl flex items-center w-full border border-slate-200 p-1 overflow-hidden"> */}
