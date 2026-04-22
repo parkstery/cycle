@@ -4480,7 +4480,7 @@ const App: React.FC = () => {
                   <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
                     <Mic size={16} />
                   </button>
-                  <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
+                  <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-amber-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
                     <Music size={16} />
                   </button>
                   <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
