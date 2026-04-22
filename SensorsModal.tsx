@@ -381,7 +381,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center pl-5">
                 {!calibRunning ? (
                   <>
-                    <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-slate-800 text-white px-2 rounded-md">
+                    <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-neutral-800 text-white px-2 rounded-md">
                       Start Test
                     </button>
                     <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
