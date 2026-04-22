@@ -509,8 +509,8 @@ class IndoorBleHubImpl {
    * previously paired device drops.
    *
    * - savedDevices: previously paired sensors (priority, in order).
-   * - options.allowUnknown: when true AND savedDevices is empty, auto-connects to the first
-   *   discovered CSC/FTMS device (used for the very first app launch).
+   * - options.allowUnknown: when true, fills remaining connection slots (up to 2 total)
+   *   using scanned CSC/FTMS devices when saved devices are missing or unavailable.
    * - options.scanDurationMs: maximum scan window. Resolves earlier as soon as a saved device
    *   appears in the scan results.
    * - Never throws. Failures (BT off, permissions, no device in range) leave the hub idle.
@@ -523,6 +523,7 @@ class IndoorBleHubImpl {
   ): Promise<string[]> {
     const scanDurationMs = options.scanDurationMs ?? 12000;
     const allowUnknown = options.allowUnknown ?? false;
+    const slotsAvailableAtStart = Math.max(0, 2 - this.order.length);
 
     if (this.autoConnectInFlight) return [...this.order];
     if (this.order.length >= 2) return [...this.order];
@@ -574,10 +575,17 @@ class IndoorBleHubImpl {
       await new Promise<void>((resolve) => {
         const start = Date.now();
         const poll = () => {
-          for (const id of savedSet) {
-            if (foundDuringScan.has(id)) return resolve();
+          const savedFoundCount = [...savedSet].filter((id) => foundDuringScan.has(id)).length;
+          if (savedSet.size > 0) {
+            const neededSaved = Math.min(savedSet.size, slotsAvailableAtStart);
+            if (savedFoundCount >= neededSaved && savedFoundCount > 0) return resolve();
           }
-          if (savedSet.size === 0 && allowUnknown && foundDuringScan.size > 0 && Date.now() - start > 3000) {
+          if (
+            allowUnknown &&
+            foundDuringScan.size >= slotsAvailableAtStart &&
+            slotsAvailableAtStart > 0 &&
+            Date.now() - start > 1500
+          ) {
             return resolve();
           }
           if (Date.now() - start > scanDurationMs) return resolve();
@@ -599,12 +607,14 @@ class IndoorBleHubImpl {
           candidates.push({ deviceId: d.deviceId, name: d.name || hit.name });
         }
       }
-      if (candidates.length === 0 && allowUnknown && savedDevices.length === 0) {
+      if (allowUnknown && candidates.length < slotsAvailableAtStart) {
         const byRssi = [...foundDuringScan.entries()]
           .map(([deviceId, v]) => ({ deviceId, name: v.name, rssi: v.rssi }))
+          .filter((d) => !candidates.some((c) => c.deviceId === d.deviceId))
           .sort((a, b) => b.rssi - a.rssi);
-        if (byRssi.length > 0) {
-          candidates.push({ deviceId: byRssi[0].deviceId, name: byRssi[0].name });
+        const remain = Math.max(0, slotsAvailableAtStart - candidates.length);
+        for (const d of byRssi.slice(0, remain)) {
+          candidates.push({ deviceId: d.deviceId, name: d.name });
         }
       }
 
@@ -663,7 +673,7 @@ class IndoorBleHubImpl {
   private scheduleReconnectLoop(delayMs?: number): void {
     this.clearReconnectTimer();
     const needsWork =
-      this.reconnectWanted.size > 0 || (this.allowUnknownConnect && this.order.length === 0);
+      this.reconnectWanted.size > 0 || (this.allowUnknownConnect && this.order.length < 2);
     if (!needsWork) {
       this.setAutoPhase('idle');
       return;
@@ -682,7 +692,7 @@ class IndoorBleHubImpl {
   private async runReconnectAttempt(): Promise<void> {
     const wanted = [...this.reconnectWanted.entries()].map(([deviceId, name]) => ({ deviceId, name }));
     const missing = wanted.filter((w) => !this.order.includes(w.deviceId));
-    const needUnknown = this.allowUnknownConnect && this.order.length === 0 && wanted.length === 0;
+    const needUnknown = this.allowUnknownConnect && this.order.length < 2;
 
     if (missing.length === 0 && !needUnknown) {
       this.reconnectBackoffIdx = 0;
@@ -698,7 +708,7 @@ class IndoorBleHubImpl {
 
     const stillMissing =
       [...this.reconnectWanted.keys()].some((id) => !this.order.includes(id)) ||
-      (this.allowUnknownConnect && this.order.length === 0);
+      (this.allowUnknownConnect && this.order.length < 2);
     if (stillMissing) {
       this.reconnectBackoffIdx = Math.min(this.reconnectBackoffIdx + 1, 5);
       this.scheduleReconnectLoop();
