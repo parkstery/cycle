@@ -20,7 +20,8 @@ import { decodePath, computeDistanceBetween, computeHeading, computeOffset } fro
 import { SensorsModal } from './SensorsModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import { createDualMergeState, pickRpmForIntensity, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
-import { computeIndoorSensorRideSpeedKmh } from './sensor/effortModel';
+import { decideSpeed, createSpeedFilterState } from './sensor/effortModel';
+import type { SpeedSource, SpeedFilterState } from './sensor/effortModel';
 import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
@@ -379,9 +380,11 @@ const App: React.FC = () => {
   const rpmSampleSumRef = useRef(0);
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
+  const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
   /** BLE was disconnected last tick — used to turn on sensor-based ride only on connect edge. */
   const prevBleSensorConnectedRef = useRef(false);
   const sensorMergeStateRef = useRef(createDualMergeState());
+  const speedFilterStateRef = useRef<SpeedFilterState>(createSpeedFilterState());
   const sensorPrefsRef = useRef(sensorPrefs);
   sensorPrefsRef.current = sensorPrefs;
   const speedKmHRef = useRef(speedKmH);
@@ -641,10 +644,17 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!sensorPrefs.sensorDriveEnabled) return;
     const hub = getIndoorBleHub();
-    hub.buildSnapshot();
-    const ema = sensorRpmEmaRef.current;
+    const snap = hub.buildSnapshot();
     const cap = sensorCapacityLiveRef.current;
-    setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(sensorPrefs.fitnessLevel, ema, cap));
+    const decision = decideSpeed(
+      snap,
+      sensorPrefs,
+      cap,
+      speedFilterStateRef.current,
+      speedKmHRef.current
+    );
+    setEffectiveSpeedKmH(decision.kmh);
+    setSpeedSource(decision.source);
   }, [
     sensorPrefs.sensorDriveEnabled,
     sensorPrefs.fitnessLevel,
@@ -652,6 +662,7 @@ const App: React.FC = () => {
     sensorPrefs.calibrationAvgRpm,
     sensorPrefs.wheelCadenceK,
     sensorPrefs.capacityRpm,
+    sensorPrefs.wheelCircumferenceMm,
   ]);
 
   useEffect(() => {
@@ -722,6 +733,7 @@ const App: React.FC = () => {
         sensorLastValidRpmAtRef.current = 0;
         setEffectiveSpeedKmH(base);
         setCurrentRpm(null);
+        setSpeedSource('manual');
         return;
       }
       const snap = hub.buildSnapshot();
@@ -779,8 +791,14 @@ const App: React.FC = () => {
       if (hardZero) {
         setEffectiveSpeedKmH(0);
         setCurrentRpm(0);
+        speedFilterStateRef.current.emaKmh = 0;
+        setSpeedSource('coast');
       } else {
-        setEffectiveSpeedKmH(computeIndoorSensorRideSpeedKmh(p.fitnessLevel, ema, cap));
+        // Speed: decided by trainer > wheel > cadence (advisor's layered model).
+        const decision = decideSpeed(snap, p, cap, speedFilterStateRef.current, base);
+        setEffectiveSpeedKmH(decision.kmh);
+        setSpeedSource(decision.source);
+        // RPM display / capacity learning remain cadence-driven.
         setCurrentRpm(ema != null && ema > 0 ? ema : 0);
       }
       if (simulationActiveRef.current && ema != null && ema > 0) {

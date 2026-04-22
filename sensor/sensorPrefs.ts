@@ -1,6 +1,24 @@
 export type FitnessLevel = 'frail' | 'normal' | 'active' | 'high';
 export type SpeedCadenceBlendMode = 'auto' | 'speed' | 'cadence';
 export type RideMode = 'manual' | 'sensor';
+export type BikeProfile =
+  | 'unset'      // First launch / first dual-sensor connection: ask user once
+  | 'road700c'
+  | 'mtb29'
+  | 'mtb275'
+  | 'mtb26'
+  | 'spinbike'
+  | 'custom';
+
+/** Default wheel circumference (mm) for each bike profile preset. */
+export const BIKE_PROFILE_CIRCUMFERENCE_MM: Record<Exclude<BikeProfile, 'custom'>, number> = {
+  unset: 2100,
+  road700c: 2105,
+  mtb29: 2300,
+  mtb275: 2148,
+  mtb26: 2070,
+  spinbike: 2100,
+};
 
 export interface SavedSensorDevice {
   deviceId: string;
@@ -23,6 +41,10 @@ export interface IndoorSensorPrefs {
   lastConnectedDevices: SavedSensorDevice[];
   /** When true, the app will attempt silent reconnect to lastConnectedDevices on launch. */
   autoReconnectEnabled: boolean;
+  /** Bike preset. 'unset' triggers a one-time "which bike?" prompt when a speed sensor is first detected. */
+  bikeProfile: BikeProfile;
+  /** Wheel circumference in mm, derived from bikeProfile unless user picked 'custom'. */
+  wheelCircumferenceMm: number;
 }
 
 const MAX_SAVED_DEVICES = 2;
@@ -67,7 +89,21 @@ export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   wheelCadenceK: null,
   lastConnectedDevices: [],
   autoReconnectEnabled: true,
+  bikeProfile: 'unset',
+  wheelCircumferenceMm: BIKE_PROFILE_CIRCUMFERENCE_MM.unset,
 };
+
+function isBikeProfile(v: unknown): v is BikeProfile {
+  return (
+    v === 'unset' ||
+    v === 'road700c' ||
+    v === 'mtb29' ||
+    v === 'mtb275' ||
+    v === 'mtb26' ||
+    v === 'spinbike' ||
+    v === 'custom'
+  );
+}
 
 export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
   if (typeof localStorage === 'undefined') return { ...DEFAULT_INDOOR_SENSOR_PREFS };
@@ -118,6 +154,13 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
       lastConnectedDevices: parseSavedDevices((o as { lastConnectedDevices?: unknown }).lastConnectedDevices),
       autoReconnectEnabled:
         typeof o.autoReconnectEnabled === 'boolean' ? o.autoReconnectEnabled : DEFAULT_INDOOR_SENSOR_PREFS.autoReconnectEnabled,
+      bikeProfile: isBikeProfile(o.bikeProfile) ? o.bikeProfile : 'unset',
+      wheelCircumferenceMm:
+        typeof o.wheelCircumferenceMm === 'number' &&
+        o.wheelCircumferenceMm >= 1500 &&
+        o.wheelCircumferenceMm <= 2500
+          ? o.wheelCircumferenceMm
+          : BIKE_PROFILE_CIRCUMFERENCE_MM.unset,
     };
   } catch {
     return { ...DEFAULT_INDOOR_SENSOR_PREFS };
