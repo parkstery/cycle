@@ -22,10 +22,6 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
 
   if (!open) return null;
 
-  const handleSave = () => {
-    onSave(selected, BIKE_PROFILE_CIRCUMFERENCE_MM[selected]);
-  };
-
   return (
     <div
       className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/50 p-3"
@@ -67,7 +63,10 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
                   name="bike-profile"
                   className="shrink-0"
                   checked={selected === opt.id}
-                  onChange={() => setSelected(opt.id)}
+                  onChange={() => {
+                    setSelected(opt.id);
+                    onSave(opt.id, BIKE_PROFILE_CIRCUMFERENCE_MM[opt.id]);
+                  }}
                 />
                 <div className="min-w-0">
                   <div className="text-[12px] font-bold text-slate-800">{opt.label}</div>
@@ -81,17 +80,9 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
             <button
               type="button"
               onClick={onDismiss}
-              className="flex-1 px-3 py-1.5 text-[11px] font-bold text-slate-600 bg-white border border-slate-200 rounded-md active:scale-[0.98]"
+              className="w-full px-3 py-1.5 text-[12px] font-bold text-slate-600 bg-white border border-slate-200 rounded-md active:scale-[0.98]"
             >
               I&apos;ll set later
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex-[1.4] px-3 py-1.5 text-[12px] font-bold text-white bg-emerald-600 rounded-md active:scale-[0.98]"
-              style={{ WebkitTextFillColor: '#ffffff' }}
-            >
-              Save
             </button>
           </div>
 

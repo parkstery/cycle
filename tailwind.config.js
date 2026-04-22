@@ -4,9 +4,15 @@ export default {
     "./index.html",
     "./App.tsx",
     "./index.tsx",
+    "./About.tsx",
+    "./MenuPanel.tsx",
+    "./MenuPanel-cur3.tsx",
     "./ElevationChartView.tsx",
+    "./SensorsModal.tsx",
+    "./BikeProfileModal.tsx",
     "./types.ts",
     "./services/**/*.ts",
+    "./sensor/**/*.ts",
   ],
   theme: {
     extend: {
