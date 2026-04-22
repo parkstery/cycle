@@ -255,6 +255,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center">
             <span className="text-[10px] font-semibold text-slate-500">Mode</span>
             <div className="h-7 inline-grid grid-cols-2 p-0.5 rounded-md border border-slate-200 bg-slate-100">
+            
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
@@ -262,7 +263,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   !prefs.sensorDriveEnabled ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                 }`}
               >
-                Manual
+                Manual Mode
               </button>
               <button
                 type="button"
@@ -271,7 +272,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   prefs.sensorDriveEnabled ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
                 }`}
               >
-                Sensor
+                Sensor Mode
               </button>
             </div>
           </section>
@@ -351,15 +352,15 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             )}
           </section>
 
-          <section className="grid grid-cols-[auto_1fr] gap-2 items-center">
-            <span className="text-[10px] font-semibold text-slate-500">Level</span>
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+          <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
+            <span className="text-[10px] font-semibold text-slate-500 shrink-0">Level</span>
+            <div className="flex w-full min-w-0 items-center gap-1">
               {FITNESS_OPTIONS.map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setFitnessLevel(id)}
-                  className={`h-8 px-2 rounded-md text-[10px] font-bold border whitespace-nowrap ${
+                  className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[10px] font-bold border whitespace-nowrap ${
                     prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                   }`}
                   style={prefs.fitnessLevel === id ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
