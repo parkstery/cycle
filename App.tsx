@@ -3856,7 +3856,6 @@ const App: React.FC = () => {
           setSensorPrefs(next);
           saveIndoorSensorPrefs(next);
         }}
-        speedSource={speedSource}
       />
 
       <BikeProfileModal
