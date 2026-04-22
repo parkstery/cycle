@@ -4,6 +4,7 @@ import { getIndoorBleHub } from './sensor/indoorBleHub';
 import type { FitnessLevel, IndoorSensorPrefs, BikeProfile } from './sensor/sensorPrefs';
 import { upsertSavedDevice, BIKE_PROFILE_CIRCUMFERENCE_MM } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
+import { cadenceChannelValid } from './sensor/dualMerge';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
 
@@ -38,17 +39,24 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const [actionError, setActionError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [calibrationOpen, setCalibrationOpen] = useState(false);
-  const [testFinished, setTestFinished] = useState(false);
 
   const [calibRunning, setCalibRunning] = useState(false);
   const [calibLeftSec, setCalibLeftSec] = useState(0);
   const calibSamplesRef = useRef<number[]>([]);
   const calibTimerRef = useRef<number | null>(null);
   const calibSecRef = useRef(0);
+  /** 캘리브레이션 중 라이브 RPM 표시용 주기 리렌더 */
+  const [calibUiRev, setCalibUiRev] = useState(0);
 
   useEffect(() => {
     return hub.subscribe(() => bump((n) => n + 1));
   }, [hub]);
+
+  useEffect(() => {
+    if (!calibRunning) return;
+    const id = window.setInterval(() => setCalibUiRev((n) => n + 1), 200);
+    return () => clearInterval(id);
+  }, [calibRunning]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +134,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
   const startCalibration = () => {
     if (calibRunning) return;
-    setTestFinished(false);
     calibSamplesRef.current = [];
     calibSecRef.current = 60;
     setCalibRunning(true);
@@ -153,7 +160,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             capacityRpm: cap,
           };
           onChangePrefs(next);
-          setTestFinished(true);
         }
       }
     }, 1000);
@@ -217,6 +223,10 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   );
 
   if (!open) return null;
+
+  const calibSnap = calibRunning ? hub.buildSnapshot() : null;
+  const showCalibCadenceRpm = calibSnap != null && cadenceChannelValid(calibSnap);
+  void calibUiRev;
 
   return (
     <div
@@ -369,9 +379,9 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <span>Sensor Calibration (Optional)</span>
             </button>
             {calibrationOpen && (
-              <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center pl-5">
+              <div className="pl-5">
                 {!calibRunning ? (
-                  <>
+                  <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
                     <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
                       Start Test
                     </button>
@@ -388,21 +398,24 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                             capacityRpm: null,
                           };
                           onChangePrefs(next);
-                          setTestFinished(false);
                         }}
                       >
                         Clear
                       </button>
                     )}
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <span className="text-[13px] font-black text-blue-700 tabular-nums">{calibLeftSec}s</span>
-                    <span className="text-[10px] text-emerald-600">{testFinished ? 'Done' : ''}</span>
-                    <button type="button" onClick={cancelCalibration} className="h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="shrink-0 text-[13px] font-black text-blue-700 tabular-nums w-[2.75rem]">{calibLeftSec}s</span>
+                    <span className="flex-1 min-w-0 text-center text-[12px] font-bold tabular-nums text-slate-800">
+                      {showCalibCadenceRpm && calibSnap!.cadenceRpm != null
+                        ? `${Math.round(calibSnap.cadenceRpm)} RPM`
+                        : '\u00a0'}
+                    </span>
+                    <button type="button" onClick={cancelCalibration} className="shrink-0 h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
                       Cancel
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             )}
