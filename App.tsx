@@ -18,11 +18,13 @@ import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } f
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
 import { SensorsModal } from './SensorsModal';
+import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import { createDualMergeState, pickRpmForIntensity, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
 import { decideSpeed, createSpeedFilterState } from './sensor/effortModel';
 import type { SpeedSource, SpeedFilterState } from './sensor/effortModel';
 import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
+import type { BikeProfile } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
 logEvent(analytics, "app_open");
@@ -381,8 +383,14 @@ const App: React.FC = () => {
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
+  const [bikeProfileModalOpen, setBikeProfileModalOpen] = useState(false);
+  const bikeProfileModalOpenRef = useRef(false);
+  bikeProfileModalOpenRef.current = bikeProfileModalOpen;
   /** BLE was disconnected last tick — used to turn on sensor-based ride only on connect edge. */
   const prevBleSensorConnectedRef = useRef(false);
+  /** Wheel channel must be valid for this long before triggering the bike profile prompt. */
+  const wheelStableSinceRef = useRef<number | null>(null);
+  const bikeProfilePromptSuppressedRef = useRef(false);
   const sensorMergeStateRef = useRef(createDualMergeState());
   const speedFilterStateRef = useRef<SpeedFilterState>(createSpeedFilterState());
   const sensorPrefsRef = useRef(sensorPrefs);
@@ -545,6 +553,7 @@ const App: React.FC = () => {
     elevationExpanded: true,
     streetViewFullScreen: false,
     sensorsModalOpen: false,
+    bikeProfileModalOpen: false,
   });
 
   // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 20% 확대 유도 (3회 반복)
@@ -605,6 +614,7 @@ const App: React.FC = () => {
       elevationExpanded,
       streetViewFullScreen: isSvActive && isSvFullScreen,
       sensorsModalOpen,
+      bikeProfileModalOpen,
     };
   }, [
     rewardOfferModalStage,
@@ -625,6 +635,7 @@ const App: React.FC = () => {
     isSvActive,
     isSvFullScreen,
     sensorsModalOpen,
+    bikeProfileModalOpen,
   ]);
 
   useEffect(() => {
@@ -800,6 +811,23 @@ const App: React.FC = () => {
         setSpeedSource(decision.source);
         // RPM display / capacity learning remain cadence-driven.
         setCurrentRpm(ema != null && ema > 0 ? ema : 0);
+      }
+
+      // Bike profile 1회 감지: wheel 채널이 3초 이상 안정적으로 유효하면 프롬프트.
+      const wheelNowValid = snap.wheelRpm != null && snap.wheelRpm > 0 && snap.now - snap.wheelTs < 2500;
+      if (wheelNowValid) {
+        if (wheelStableSinceRef.current == null) wheelStableSinceRef.current = snap.now;
+        const stableFor = snap.now - wheelStableSinceRef.current;
+        if (
+          stableFor >= 3000 &&
+          p.bikeProfile === 'unset' &&
+          !bikeProfilePromptSuppressedRef.current &&
+          !bikeProfileModalOpenRef.current
+        ) {
+          setBikeProfileModalOpen(true);
+        }
+      } else {
+        wheelStableSinceRef.current = null;
       }
       if (simulationActiveRef.current && ema != null && ema > 0) {
         rpmSampleSumRef.current += ema;
@@ -1709,6 +1737,7 @@ const App: React.FC = () => {
       s.rideLimitMessage == null &&
       !s.showAbout &&
       !s.sensorsModalOpen &&
+      !s.bikeProfileModalOpen &&
       !s.menuOpen &&
       !s.searchExpanded &&
       !s.hasClickedLocation &&
@@ -1749,6 +1778,12 @@ const App: React.FC = () => {
       if (s.sensorsModalOpen) {
         lastAndroidExitPressRef.current = 0;
         setSensorsModalOpen(false);
+        return;
+      }
+      if (s.bikeProfileModalOpen) {
+        lastAndroidExitPressRef.current = 0;
+        bikeProfilePromptSuppressedRef.current = true;
+        setBikeProfileModalOpen(false);
         return;
       }
       if (s.menuOpen) {
@@ -3816,6 +3851,26 @@ const App: React.FC = () => {
         onChangePrefs={(next) => {
           setSensorPrefs(next);
           saveIndoorSensorPrefs(next);
+        }}
+        speedSource={speedSource}
+      />
+
+      <BikeProfileModal
+        open={bikeProfileModalOpen}
+        onSave={(profile: Exclude<BikeProfile, 'unset'>, circMm: number) => {
+          const next = {
+            ...sensorPrefsRef.current,
+            bikeProfile: profile,
+            wheelCircumferenceMm: circMm,
+          };
+          sensorPrefsRef.current = next;
+          setSensorPrefs(next);
+          saveIndoorSensorPrefs(next);
+          setBikeProfileModalOpen(false);
+        }}
+        onDismiss={() => {
+          bikeProfilePromptSuppressedRef.current = true;
+          setBikeProfileModalOpen(false);
         }}
       />
 

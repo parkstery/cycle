@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
-import type { FitnessLevel, IndoorSensorPrefs } from './sensor/sensorPrefs';
-import { upsertSavedDevice, removeSavedDevice } from './sensor/sensorPrefs';
+import type { FitnessLevel, IndoorSensorPrefs, BikeProfile } from './sensor/sensorPrefs';
+import { upsertSavedDevice, removeSavedDevice, BIKE_PROFILE_CIRCUMFERENCE_MM } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
+import type { SpeedSource } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
 
@@ -19,9 +20,26 @@ export type SensorsModalProps = {
   onClose: () => void;
   prefs: IndoorSensorPrefs;
   onChangePrefs: (next: IndoorSensorPrefs) => void;
+  speedSource?: SpeedSource;
 };
 
-export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs, onChangePrefs }) => {
+const BIKE_PROFILE_OPTIONS: { id: Exclude<BikeProfile, 'unset' | 'custom'>; label: string }[] = [
+  { id: 'road700c', label: 'Road bike (700c)' },
+  { id: 'mtb29', label: 'MTB 29"' },
+  { id: 'mtb275', label: 'MTB 27.5"' },
+  { id: 'mtb26', label: 'MTB 26"' },
+  { id: 'spinbike', label: 'Indoor / spin bike' },
+];
+
+const SPEED_SOURCE_LABEL: Record<SpeedSource, { text: string; color: string }> = {
+  trainer: { text: 'Trainer speed', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+  wheel: { text: 'Wheel sensor', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  cadence: { text: 'Cadence estimate', color: 'bg-violet-100 text-violet-800 border-violet-300' },
+  manual: { text: 'Manual slider', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+  coast: { text: 'Coasting', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+};
+
+export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs, onChangePrefs, speedSource }) => {
   const hub = useMemo(() => getIndoorBleHub(), []);
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
@@ -189,6 +207,14 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     hub.stopPersistentConnection();
   };
 
+  const setBikeProfile = (id: Exclude<BikeProfile, 'unset' | 'custom'>) => {
+    onChangePrefs({
+      ...prefsRef.current,
+      bikeProfile: id,
+      wheelCircumferenceMm: BIKE_PROFILE_CIRCUMFERENCE_MM[id],
+    });
+  };
+
   const setFitnessLevel = (fitnessLevel: FitnessLevel) => {
     onChangePrefs({ ...prefsRef.current, fitnessLevel });
   };
@@ -318,7 +344,16 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             )}
 
             <div className="mt-2 pt-2 border-t border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Live</div>
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Live</div>
+                {speedSource && (
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${SPEED_SOURCE_LABEL[speedSource].color}`}
+                  >
+                    {SPEED_SOURCE_LABEL[speedSource].text}
+                  </span>
+                )}
+              </div>
               <div className="flex items-baseline gap-3">
                 <div>
                   <span className="text-[24px] font-black text-slate-900 tabular-nums">{rpmDisplay}</span>
@@ -459,6 +494,33 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             </button>
             {advancedOpen && (
               <div className="mt-2 space-y-3 pl-1 border-l-2 border-slate-100">
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-600 mb-1">Bike type</p>
+                  <p className="text-[10px] text-slate-500 leading-snug mb-1.5">
+                    Used to convert wheel sensor speed into km/h. Only relevant when a speed sensor is connected.
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {BIKE_PROFILE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setBikeProfile(opt.id)}
+                        className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold border text-center leading-tight transition-colors ${
+                          prefs.bikeProfile === opt.id
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        style={prefs.bikeProfile === opt.id ? { WebkitTextFillColor: '#ffffff' } : { WebkitTextFillColor: '#334155' }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1">
+                    Current: {prefs.wheelCircumferenceMm} mm circumference
+                  </p>
+                </div>
+
                 <div>
                   <label className="flex items-center gap-2 text-[11px] cursor-pointer">
                     <input
