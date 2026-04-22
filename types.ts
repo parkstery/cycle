@@ -64,14 +64,37 @@ export interface CoachingData {
   validUntilIndex?: number;
 }
 
-/** 저장된 경로 지오메트리(OSRM 재호출 없이 복원용). 출발/도착 위치 변동 방지. */
+/** 저장된 경로 지오메트리(OSRM 재호출 없이 복원용). 출발/도착 위치 변동 방지.
+ *  v1: provider/profile/distance/duration/fullGeometry 만 존재 (schemaVersion 없음).
+ *  v2: schemaVersion === 2. densifiedGeometry/cumulativeDistances/elevationMeters/
+ *      originLatLng/destLatLng/waypointLatLngs/totalDistanceMeters/createdAt 추가.
+ *      v2 payload 는 네트워크 없이 경로 + 고도 + 마커 복원이 가능해야 한다.
+ */
 export interface SavedRoutePayload {
+  /** 스키마 버전. 없으면 v1 으로 간주. */
+  schemaVersion?: 2;
   provider: 'osrm';
   profile: 'cycling' | 'driving' | 'foot';
   distance: string;
   duration: string;
-  /** 경로 좌표 [lat, lng][] — 정밀도 6자리 이상 유지 */
+  /** OSRM 원본 decode 결과(densify 전). 재저장·재densify 용 */
   fullGeometry: [number, number][];
+  /** 10m 간격으로 보간된 주행용 path. RUNNING 단계 currentIndex 의미 기준. */
+  densifiedGeometry?: [number, number][];
+  /** densifiedGeometry 각 포인트의 누적 거리(m). 주행 중 빈번한 재계산 제거용. */
+  cumulativeDistances?: number[];
+  /** Elevation 샘플(일반적으로 ~100개, densified path 와 1:1 아님).
+   *  [lat, lng, elevationMeters]. 없으면 복원 시 평지(0) 폴백 + 백그라운드 재요청.
+   */
+  elevationSamples?: [number, number, number][];
+  /** densified path 전체 거리(m). 숫자 원본. */
+  totalDistanceMeters?: number;
+  /** 저장 시점에 스냅된 출발/도착/경유지 좌표. */
+  originLatLng?: [number, number];
+  destLatLng?: [number, number];
+  waypointLatLngs?: [number, number][];
+  /** 저장 시각(ms). */
+  createdAt?: number;
 }
 
 export interface SavedRoute {

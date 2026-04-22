@@ -1,0 +1,47 @@
+{
+  "$comment": "DEFAULT My Routes 슬롯 정의. scripts/build-default-routes.mjs 로 OSRM/Open-Elevation 호출해 public/my-routes/default-slot-*.json 을 v2 payload 로 빌드. origin/destination 주소가 Nominatim 에서 해석되지 않으면 originCoord/destCoord 에 [lat,lng] 을 직접 지정.",
+  "slots": [
+    {
+      "id": "default-slot-1",
+      "bundledId": "default-slot-1",
+      "profile": "cycling",
+      "origin": "Tunnel de l'Étoile, Quartier des Ternes, Paris 17e Arrondissement, Paris, Île-de-France, France métropolitaine, 75017, France",
+      "destination": "67 bis, Quai Jacques Chirac, Quartier du Gros-Caillou, Paris 7e Arrondissement, Paris, Île-de-France, France métropolitaine, 75007, France",
+      "waypoints": []
+    },
+    {
+      "id": "default-slot-2",
+      "bundledId": "default-slot-2",
+      "profile": "cycling",
+      "origin": "F96M+QX Oia, 그리스",
+      "destination": "F9HJ+VJ Ia, 그리스",
+      "originCoord": [36.46089, 25.37472],
+      "destCoord": [36.46325, 25.37639],
+      "waypoints": []
+    },
+    {
+      "id": "default-slot-3",
+      "bundledId": "default-slot-3",
+      "profile": "cycling",
+      "origin": "Cheongnyeongpo 2 Bridge, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
+      "destination": "영월로, 방절리, 영월읍, 영월군, 강원특별자치도, 26226, 대한민국",
+      "waypoints": []
+    },
+    {
+      "id": "default-slot-4",
+      "bundledId": "default-slot-4",
+      "profile": "cycling",
+      "origin": "هرم خفرع, شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
+      "destination": "شارع ابو الهول السياحي, نزلة البطران, الجيزة, 12125, مصر",
+      "waypoints": []
+    },
+    {
+      "id": "default-slot-5",
+      "bundledId": "default-slot-5",
+      "profile": "cycling",
+      "origin": "1441, Golden Gate Bridge East Sidewalk, San Francisco, California, 94129, United States",
+      "destination": "Golden Gate Bridge East Sidewalk, San Francisco, Marin County, California, 94129, United States",
+      "waypoints": []
+    }
+  ]
+}

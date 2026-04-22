@@ -33,7 +33,16 @@ logEvent(analytics, "test_event");
 declare var google: any;
 const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
-const BUNDLED_MY_ROUTES_VERSION = 1;
+const BUNDLED_MY_ROUTES_VERSION = 2;
+
+/** 피처 플래그: 저장된 경로를 OSRM/Elevation 재호출 없이 오프라인 복원. 문제 발생 시 false 로 내려 기존(재탐색) 동작으로 폴백. */
+const USE_OFFLINE_ROUTE_RESTORE = true;
+
+/** 저장 payload 의 현재 스키마 버전. */
+const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
+
+/** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
+const ROUTE_DENSIFY_INTERVAL_M = 10;
 const DEFAULT_ROUTE_ASSET_PATHS = [
   'my-routes/default-slot-1.json',
   'my-routes/default-slot-2.json',
@@ -51,6 +60,62 @@ const parseSavedRoutes = (raw: string | null): SavedRoute[] => {
   } catch {
     return [];
   }
+};
+
+/** [lat,lng] 배열을 densify 간격(기본 10m)으로 보간 (calculateRoute 의 densifiedPath 와 동일 로직) */
+const densifyLatLngPath = (
+  latLngs: [number, number][],
+  intervalM: number = ROUTE_DENSIFY_INTERVAL_M
+): [number, number][] => {
+  if (latLngs.length < 2) return latLngs.slice();
+  const out: [number, number][] = [];
+  for (let i = 0; i < latLngs.length - 1; i++) {
+    const p1 = latLngs[i];
+    const p2 = latLngs[i + 1];
+    out.push(p1);
+    const a = { lat: p1[0], lng: p1[1] };
+    const b = { lat: p2[0], lng: p2[1] };
+    const dist = computeDistanceBetween(a, b);
+    if (dist > intervalM) {
+      const steps = Math.floor(dist / intervalM);
+      const heading = computeHeading(a, b);
+      for (let j = 1; j <= steps; j++) {
+        const pt = computeOffset(a, j * intervalM, heading);
+        out.push([pt.lat, pt.lng]);
+      }
+    }
+  }
+  out.push(latLngs[latLngs.length - 1]);
+  return out;
+};
+
+/** 누적 거리 배열 계산 (미터) */
+const computeCumulativeDistances = (latLngs: [number, number][]): number[] => {
+  const cum: number[] = new Array(latLngs.length);
+  cum[0] = 0;
+  for (let i = 1; i < latLngs.length; i++) {
+    const a = { lat: latLngs[i - 1][0], lng: latLngs[i - 1][1] };
+    const b = { lat: latLngs[i][0], lng: latLngs[i][1] };
+    cum[i] = cum[i - 1] + computeDistanceBetween(a, b);
+  }
+  return cum;
+};
+
+/** payload 가 v2 오프라인 복원에 필요한 모든 필드를 갖췄는지 검증 */
+const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boolean => {
+  if (!payload) return false;
+  if (payload.schemaVersion !== SAVED_ROUTE_PAYLOAD_VERSION) return false;
+  if (!Array.isArray(payload.densifiedGeometry) || payload.densifiedGeometry.length < 2) return false;
+  if (!Array.isArray(payload.cumulativeDistances) || payload.cumulativeDistances.length !== payload.densifiedGeometry.length) return false;
+  return true;
+};
+
+/** 숫자 소수점 정밀도 고정 (저장용) */
+const fix8 = (n: number): number => Number(Number(n).toFixed(8));
+const toLatLngPair = (p: any): [number, number] => {
+  const lat = typeof p?.lat === 'function' ? p.lat() : p?.lat;
+  const lng = typeof p?.lng === 'function' ? p.lng() : p?.lng;
+  return [fix8(lat), fix8(lng)];
 };
 
 const modeFromProfile = (profile: 'cycling' | 'driving' | 'foot'): TravelMode => (
@@ -333,6 +398,8 @@ const App: React.FC = () => {
   const lastRouteRequestRef = useRef<{ origin: string; destination: string; waypointNames: string[]; mode: TravelMode } | null>(null);
   /** Favorites 복원 함수 ref (handleLoadFavorite보다 나중에 정의되므로 ref로 호출) */
   const restoreRouteFromSavedGeometryRef = useRef<((saved: SavedRoute) => Promise<void>) | null>(null);
+  /** OSRM 원본 decode geometry ([lat,lng][]). 저장 시 densify 전 원본 유지용. 복원 시 payload.fullGeometry 로 세팅. */
+  const lastOsrmDecodedPathRef = useRef<[number, number][] | null>(null);
 
   // Audio References
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -581,20 +648,39 @@ const App: React.FC = () => {
   const [clickedLocation, setClickedLocation] = useState<{ lat: number, lng: number, name?: string, address: string, elevation: number | null, location: any } | null>(null);
 
   useEffect(() => {
-    if (favoriteRoutes.length > 0) return;
+    const storedVersionRaw = localStorage.getItem(FAVORITE_ROUTES_INIT_VERSION_KEY);
+    const storedVersion = storedVersionRaw ? Number(storedVersionRaw) : 0;
+    const needsInitialSeed = favoriteRoutes.length === 0;
+    // 기존 DEFAULT 슬롯이 payload 없이 저장돼 있으면 최신 번들(v2)로 교체.
+    // USER 슬롯은 유지하고 DEFAULT 슬롯만 교체해 사용자 저장 경로 보존.
+    const hasStaleDefaults =
+      storedVersion < BUNDLED_MY_ROUTES_VERSION &&
+      favoriteRoutes.some((r) => r.source === 'DEFAULT' && !isOfflineRestorablePayload(r.routePayload));
+    if (!needsInitialSeed && !hasStaleDefaults) return;
+
     let cancelled = false;
     loadBundledDefaultRoutes()
       .then((defaults) => {
         if (cancelled || defaults.length === 0) return;
-        setFavoriteRoutes(defaults);
-        localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(defaults));
+        if (needsInitialSeed) {
+          setFavoriteRoutes(defaults);
+          localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(defaults));
+        } else {
+          // stale DEFAULT 교체: USER 슬롯 보존 + DEFAULT 교체 (MY_ROUTES_MAX 한도 내)
+          setFavoriteRoutes((prev) => {
+            const userRoutes = prev.filter((r) => r.source !== 'DEFAULT');
+            const merged = [...userRoutes, ...defaults].slice(0, 5);
+            localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          });
+        }
         localStorage.setItem(FAVORITE_ROUTES_INIT_VERSION_KEY, String(BUNDLED_MY_ROUTES_VERSION));
       })
       .catch((e) => {
         console.warn('[MY_ROUTES] failed to seed bundled defaults', e);
       });
     return () => { cancelled = true; };
-  }, [favoriteRoutes.length]);
+  }, [favoriteRoutes]);
 
   useEffect(() => {
     androidBackStateRef.current = {
@@ -941,21 +1027,39 @@ const App: React.FC = () => {
         };
       });
 
-      // OSRM 경로가 있으면 fullGeometry 저장 → 불러올 때 재호출 없이 복원(위치 변동 방지)
+      // OSRM 경로가 있으면 fullGeometry + densified + elevation 저장 → 불러올 때 재호출 없이 주행 가능
       let routePayload: SavedRoute['routePayload'] = undefined;
       if (route && routeSource === 'OSRM' && route.path?.length > 0) {
-        const fullGeometry: [number, number][] = route.path.map((p: any) => {
-          const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
-          const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
-          return [Number(Number(lat).toFixed(8)), Number(Number(lng).toFixed(8))] as [number, number];
+        const densifiedLatLng: [number, number][] = route.path.map((p: any) => toLatLngPair(p));
+        const fullGeom: [number, number][] = lastOsrmDecodedPathRef.current?.length
+          ? lastOsrmDecodedPathRef.current.slice()
+          : densifiedLatLng.slice();
+        const cumulative = computeCumulativeDistances(densifiedLatLng);
+        const totalM = cumulative[cumulative.length - 1] ?? 0;
+        const elevationSamples: [number, number, number][] = (route.elevation ?? []).map((r: any) => {
+          const loc = r.location;
+          const lat = typeof loc?.lat === 'function' ? loc.lat() : loc?.lat;
+          const lng = typeof loc?.lng === 'function' ? loc.lng() : loc?.lng;
+          return [fix8(lat), fix8(lng), Number((Number(r.elevation) || 0).toFixed(3))] as [number, number, number];
         });
         const profile = mode === TravelMode.DRIVING ? 'driving' : mode === TravelMode.BICYCLING ? 'cycling' : 'foot';
+        const originSrc = originLocationRef.current ?? route.path[0];
+        const destSrc = destLocationRef.current ?? route.path[route.path.length - 1];
         routePayload = {
+          schemaVersion: SAVED_ROUTE_PAYLOAD_VERSION,
           provider: 'osrm',
           profile,
           distance: route.distance,
           duration: route.duration,
-          fullGeometry
+          fullGeometry: fullGeom,
+          densifiedGeometry: densifiedLatLng,
+          cumulativeDistances: cumulative.map(d => Number(d.toFixed(2))),
+          ...(elevationSamples.length ? { elevationSamples } : {}),
+          totalDistanceMeters: Number(totalM.toFixed(2)),
+          originLatLng: toLatLngPair(originSrc),
+          destLatLng: toLatLngPair(destSrc),
+          waypointLatLngs: waypoints.map(wp => toLatLngPair(wp.location)),
+          createdAt: Date.now()
         };
       }
       if (!routePayload?.fullGeometry?.length) {
@@ -1020,8 +1124,13 @@ const App: React.FC = () => {
       setLockedRouteProfile(null);
     }
     if (saved.routePayload?.fullGeometry?.length) {
-      await restoreRouteFromSavedGeometryRef.current?.(saved);
-      return;
+      try {
+        await restoreRouteFromSavedGeometryRef.current?.(saved);
+        return;
+      } catch (e) {
+        console.warn('[MY_ROUTES] restore failed, falling back to OSRM recalculation', e);
+        // 세션 내 폴백만 — localStorage payload 는 보존하여 다음 로드 재시도 가능
+      }
     }
     // Legacy/default favorites without fullGeometry: one-time migrate by recalculating and persisting payload.
     const fallbackMode = saved.routePayload?.profile ? modeFromProfile(saved.routePayload.profile) : mode;
@@ -2832,21 +2941,50 @@ const App: React.FC = () => {
     return marker;
   };
 
-  /** 저장된 fullGeometry로 경로 복원(OSRM 재호출 없음 → 출발/도착 위치 변동 방지) */
+  /** 저장된 payload 로 경로 복원.
+   *  v2 (USE_OFFLINE_ROUTE_RESTORE=true): OSRM/Elevation 재호출 없이 densifiedGeometry + elevationSamples 사용 → 네트워크 없어도 주행 가능.
+   *  v1 또는 오프라인 복원 실패: Open-Elevation 재요청 후 self-heal (payload v2 로 승격).
+   *  Street View prefetch 는 별도 백그라운드 단계로, 경로 복원 자체를 블로킹하지 않는다.
+   */
   const restoreRouteFromSavedGeometry = useCallback(async (saved: SavedRoute) => {
     const payload = saved.routePayload;
     if (!payload?.fullGeometry?.length) return;
+    if (typeof google === 'undefined' || !google.maps?.LatLng) {
+      console.warn('[RESTORE] google.maps not ready; aborting restore for', saved.id);
+      return;
+    }
     setLoading(true);
     try {
-      const path = payload.fullGeometry.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
-      const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
-      const elevationRes = {
-        results: openRes.results.map((r) => ({
-          elevation: r.elevation,
-          location: new google.maps.LatLng(r.latitude, r.longitude),
+      const canOffline = USE_OFFLINE_ROUTE_RESTORE && isOfflineRestorablePayload(payload);
+
+      // 1) densifiedGeometry 결정 — v2 이면 저장된 것, 아니면 fullGeometry 를 즉석 densify
+      const densifiedLatLng: [number, number][] = canOffline && payload.densifiedGeometry?.length
+        ? payload.densifiedGeometry
+        : densifyLatLngPath(payload.fullGeometry, ROUTE_DENSIFY_INTERVAL_M);
+      const path = densifiedLatLng.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+      if (path.length < 2) throw new Error('Restored path too short');
+
+      // 2) elevation 준비 — 저장된 elevationSamples 가 있으면 재구성, 없으면 평지로 초기화 후 백그라운드 재요청
+      let elevationResults: Array<{ elevation: number; location: any; resolution: number }> = [];
+      let elevationHydratedFromPayload = false;
+      if (canOffline && payload.elevationSamples && payload.elevationSamples.length > 0) {
+        elevationResults = payload.elevationSamples.map(([lat, lng, elev]) => ({
+          elevation: elev,
+          location: new google.maps.LatLng(lat, lng),
           resolution: 0
-        }))
-      };
+        }));
+        elevationHydratedFromPayload = true;
+      } else {
+        const sampleStep = Math.max(1, Math.floor(path.length / 100));
+        for (let i = 0; i < path.length; i += sampleStep) {
+          elevationResults.push({ elevation: 0, location: path[i], resolution: 0 });
+        }
+        if (elevationResults[elevationResults.length - 1]?.location !== path[path.length - 1]) {
+          elevationResults.push({ elevation: 0, location: path[path.length - 1], resolution: 0 });
+        }
+      }
+
+      // 3) 마커·폴리라인 동기 재구성
       const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
       oldMarkers.forEach(m => m?.setMap(null));
       googleMarkersRef.current = googleMarkersRef.current.filter(m => !oldMarkers.includes(m));
@@ -2857,6 +2995,8 @@ const App: React.FC = () => {
         googlePolylineRef.current.setMap(null);
         googlePolylineRef.current = null;
       }
+      const originSeed = payload.originLatLng ? new google.maps.LatLng(payload.originLatLng[0], payload.originLatLng[1]) : path[0];
+      const destSeed = payload.destLatLng ? new google.maps.LatLng(payload.destLatLng[0], payload.destLatLng[1]) : path[path.length - 1];
       startMarker.current = createCustomMarker(path[0], 'A', '#3b82f6');
       endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
       saved.waypoints.forEach((wp, idx) => {
@@ -2871,6 +3011,8 @@ const App: React.FC = () => {
           if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
         });
       }
+
+      // 4) 상태 동기 세팅 — 여기까지가 네트워크 없이 주행 가능한 상태
       const modeBySavedProfile = modeFromProfile(payload.profile);
       setMode(modeBySavedProfile);
       setLockedRouteProfile(payload.profile);
@@ -2880,7 +3022,9 @@ const App: React.FC = () => {
         distance: payload.distance,
         duration: payload.duration,
         path,
-        elevation: elevationRes.results ?? []
+        elevation: elevationResults,
+        ...(payload.totalDistanceMeters != null ? { totalDistanceMeters: payload.totalDistanceMeters } : {}),
+        ...(payload.cumulativeDistances ? { cumulativeDistances: payload.cumulativeDistances } : {})
       });
       lastRouteRequestRef.current = {
         origin: saved.origin.trim(),
@@ -2888,6 +3032,7 @@ const App: React.FC = () => {
         waypointNames: saved.waypoints.map(w => (w.name || '').trim()),
         mode: modeBySavedProfile
       };
+      lastOsrmDecodedPathRef.current = payload.fullGeometry.slice();
       setRouteSource('OSRM');
       console.log('[SIMULATION_STOP] reason=restore_saved_route');
       setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
@@ -2895,30 +3040,93 @@ const App: React.FC = () => {
       svDisplayPathIndexRef.current = 0;
       lastDisplayedPanoPathIndexRef.current = -1;
       lastCoachedIndex.current = -1;
-      originLocationRef.current = path[0];
-      destLocationRef.current = path[path.length - 1];
+      originLocationRef.current = originSeed;
+      destLocationRef.current = destSeed;
       if (path.length > 0) {
         const startPos = path[0];
         const heading = path.length > 1 ? computeHeading(startPos, path[1]) : 0;
         setPanoramaView(startPos, heading);
       }
-      const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
-      setAppPhase('PREPARING');
-      setPreparingProgress({ k: 0, n: 1 });
-      const { panoData, sampleCount } = await preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), { maxDistanceM: initialPrefetchM, intervalM: 10 });
-      setPreparingProgress(null);
-      const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
-      setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
-      setAppPhase('IDLE');
       if (googleMapRef.current && path.length > 0) {
         const bounds = new google.maps.LatLngBounds();
         path.forEach((p: any) => bounds.extend(p));
         googleMapRef.current.fitBounds(bounds);
       }
+
+      // 5) Elevation self-heal — payload 에 elevation 없을 때만 백그라운드로 한 번 보강 + v2 승격
+      if (!elevationHydratedFromPayload) {
+        (async () => {
+          try {
+            const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
+            const hydrated = openRes.results.map((r) => ({
+              elevation: r.elevation,
+              location: new google.maps.LatLng(r.latitude, r.longitude),
+              resolution: 0
+            }));
+            setRoute((prev) => prev ? { ...prev, elevation: hydrated } : prev);
+            // payload v2 로 승격(다음 로드부터는 네트워크 불필요)
+            const elevationSamples: [number, number, number][] = hydrated.map((r) => {
+              const lat = typeof r.location.lat === 'function' ? r.location.lat() : r.location.lat;
+              const lng = typeof r.location.lng === 'function' ? r.location.lng() : r.location.lng;
+              return [fix8(lat), fix8(lng), Number((Number(r.elevation) || 0).toFixed(3))] as [number, number, number];
+            });
+            const cumulative = payload.cumulativeDistances?.length === densifiedLatLng.length
+              ? payload.cumulativeDistances
+              : computeCumulativeDistances(densifiedLatLng);
+            const totalM = cumulative[cumulative.length - 1] ?? 0;
+            const upgraded: SavedRoutePayload = {
+              schemaVersion: SAVED_ROUTE_PAYLOAD_VERSION,
+              provider: 'osrm',
+              profile: payload.profile,
+              distance: payload.distance,
+              duration: payload.duration,
+              fullGeometry: payload.fullGeometry,
+              densifiedGeometry: densifiedLatLng,
+              cumulativeDistances: cumulative.map(d => Number(d.toFixed(2))),
+              elevationSamples,
+              totalDistanceMeters: Number(totalM.toFixed(2)),
+              originLatLng: payload.originLatLng ?? toLatLngPair(originSeed),
+              destLatLng: payload.destLatLng ?? toLatLngPair(destSeed),
+              waypointLatLngs: payload.waypointLatLngs ?? saved.waypoints.map(wp => [fix8(wp.lat), fix8(wp.lng)] as [number, number]),
+              createdAt: payload.createdAt ?? Date.now()
+            };
+            updateFavoriteRoutePayload(saved.id, upgraded);
+          } catch (e) {
+            console.warn('[RESTORE] elevation self-heal failed (non-fatal)', e);
+          }
+        })();
+      }
+
+      // 6) Street View prefetch — 비블로킹. 실패해도 경로 주행은 가능.
+      (async () => {
+        try {
+          const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
+          setAppPhase('PREPARING');
+          setPreparingProgress({ k: 0, n: 1 });
+          const { panoData, sampleCount } = await preFetchStreetViewData(
+            path,
+            (k, n) => setPreparingProgress({ k, n }),
+            { maxDistanceM: initialPrefetchM, intervalM: 10 }
+          );
+          setPreparingProgress(null);
+          const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
+          setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
+          setAppPhase('IDLE');
+        } catch (e) {
+          console.warn('[RESTORE] street view prefetch failed (non-fatal)', e);
+          setPreparingProgress(null);
+          setAppPhase('IDLE');
+        }
+      })();
+    } catch (e) {
+      console.error('[RESTORE_FAIL] falling back to OSRM recalculation', e);
+      // 오프라인 복원 실패 — 세션 내에서만 calculateRoute 로 폴백(localStorage 는 건드리지 않음).
+      // 호출자(handleLoadFavorite)가 실패를 인지할 수 있도록 에러를 올린다.
+      throw e;
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, setPanoramaView, preFetchStreetViewData, speedKmH]);
+  }, [elevationProvider, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
@@ -3211,9 +3419,13 @@ const App: React.FC = () => {
       let path: any[] = [];
       let distText = '';
       let durText = '';
+      let originLatLngOuter: any = null;
+      let destLatLngOuter: any = null;
       try {
         const originLatLng = await getCoord(useOrigin, finalOrigin);
         const destLatLng = await getCoord(useDest, finalDestination);
+        originLatLngOuter = originLatLng;
+        destLatLngOuter = destLatLng;
         const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
         const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
         const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
@@ -3222,6 +3434,7 @@ const App: React.FC = () => {
           : await (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`)).json();
         if (data.code === 'Ok') {
           const decoded = decodePath(data.routes[0].geometry);
+          lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);
           path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
           distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
           durText = formatDurationSimple(data.routes[0].duration);
@@ -3344,13 +3557,36 @@ const App: React.FC = () => {
         }
         setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results ?? [] });
         if (hydrateFavoriteId && densifiedPath.length > 0) {
-          const fullGeometry: [number, number][] = densifiedPath.map((p: any) => [Number(p.lat().toFixed(8)), Number(p.lng().toFixed(8))]);
+          const densifiedLatLng: [number, number][] = densifiedPath.map((p: any) => [fix8(p.lat()), fix8(p.lng())]);
+          const fullGeom: [number, number][] = lastOsrmDecodedPathRef.current?.length
+            ? lastOsrmDecodedPathRef.current.slice()
+            : densifiedLatLng.slice();
+          const cumulative = computeCumulativeDistances(densifiedLatLng);
+          const totalM = cumulative[cumulative.length - 1] ?? 0;
+          const elevationSamples: [number, number, number][] = (elevationRes.results ?? [])
+            .map((r: any) => {
+              const loc = r.location;
+              const lat = typeof loc?.lat === 'function' ? loc.lat() : loc?.lat;
+              const lng = typeof loc?.lng === 'function' ? loc.lng() : loc?.lng;
+              return [fix8(lat), fix8(lng), Number((Number(r.elevation) || 0).toFixed(3))] as [number, number, number];
+            });
+          const originSrc = originLatLngOuter ?? densifiedPath[0];
+          const destSrc = destLatLngOuter ?? densifiedPath[densifiedPath.length - 1];
           const payload: SavedRoutePayload = {
+            schemaVersion: SAVED_ROUTE_PAYLOAD_VERSION,
             provider: 'osrm',
             profile: profileFromMode(activeMode),
             distance: distText,
             duration: durText,
-            fullGeometry
+            fullGeometry: fullGeom,
+            densifiedGeometry: densifiedLatLng,
+            cumulativeDistances: cumulative.map(d => Number(d.toFixed(2))),
+            ...(elevationSamples.length ? { elevationSamples } : {}),
+            totalDistanceMeters: Number(totalM.toFixed(2)),
+            originLatLng: toLatLngPair(originSrc),
+            destLatLng: toLatLngPair(destSrc),
+            waypointLatLngs: activeWaypoints.map(wp => toLatLngPair(wp.location)),
+            createdAt: Date.now()
           };
           updateFavoriteRoutePayload(hydrateFavoriteId, payload);
         }

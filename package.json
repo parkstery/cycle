@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:default-routes": "node scripts/build-default-routes.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
