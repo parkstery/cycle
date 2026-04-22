@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Gauge, Bluetooth, BluetoothOff, Scan, ChevronDown } from 'lucide-react';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import type { FitnessLevel, IndoorSensorPrefs, BikeProfile } from './sensor/sensorPrefs';
-import { upsertSavedDevice, removeSavedDevice, BIKE_PROFILE_CIRCUMFERENCE_MM } from './sensor/sensorPrefs';
+import { upsertSavedDevice, BIKE_PROFILE_CIRCUMFERENCE_MM } from './sensor/sensorPrefs';
 import { initialCapacityFromTestRpm } from './sensor/effortModel';
 
 type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
@@ -37,7 +37,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const [initError, setInitError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [testFinished, setTestFinished] = useState(false);
 
@@ -187,16 +186,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
     }
   };
 
-  const forgetSavedDevice = (deviceId: string) => {
-    const cur = prefsRef.current;
-    onChangePrefs({ ...cur, lastConnectedDevices: removeSavedDevice(cur.lastConnectedDevices, deviceId) });
-  };
-
-  const forgetAllSavedDevices = () => {
-    onChangePrefs({ ...prefsRef.current, lastConnectedDevices: [] });
-    hub.stopPersistentConnection();
-  };
-
   const setBikeProfile = (id: Exclude<BikeProfile, 'unset' | 'custom'>) => {
     onChangePrefs({
       ...prefsRef.current,
@@ -289,30 +278,26 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   {connState === 'connected' && `Connected (${connected.length}) | ${connectedLabel}`}
                 </span>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => void handleScan()}
-                  disabled={scanning}
-                  className="h-8 flex items-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
-                >
-                  <Scan size={13} />
-                  Scan
-                </button>
-                <button type="button" onClick={() => setMenuOpen((v) => !v)} className="h-8 px-2 rounded-md border border-slate-200 text-[12px] font-bold text-slate-600 bg-white">
-                  Menu
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void handleScan()}
+                disabled={scanning}
+                className="h-8 shrink-0 flex items-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
+              >
+                <Scan size={13} />
+                Scan
+              </button>
             </div>
 
-            {menuOpen && (
-              <div className="border border-slate-100 rounded-md p-2 space-y-1.5 bg-slate-50">
-                {scanning && (
-                  <button type="button" className="h-8 text-[12px] font-bold text-slate-600 px-2 rounded-md border border-slate-200 bg-white" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
-                    Stop scan
-                  </button>
-                )}
-                {connected.length > 0 && (
+            <div className="border border-slate-100 rounded-md p-2 space-y-1.5 bg-slate-50">
+              {scanning && (
+                <button type="button" className="h-8 w-full text-[12px] font-bold text-slate-600 px-2 rounded-md border border-slate-200 bg-white" onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}>
+                  Stop scan
+                </button>
+              )}
+              {connected.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Connected</div>
                   <ul className="space-y-1">
                     {connected.map((c) => (
                       <li key={c.deviceId} className="grid grid-cols-[1fr_auto] items-center gap-1.5 min-w-0">
@@ -323,9 +308,12 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                       </li>
                     ))}
                   </ul>
-                )}
-                {scanList.length > 0 && (
-                  <ul className="max-h-24 overflow-y-auto space-y-1">
+                </div>
+              )}
+              {scanList.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Found</div>
+                  <ul className="max-h-28 overflow-y-auto space-y-1">
                     {scanList.map((d) => (
                       <li key={d.deviceId} className="grid grid-cols-[1fr_auto] items-center gap-1.5 min-w-0">
                         <span className="truncate text-[11px] text-slate-700 min-w-0">{d.name}</span>
@@ -340,17 +328,12 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                       </li>
                     ))}
                   </ul>
-                )}
-                {prefs.lastConnectedDevices.length > 0 && (
-                  <div className="grid grid-cols-[1fr_auto] gap-1">
-                    <span className="text-[10px] text-slate-500 self-center">Saved {prefs.lastConnectedDevices.length}</span>
-                    <button type="button" className="h-7 px-2 text-[12px] font-bold text-red-600 border border-red-200 rounded-md bg-white" onClick={forgetAllSavedDevices}>
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+              {!scanning && connected.length === 0 && scanList.length === 0 && (
+                <p className="text-[11px] text-slate-500 text-center py-2">Tap Scan to find nearby sensors.</p>
+              )}
+            </div>
           </section>
 
           <section className="grid grid-cols-[auto_1fr] gap-2 items-center min-w-0">
