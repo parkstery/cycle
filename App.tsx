@@ -3105,7 +3105,18 @@ const App: React.FC = () => {
       setAppPhase('IDLE');
       svDisplayPathIndexRef.current = 0;
       lastDisplayedPanoPathIndexRef.current = -1;
+      // 이전 ride 잔존 상태 전면 리셋 — coach text·elapsed·covered·코칭 refs 가
+      // 새 경로 주행 시작 전까지 이전 값을 보여 주는 문제 방지
+      setCoachData(null);
+      setElapsedTime(0);
+      setCoveredDistance(0);
+      setAverageRpm(0);
+      rpmSampleSumRef.current = 0;
+      rpmSampleCountRef.current = 0;
       lastCoachedIndex.current = -1;
+      lastValidUntilFetched.current = -1;
+      lastSpokenValidUntilPathIndex.current = null;
+      isPrefetchingCoachRef.current = false;
       originLocationRef.current = originSeed;
       destLocationRef.current = destSeed;
       if (path.length > 0) {
@@ -3737,6 +3748,7 @@ const App: React.FC = () => {
     rideStoppedByLimitRef.current = false;
     lastCoachedIndex.current = -1;
     lastValidUntilFetched.current = -1;
+    lastSpokenValidUntilPathIndex.current = null;
     isPrefetchingCoachRef.current = false;
 
     const pathLen = currentRoute.path.length;
@@ -3763,13 +3775,15 @@ const App: React.FC = () => {
       setIsCoachThinking(true);
       try {
         const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
+        // 메인 effect 가 setRoute 이후 flush 시점에 같은 세그먼트로 중복 speak 하지 않도록
+        // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
+        lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
         // 주행 시작 안내와 첫 코칭 tip 을 하나의 발화로 합쳐 TTS 자가 취소(앞 발화 잘림) 방지
         const briefing = await getCourseBriefing(currentRoute);
         const firstUtterance = [briefing, coaching.tip].filter(Boolean).join(' ');
         speak(firstUtterance);
-        lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
       } finally {
         setIsCoachThinking(false);
       }

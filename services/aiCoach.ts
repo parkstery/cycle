@@ -47,15 +47,16 @@ export const getAdvancedCoaching = async (
     if (Number.isFinite(minEl) && Number.isFinite(maxEl)) elevationSpanM = maxEl - minEl;
   }
 
-  // DEM 신뢰도가 낮은 구간(교량, 짧은 구간, 허수 피크)에서 R 의미가 약해지므로
-  // 아래 조건을 만족하면 Steady(R3)로 중립 처리한다.
-  // - 구간 길이 < 80m
-  // - 순고도차 |rise| < 1m (DEM 세로 정확도 미만)
-  // - 구간 내 고도 스팬이 순상승의 2배 이상 (지그재그로 흔들린 구간)
+  // DEM 신뢰도가 낮은 구간(교량, 짧은 구간, 허수 피크)에서만 Steady(R3)로 중립 처리한다.
+  // 이전 임계(distance<80m, |rise|<1m)는 너무 보수적이라 경로 대부분이 Steady 로 고착되는
+  // 문제가 있어 아래와 같이 완화한다.
+  // - 구간 길이 < 30m (사실상 점)
+  // - 순고도차 |rise| < 0.3m (DEM 수직 정확도보다 훨씬 작은 변화)
+  // - 구간 내 고도 스팬이 순상승의 3배 이상 + 평균 기울기 < 1% (명백한 노이즈 지그재그)
   const lowConfidence =
-    distance < 80 ||
-    Math.abs(rise) < 1 ||
-    (elevationSpanM > Math.max(2, Math.abs(rise) * 2) && Math.abs(slope) < 3);
+    distance < 30 ||
+    Math.abs(rise) < 0.3 ||
+    (elevationSpanM > Math.max(3, Math.abs(rise) * 3) && Math.abs(slope) < 1);
   if (lowConfidence) slope = 0;
 
   // 2. Resistance based on slope
@@ -114,7 +115,9 @@ export const getPredictiveCoaching = async (
   coaching: CoachingData & { tipId?: string; resId?: string };
   validUntilPathIndex: number;
 }> => {
-  const segmentSize = 80;
+  // 세그먼트 크기를 40 path points (약 400m) 로 줄여 R 갱신 주기를 단축.
+  // 기존 80 은 약 800m ≈ 2~3분 동안 같은 R 이 표시되어 현재 고도 국면과 체감 불일치가 컸다.
+  const segmentSize = 40;
   const validUntilPathIndex = Math.min(
     currentIdx + segmentSize,
     currentIdx + Math.max(20, upcomingPoints.length * 4)
