@@ -47,16 +47,15 @@ export const getAdvancedCoaching = async (
     if (Number.isFinite(minEl) && Number.isFinite(maxEl)) elevationSpanM = maxEl - minEl;
   }
 
-  // DEM 신뢰도가 낮은 구간(교량, 짧은 구간, 허수 피크)에서만 Steady(R3)로 중립 처리한다.
-  // 이전 임계(distance<80m, |rise|<1m)는 너무 보수적이라 경로 대부분이 Steady 로 고착되는
-  // 문제가 있어 아래와 같이 완화한다.
-  // - 구간 길이 < 30m (사실상 점)
-  // - 순고도차 |rise| < 0.3m (DEM 수직 정확도보다 훨씬 작은 변화)
-  // - 구간 내 고도 스팬이 순상승의 3배 이상 + 평균 기울기 < 1% (명백한 노이즈 지그재그)
+  // Steady(R3)로 중립 처리하는 경우는 "DEM 자체를 신뢰하기 어려운" 케이스로만 제한한다.
+  // 평탄한 경로(진짜 flat) 는 |rise|≈0 이지만 DEM 은 정상이고 R3 로 분류되어야 하므로
+  // |rise| 기준은 제거하고 아래 조건만 남긴다.
+  // - 구간 길이 < 15m (사실상 점 — 좌표 정밀도/densify 노이즈)
+  // - 구간 내 고도 스팬이 순상승의 5배 이상이면서 평균 기울기도 0.5% 미만
+  //   → 지그재그성 DEM 노이즈라고 판정 (실제 경사가 있으면 |slope| 이 충분히 살아남음)
   const lowConfidence =
-    distance < 30 ||
-    Math.abs(rise) < 0.3 ||
-    (elevationSpanM > Math.max(3, Math.abs(rise) * 3) && Math.abs(slope) < 1);
+    distance < 15 ||
+    (elevationSpanM > Math.max(5, Math.abs(rise) * 5) && Math.abs(slope) < 0.5);
   if (lowConfidence) slope = 0;
 
   // 2. Resistance based on slope

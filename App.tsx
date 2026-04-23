@@ -406,6 +406,8 @@ const App: React.FC = () => {
   const fadeIntervalRef = useRef<number | null>(null);
   const simulationActiveRef = useRef(false);
   const speechStartTimeoutRef = useRef<number | null>(null);
+  /** speak 함수 ref — speak 정의 이전 useEffect(카운트다운 TTS 웜업 등)에서 참조하기 위한 포인터 */
+  const speakRef = useRef<((text: string) => void) | null>(null);
   const speechRequestIdRef = useRef(0);
   const musicOnRef = useRef(true);
   const pendingAudioPauseRef = useRef(false);
@@ -2210,6 +2212,17 @@ const App: React.FC = () => {
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
     if (countdown === null) return;
+    // 카운트다운 진입 순간 TTS 엔진을 한 번 워밍업.
+    // Android WebView + Capacitor TTS 는 cold-start 시 첫 발화까지 수십 초가
+    // 걸릴 수 있으므로, "Ready" 라는 짧은 음성으로 보이스/엔진을 미리 초기화해
+    // 카운트다운 종료 시점의 실제 코칭 발화 지연을 줄인다.
+    if (countdown === 3) {
+      try {
+        speakRef.current?.('Ready');
+      } catch {
+        // 웜업 실패는 무시 — 실제 코칭 발화 경로의 fallback 이 처리.
+      }
+    }
     const t = window.setTimeout(() => {
       if (countdown === 3) setCountdown(2);
       else if (countdown === 2) setCountdown(1);
@@ -2972,6 +2985,11 @@ const App: React.FC = () => {
     };
     window.setTimeout(scheduleSpeak, 50);
   }, [coachingOn, safeSpeechCancel]);
+
+  // 카운트다운 진입 시점 등 speak 정의 이전의 effect 에서 참조할 수 있도록 최신 speak 를 ref 에 보관.
+  useEffect(() => {
+    speakRef.current = speak;
+  }, [speak]);
 
   useEffect(() => {
     if (!coachingOn) {
@@ -3745,6 +3763,11 @@ const App: React.FC = () => {
 
     setElapsedTime(0);
     setCoveredDistance(0);
+    // 이전 ride 의 coachData 가 isActive=true 전환 직후 잠깐 표시되는 문제 방지.
+    // 새 coachData 는 getPredictiveCoaching 완료 후 아래에서 세팅된다.
+    setCoachData(null);
+    // 이전 ride 의 캐시된 코칭/pano 데이터가 새 세그먼트에 섞여 들어오지 않도록 비움.
+    setRoute((prev) => (prev ? { ...prev, cachedCoaching: [] } : prev));
     rideStoppedByLimitRef.current = false;
     lastCoachedIndex.current = -1;
     lastValidUntilFetched.current = -1;
