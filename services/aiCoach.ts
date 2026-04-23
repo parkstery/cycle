@@ -47,15 +47,11 @@ export const getAdvancedCoaching = async (
     if (Number.isFinite(minEl) && Number.isFinite(maxEl)) elevationSpanM = maxEl - minEl;
   }
 
-  // Steady(R3)로 중립 처리하는 경우는 "DEM 자체를 신뢰하기 어려운" 케이스로만 제한한다.
-  // 평탄한 경로(진짜 flat) 는 |rise|≈0 이지만 DEM 은 정상이고 R3 로 분류되어야 하므로
-  // |rise| 기준은 제거하고 아래 조건만 남긴다.
-  // - 구간 길이 < 15m (사실상 점 — 좌표 정밀도/densify 노이즈)
-  // - 구간 내 고도 스팬이 순상승의 5배 이상이면서 평균 기울기도 0.5% 미만
-  //   → 지그재그성 DEM 노이즈라고 판정 (실제 경사가 있으면 |slope| 이 충분히 살아남음)
-  const lowConfidence =
-    distance < 15 ||
-    (elevationSpanM > Math.max(5, Math.abs(rise) * 5) && Math.abs(slope) < 0.5);
+  // Steady(R3)로 중립 처리하는 경우는 "슬라이스가 사실상 점" 인 degenerate 케이스로만 제한한다.
+  // 기존 zig-zag 조건(span > rise*5 && |slope|<0.5) 은 "내부에 기복이 있지만 시점·종점 고도가
+  // 비슷한 롤링 힐"(예: Lake Louise 트레일) 을 오판하여 Steady 로 빠지게 만들었다.
+  // 이런 구간은 평균 slope 가 작더라도 R3 로 해석하는 것이 의미상 맞으므로 조건을 제거한다.
+  const lowConfidence = distance < 15;
   if (lowConfidence) slope = 0;
 
   // 2. Resistance based on slope
@@ -129,6 +125,37 @@ export const getPredictiveCoaching = async (
   );
   return { coaching: result, validUntilPathIndex };
 };
+
+/**
+ * 주기 재추첨용 헬퍼 — 같은 R 밴드에서 (직전과 다른) 랜덤 tip 을 뽑아
+ * "(Rn)" 또는 "(Steady)" 라벨까지 붙인 display 문자열을 반환한다.
+ * 같은 R 구간이 길게 이어질 때 지루함 방지용 주기 발화에 사용.
+ */
+export function pickFreshTipForResistance(
+  targetRes: number,
+  isSteady: boolean,
+  avoidTipIndex?: number | null
+): { tipText: string; tipIndex: number; displayText: string } {
+  const all = getTipIndicesByResistance(targetRes);
+  const filtered = typeof avoidTipIndex === 'number'
+    ? all.filter((i) => i !== avoidTipIndex)
+    : all;
+  const pool = filtered.length > 0 ? filtered : all;
+  const tipIndex = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : 0;
+  const phrases = getCoachingPhrases();
+  const tipText = phrases[tipIndex]?.text ?? phrases[0].text;
+  const displayText = isSteady ? `${tipText} (Steady)` : `${tipText} (R${targetRes})`;
+  return { tipText, tipIndex, displayText };
+}
+
+/** "Resistance N" / "Steady" → 숫자 밴드(1~8). Steady 는 R3 풀을 공유하므로 3 으로 본다. */
+export function parseResistanceBand(resistanceText: string | undefined): number {
+  if (!resistanceText) return 3;
+  if (resistanceText === 'Steady') return 3;
+  const m = resistanceText.match(/Resistance\s*(\d+)/i);
+  const n = m ? parseInt(m[1], 10) : 3;
+  return Number.isFinite(n) ? Math.max(1, Math.min(8, n)) : 3;
+}
 
 /** 주행 시작 시 코스 전반 안내. 브라우저 TTS만 사용(고정 문구) */
 export const getCourseBriefing = async (route: RouteInfo): Promise<string> => {

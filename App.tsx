@@ -6,7 +6,7 @@ import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
 import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem, SavedRoutePayload } from './types';
-import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement } from './services/aiCoach';
+import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement, pickFreshTipForResistance, parseResistanceBand } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
@@ -198,6 +198,14 @@ const BG_MUSIC_NEAR_END_SEC = 0.38;
 const BG_MUSIC_WATCHDOG_MS = 480;
 const BG_MUSIC_ADVANCE_DEBOUNCE_MS = 420;
 const BG_MUSIC_ERROR_SUPPRESS_MS = 400;
+
+/**
+ * 코칭 주기 발화 간격(ms).
+ * R 밴드가 변하지 않아도 이 간격마다 같은 R 밴드의 tip 풀에서 랜덤 재추첨해 speak 한다.
+ * 앱의 주된 용도인 "지루한 실내 주행 완화" 목적에 맞춰 30초 기준. 너무 짧으면 잔소리처럼
+ * 들리고, 너무 길면 침묵이 길어지므로 경험적으로 선정.
+ */
+const COACH_PERIODIC_SPEAK_MS = 30_000;
 
 /** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
 const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
@@ -513,6 +521,12 @@ const App: React.FC = () => {
   const isPrefetchingCoachRef = useRef<boolean>(false);
   /** 캐시된 세그먼트 진입 시 음성 한 번만 재생하기 위해, 마지막으로 speak한 세그먼트의 validUntilPathIndex */
   const lastSpokenValidUntilPathIndex = useRef<number | null>(null);
+  /** 마지막 코칭 TTS 시각(ms) — 같은 R 이 길게 이어지는 구간에서도 주기적으로 랜덤 tip 을 재추첨 재생하기 위함 */
+  const lastCoachSpeakAtMsRef = useRef<number>(0);
+  /** 마지막으로 speak 한 resistance 텍스트("Resistance N" / "Steady"). R 변화 감지용. */
+  const lastSpokenResistanceRef = useRef<string | null>(null);
+  /** 마지막으로 speak 한 tip 인덱스(0~31). 같은 R 에서 직전 tip 을 피해 재추첨하기 위해 사용. */
+  const lastSpokenTipIndexRef = useRef<number | null>(null);
 
   // Folding States
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -2418,11 +2432,30 @@ const App: React.FC = () => {
       const cached = routeData.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
       if (currentCached) {
-        setCoachData(currentCached.coaching);
-        // 세그먼트 진입 시 해당 멘트 음성 1회 재생 (캐시만으로 텍스트만 바뀌고 음성이 안 나오는 문제 방지)
-        if (lastSpokenValidUntilPathIndex.current !== currentCached.validUntilPathIndex) {
+        const nowMs = Date.now();
+        const currentRes = currentCached.coaching.resistance;
+        const resChanged = lastSpokenResistanceRef.current !== currentRes;
+        // 같은 R 이 길게 이어져 지루해지지 않도록 일정 주기마다 tip 재추첨 발화(R 변화 없어도 멘트 갱신)
+        const timeElapsed = nowMs - lastCoachSpeakAtMsRef.current >= COACH_PERIODIC_SPEAK_MS;
+        if (resChanged) {
+          setCoachData(currentCached.coaching);
           speak(currentCached.coaching.tip);
+          lastCoachSpeakAtMsRef.current = nowMs;
+          lastSpokenResistanceRef.current = currentRes;
           lastSpokenValidUntilPathIndex.current = currentCached.validUntilPathIndex;
+          lastSpokenTipIndexRef.current = null;
+        } else if (timeElapsed) {
+          // R 밴드는 그대로 두고 tip 만 재추첨. 직전 tip 과는 다른 것을 고른다.
+          const band = parseResistanceBand(currentRes);
+          const isSteady = currentRes === 'Steady';
+          const fresh = pickFreshTipForResistance(band, isSteady, lastSpokenTipIndexRef.current);
+          setCoachData({ ...currentCached.coaching, tip: fresh.displayText });
+          speak(fresh.displayText);
+          lastCoachSpeakAtMsRef.current = nowMs;
+          lastSpokenTipIndexRef.current = fresh.tipIndex;
+        } else {
+          // 변화 없음 + 주기 미도달: 텍스트만 싱크(이미 세팅돼 있으면 no-op). speak 생략.
+          setCoachData(currentCached.coaching);
         }
         // ---- Prefetch: 캐시 끝(lastValid)이 다가오면 그 "뒤" 구간을 기준으로 새 세그먼트를 생성해 cache 를 실제로 확장 ----
         const pathLen = route.path.length;
@@ -3135,6 +3168,9 @@ const App: React.FC = () => {
       lastValidUntilFetched.current = -1;
       lastSpokenValidUntilPathIndex.current = null;
       isPrefetchingCoachRef.current = false;
+      lastCoachSpeakAtMsRef.current = 0;
+      lastSpokenResistanceRef.current = null;
+      lastSpokenTipIndexRef.current = null;
       originLocationRef.current = originSeed;
       destLocationRef.current = destSeed;
       if (path.length > 0) {
@@ -3351,6 +3387,9 @@ const App: React.FC = () => {
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
     isPrefetchingCoachRef.current = false;
+    lastCoachSpeakAtMsRef.current = 0;
+    lastSpokenResistanceRef.current = null;
+    lastSpokenTipIndexRef.current = null;
     setIsSvFullScreen(false);
     setIsUserPano(false);
     // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
@@ -3773,6 +3812,11 @@ const App: React.FC = () => {
     lastValidUntilFetched.current = -1;
     lastSpokenValidUntilPathIndex.current = null;
     isPrefetchingCoachRef.current = false;
+    // 주기 발화 상태 초기화 — 첫 tip 발화 시점에 lastCoachSpeakAtMs 가 세팅되므로
+    // 여기서는 Date.now() 로 먼저 채워 두어 곧바로 주기 재추첨이 터지지 않게 한다.
+    lastCoachSpeakAtMsRef.current = Date.now();
+    lastSpokenResistanceRef.current = null;
+    lastSpokenTipIndexRef.current = null;
 
     const pathLen = currentRoute.path.length;
     // Start after first StreetView (or map fallback) is visible.
@@ -3801,6 +3845,9 @@ const App: React.FC = () => {
         // 메인 effect 가 setRoute 이후 flush 시점에 같은 세그먼트로 중복 speak 하지 않도록
         // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
         lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
+        // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점
+        lastSpokenResistanceRef.current = coaching.resistance;
+        lastCoachSpeakAtMsRef.current = Date.now();
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
         // 주행 시작 안내와 첫 코칭 tip 을 하나의 발화로 합쳐 TTS 자가 취소(앞 발화 잘림) 방지
