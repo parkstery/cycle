@@ -84,11 +84,13 @@ export const getAdvancedCoaching = async (
 
   const { intensity, action } = resistanceToIntensityAction(targetRes);
 
-  // UI 표시용: 저항이 바뀐 경우 "(Set to N)" 붙임 (캐시 재생은 tipId + resId 로 분리 재생)
-  const tipForDisplay =
-    resistanceText !== previousResistance
-      ? (lowConfidence ? `${tipText} (Steady)` : `${tipText} (R ${targetRes})`)
-      : tipText;
+  // UI 표시용: 세그먼트마다 현재 저항 밴드(또는 Steady)를 항상 노출하여
+  // 긴 동일-저항 구간에서도 사용자가 현재 R 값을 인지할 수 있게 한다.
+  // previousResistance 는 참고용으로 남겨 두되(향후 TTS 부가문구에 재활용 가능), 표시 규칙에서는 제외.
+  void previousResistance;
+  const tipForDisplay = lowConfidence
+    ? `${tipText} (Steady)`
+    : `${tipText} (R${targetRes})`;
 
   return {
     tip: tipForDisplay,

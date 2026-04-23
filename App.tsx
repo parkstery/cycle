@@ -507,6 +507,8 @@ const App: React.FC = () => {
   const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
   const lastValidUntilFetched = useRef<number>(-1);
+  /** 프리페치가 동시에 여러 번 돌지 않도록 하는 재진입 가드 */
+  const isPrefetchingCoachRef = useRef<boolean>(false);
   /** 캐시된 세그먼트 진입 시 음성 한 번만 재생하기 위해, 마지막으로 speak한 세그먼트의 validUntilPathIndex */
   const lastSpokenValidUntilPathIndex = useRef<number | null>(null);
 
@@ -2397,8 +2399,9 @@ const App: React.FC = () => {
       }
       // -----------------------------------------------------------
 
-      // ---- AI COACHING: Predictive (cachedCoaching) or legacy (every 21 steps). 모든 멘트는 브라우저 TTS(speak). ----
+      // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
       const elevation = routeData.elevation ?? [];
+      const elevationReadyForCoach = elevation.length > 0 && elevation.some(p => p.elevation !== 0);
       const cached = routeData.cachedCoaching;
       const currentCached = cached?.find(c => c.validUntilPathIndex >= currentIdx);
       if (currentCached) {
@@ -2408,24 +2411,46 @@ const App: React.FC = () => {
           speak(currentCached.coaching.tip);
           lastSpokenValidUntilPathIndex.current = currentCached.validUntilPathIndex;
         }
+        // ---- Prefetch: 캐시 끝(lastValid)이 다가오면 그 "뒤" 구간을 기준으로 새 세그먼트를 생성해 cache 를 실제로 확장 ----
+        const pathLen = route.path.length;
         const lastValid = cached?.length ? cached[cached.length - 1]?.validUntilPathIndex ?? 0 : 0;
-        if (currentIdx >= lastValid - 100 && lastValidUntilFetched.current !== lastValid && elevation.length > 0) {
-          lastValidUntilFetched.current = lastValid;
-          const pathLen = route.path.length;
+        const canExtend = lastValid < pathLen - 1;
+        if (
+          canExtend &&
+          currentIdx >= lastValid - 100 &&
+          !isPrefetchingCoachRef.current &&
+          elevationReadyForCoach
+        ) {
+          isPrefetchingCoachRef.current = true;
           const elevLen = elevation.length;
-          const startElevIdx = Math.floor((currentIdx / pathLen) * elevLen);
+          // 기준 인덱스는 "미래" 로 밀어 주어야 새 항목의 validUntil 이 반드시 lastValid 보다 커진다
+          const startPathIdx = Math.min(pathLen - 1, Math.max(currentIdx, lastValid));
+          const startElevIdx = Math.min(elevLen - 1, Math.floor((startPathIdx / pathLen) * elevLen));
           const segmentSize = Math.min(20, elevLen - startElevIdx);
           if (segmentSize > 0) {
             const upcomingSlice = elevation.slice(startElevIdx, startElevIdx + segmentSize);
             setIsCoachThinking(true);
-            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, currentIdx, effectiveSpeedKmHRef.current, coachData?.resistance)
+            getPredictiveCoaching(upcomingSlice, pathLen, elevLen, startPathIdx, effectiveSpeedKmHRef.current, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
-                setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
+                // 방어: 새 validUntil 이 lastValid 보다 크지 않으면 무한 루프 방지를 위해 append 생략
+                if (validUntilPathIndex > lastValid) {
+                  setRoute(prev => prev ? { ...prev, cachedCoaching: [...(prev.cachedCoaching || []), { coaching, validUntilPathIndex }] } : null);
+                }
               })
-              .finally(() => setIsCoachThinking(false));
+              .finally(() => {
+                setIsCoachThinking(false);
+                isPrefetchingCoachRef.current = false;
+              });
+          } else {
+            isPrefetchingCoachRef.current = false;
           }
         }
-      } else if (currentIdx > 0 && currentIdx % 21 === 0 && currentIdx !== lastCoachedIndex.current && elevation.length > 0) {
+      } else if (
+        currentIdx > 0 &&
+        currentIdx - lastCoachedIndex.current >= 21 &&
+        elevationReadyForCoach
+      ) {
+        // Safety net: 캐시가 비어 있는(=prefetch 실패/대기) 상황에서, 누적 거리 기반으로 한 번씩 멘트를 생성
         (async () => {
           const pathLen = route.path.length;
           const elevLen = elevation.length;
@@ -3296,6 +3321,7 @@ const App: React.FC = () => {
     setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
+    isPrefetchingCoachRef.current = false;
     setIsSvFullScreen(false);
     setIsUserPano(false);
     // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
@@ -3710,6 +3736,8 @@ const App: React.FC = () => {
     setCoveredDistance(0);
     rideStoppedByLimitRef.current = false;
     lastCoachedIndex.current = -1;
+    lastValidUntilFetched.current = -1;
+    isPrefetchingCoachRef.current = false;
 
     const pathLen = currentRoute.path.length;
     // Start after first StreetView (or map fallback) is visible.
@@ -3737,9 +3765,11 @@ const App: React.FC = () => {
         const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        speak(coaching.tip);
+        // 주행 시작 안내와 첫 코칭 tip 을 하나의 발화로 합쳐 TTS 자가 취소(앞 발화 잘림) 방지
+        const briefing = await getCourseBriefing(currentRoute);
+        const firstUtterance = [briefing, coaching.tip].filter(Boolean).join(' ');
+        speak(firstUtterance);
         lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
-        getCourseBriefing(currentRoute).then(speak);
       } finally {
         setIsCoachThinking(false);
       }
