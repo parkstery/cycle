@@ -61,8 +61,9 @@ export const getAdvancedCoaching = async (
     void end;
   }
 
-  // Steady(R3)로 중립 처리하는 경우는 "슬라이스가 사실상 점" 인 degenerate 케이스로만 제한한다.
-  // 누적 경로 거리 기준으로 평가하므로 foot 트레일의 스위치백 U 턴 구간도 오판하지 않는다.
+  // 슬라이스가 사실상 점(<15m) 인 degenerate 케이스: slope 계산 불가로 0(평지) 으로 본다.
+  // ※ 이전에는 이 경우 라벨을 "Steady" 로 표기했으나, 사용자 피드백(실내 자전거 UX) 에 맞춰
+  //   라벨은 항상 "R1~R8" 로만 노출한다. lowConfidence 는 내부 telemetry/디버깅 용도로만 유지.
   const lowConfidence = distance < 15;
   if (lowConfidence) slope = 0;
 
@@ -77,8 +78,10 @@ export const getAdvancedCoaching = async (
   else if (slope >= -3) targetRes = 2;
   else targetRes = 1;
 
-  const resistanceText = lowConfidence ? 'Steady' : `Resistance ${targetRes}`;
-  const resId = lowConfidence ? 'res_steady' : `res_${targetRes}`;
+  // resistanceText / resId — 항상 R1~R8 로 노출 (Steady 라벨은 사용자 요청에 따라 폐기).
+  // degenerate 슬라이스(lowConfidence) 도 slope=0 → R3 으로 분류되므로 의미상 동일하다.
+  const resistanceText = `Resistance ${targetRes}`;
+  const resId = `res_${targetRes}`;
 
   // 3. 경사도(저항 밴드)별 코칭 멘트 후보 4개 중 랜덤 선택 (Gemini 없음)
   const candidateIndices = getTipIndicesByResistance(targetRes);
@@ -92,13 +95,11 @@ export const getAdvancedCoaching = async (
 
   const { intensity, action } = resistanceToIntensityAction(targetRes);
 
-  // UI 표시용: 세그먼트마다 현재 저항 밴드(또는 Steady)를 항상 노출하여
-  // 긴 동일-저항 구간에서도 사용자가 현재 R 값을 인지할 수 있게 한다.
-  // previousResistance 는 참고용으로 남겨 두되(향후 TTS 부가문구에 재활용 가능), 표시 규칙에서는 제외.
+  // UI 표시용: 매 세그먼트 현재 저항 밴드(R1~R8)를 항상 노출.
+  // 사용자 요청에 따라 (Steady) 라벨은 제거하고 R3 등 숫자 라벨만 사용한다.
   void previousResistance;
-  const tipForDisplay = lowConfidence
-    ? `${tipText} (Steady)`
-    : `${tipText} (R${targetRes})`;
+  void lowConfidence; // (디버깅용으로만 보존; 표시 분기에는 사용하지 않음)
+  const tipForDisplay = `${tipText} (R${targetRes})`;
 
   return {
     tip: tipForDisplay,

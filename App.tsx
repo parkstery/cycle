@@ -2446,9 +2446,10 @@ const App: React.FC = () => {
           lastSpokenTipIndexRef.current = null;
         } else if (timeElapsed) {
           // R 밴드는 그대로 두고 tip 만 재추첨. 직전 tip 과는 다른 것을 고른다.
+          // Steady 라벨은 폐기됐으므로 isSteady=false 고정. (혹시 이전 빌드 캐시에 남아 있는
+          // "Steady" 문자열이 들어와도 parseResistanceBand 가 R3 로 매핑하여 안전.)
           const band = parseResistanceBand(currentRes);
-          const isSteady = currentRes === 'Steady';
-          const fresh = pickFreshTipForResistance(band, isSteady, lastSpokenTipIndexRef.current);
+          const fresh = pickFreshTipForResistance(band, false, lastSpokenTipIndexRef.current);
           setCoachData({ ...currentCached.coaching, tip: fresh.displayText });
           speak(fresh.displayText);
           lastCoachSpeakAtMsRef.current = nowMs;
