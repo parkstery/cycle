@@ -23,7 +23,7 @@ import { getIndoorBleHub } from './sensor/indoorBleHub';
 import { createDualMergeState, pickRpmForIntensity, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
 import { decideSpeed, createSpeedFilterState } from './sensor/effortModel';
 import type { SpeedSource, SpeedFilterState } from './sensor/effortModel';
-import { loadIndoorSensorPrefs, saveIndoorSensorPrefs } from './sensor/sensorPrefs';
+import { loadIndoorSensorPrefs, saveIndoorSensorPrefs, clampFeelK, FEEL_K_MIN, FEEL_K_MAX, FEEL_K_STEP } from './sensor/sensorPrefs';
 import type { BikeProfile } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
@@ -801,6 +801,24 @@ const App: React.FC = () => {
       saveIndoorSensorPrefs(next);
     }, 2500);
   }, []);
+
+  /** 주행 중 체감 배율 feelK 조정. 센서 모드 속도에 직접 곱해짐. */
+  const setFeelK = useCallback((nextFeel: number) => {
+    const clamped = clampFeelK(nextFeel);
+    const next = { ...sensorPrefsRef.current, feelK: clamped };
+    sensorPrefsRef.current = next;
+    setSensorPrefs(next);
+    saveIndoorSensorPrefs(next);
+  }, []);
+  const adjustFeelKUp = useCallback(() => {
+    setFeelK((sensorPrefsRef.current.feelK ?? 1) + FEEL_K_STEP);
+  }, [setFeelK]);
+  const adjustFeelKDown = useCallback(() => {
+    setFeelK((sensorPrefsRef.current.feelK ?? 1) - FEEL_K_STEP);
+  }, [setFeelK]);
+  const resetFeelK = useCallback(() => {
+    setFeelK(1);
+  }, [setFeelK]);
 
   useEffect(() => {
     const hub = getIndoorBleHub();
@@ -4360,28 +4378,64 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM - top-right overlay (as specified in design image, placed below first button row and to the left of the pegman column to avoid overlapping with the top-center coaching banner) */}
+      {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
       <div
-        className="fixed z-[1000] flex flex-col items-end leading-none pointer-events-none select-none"
+        className="fixed z-[1000] flex flex-col items-end leading-none select-none"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 1rem + 2.4rem + 0.5rem)',
           top: 'calc(env(safe-area-inset-top, 0px) + 1rem + 2.4rem + 0.5rem)',
+          pointerEvents: 'none',
         }}
       >
+        {sensorPrefs.sensorDriveEnabled && (
+          <div
+            className="mb-1 flex items-center gap-1 bg-black/50 rounded-full px-1.5 py-0.5 border border-white/20"
+            style={{ pointerEvents: 'auto' }}
+            title="Feel adjust: subtle speed multiplier"
+          >
+            <button
+              type="button"
+              onClick={adjustFeelKDown}
+              disabled={(sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
+              className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
+              aria-label="Decrease feel"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={resetFeelK}
+              className="text-[12px] font-black text-white tabular-nums leading-none px-1 [text-shadow:0_0_2px_#000]"
+              aria-label="Reset feel"
+              title="Long-press/tap to reset"
+            >
+              {Math.round((sensorPrefs.feelK ?? 1) * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={adjustFeelKUp}
+              disabled={(sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
+              className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
+              aria-label="Increase feel"
+            >
+              +
+            </button>
+          </div>
+        )}
         <span
-          className="text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          className="text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current speed"
         >
           {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
         </span>
         <span
-          className="mt-0.5 text-[12px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          className="mt-0.5 text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Average speed"
         >
           {(elapsedTime > 0 ? (coveredDistance / 1000) / (elapsedTime / 3600) : 0).toFixed(1)} km/h
         </span>
         <span
-          className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          className="mt-0.5 text-[14px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Current cadence (RPM)"
         >
           {speedSource === 'wheel' && !hasCadenceSignal
@@ -4389,7 +4443,7 @@ const App: React.FC = () => {
             : `${currentRpm != null && currentRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(currentRpm) : '0'} RPM`}
         </span>
         <span
-          className="mt-0.5 text-[12px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+          className="mt-0.5 text-[14px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Average cadence (RPM)"
         >
           {averageRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(averageRpm) : '0'} RPM
@@ -4397,13 +4451,13 @@ const App: React.FC = () => {
         {route && (
           <>
             <span
-              className="mt-1 text-[11px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
+              className="mt-1 text-[13px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
               title="Covered / total distance"
             >
               {(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km
             </span>
             <span
-              className={`mt-0.5 text-[11px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000] ${simulation.isActive ? 'animate-pulse' : ''}`}
+              className={`mt-0.5 text-[13px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000] ${simulation.isActive ? 'animate-pulse' : ''}`}
               title="Elapsed time"
             >
               {formatTime(elapsedTime)}

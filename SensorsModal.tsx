@@ -9,10 +9,11 @@ import { cadenceChannelValid } from './sensor/dualMerge';
 type ConnState = 'disconnected' | 'scanning' | 'connected' | 'reconnecting';
 
 const FITNESS_OPTIONS: { id: FitnessLevel; label: string }[] = [
-  { id: 'frail', label: 'Low' },
-  { id: 'normal', label: 'Medium' },
-  { id: 'active', label: 'High' },
-  { id: 'high', label: 'Very High' },
+  { id: 'veryLow', label: '1' },
+  { id: 'low', label: '2' },
+  { id: 'medium', label: '3' },
+  { id: 'high', label: '4' },
+  { id: 'veryHigh', label: '5' },
 ];
 
 export type SensorsModalProps = {

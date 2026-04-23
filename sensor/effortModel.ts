@@ -3,14 +3,15 @@ import type { BleSnapshot } from './dualMerge';
 
 /** Base ride speed (km/h) from user fitness — not the manual route slider when sensor-driven. */
 const BASE_SPEED_KMH: Record<FitnessLevel, number> = {
-  frail: 12,
-  normal: 16,
-  active: 20,
-  high: 24,
+  veryLow: 11,
+  low: 14,
+  medium: 17,
+  high: 20,
+  veryHigh: 23,
 };
 
 export function baseSpeedFromFitnessLevel(level: FitnessLevel): number {
-  return BASE_SPEED_KMH[level] ?? BASE_SPEED_KMH.normal;
+  return BASE_SPEED_KMH[level] ?? BASE_SPEED_KMH.medium;
 }
 
 /** Conservative capacity from 1-minute average RPM (max effort). */
@@ -207,21 +208,25 @@ export function decideSpeed(
     wheelCadenceK: prefs.wheelCadenceK,
   };
 
+  const feelK = typeof prefs.feelK === 'number' && Number.isFinite(prefs.feelK)
+    ? Math.max(0.7, Math.min(1.3, prefs.feelK))
+    : 1;
+
   if (trainerValid) {
     const raw = vFromTrainer(snap.trainerSpeedKmh!);
-    const kmh = applySpeedFilter(raw, 'trainer', ctx, st);
+    const kmh = applySpeedFilter(raw, 'trainer', ctx, st) * feelK;
     return { source: 'trainer', kmh, rawKmh: raw };
   }
 
   if (wheelUsable) {
     const raw = vFromWheel(snap.wheelRpm!, prefs.wheelCircumferenceMm);
-    const kmh = applySpeedFilter(raw, 'wheel', ctx, st);
+    const kmh = applySpeedFilter(raw, 'wheel', ctx, st) * feelK;
     return { source: 'wheel', kmh, rawKmh: raw };
   }
 
   if (cadValid) {
     const raw = vFromCadence(prefs.fitnessLevel, snap.cadenceRpm!, capacityRpm);
-    const kmh = applySpeedFilter(raw, 'cadence', ctx, st);
+    const kmh = applySpeedFilter(raw, 'cadence', ctx, st) * feelK;
     return { source: 'cadence', kmh, rawKmh: raw };
   }
 

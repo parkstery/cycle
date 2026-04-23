@@ -1,4 +1,4 @@
-export type FitnessLevel = 'frail' | 'normal' | 'active' | 'high';
+export type FitnessLevel = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
 export type SpeedCadenceBlendMode = 'auto' | 'speed' | 'cadence';
 export type RideMode = 'manual' | 'sensor';
 export type BikeProfile =
@@ -45,6 +45,19 @@ export interface IndoorSensorPrefs {
   bikeProfile: BikeProfile;
   /** Wheel circumference in mm, derived from bikeProfile unless user picked 'custom'. */
   wheelCircumferenceMm: number;
+  /** 주행 중 사용자가 체감으로 미세 보정하는 속도 배율. 1.00=원값. 0.70~1.30 클램프. */
+  feelK: number;
+}
+
+export const FEEL_K_MIN = 0.70;
+export const FEEL_K_MAX = 1.30;
+export const FEEL_K_STEP = 0.05;
+
+export function clampFeelK(v: unknown): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 1;
+  if (n < FEEL_K_MIN) return FEEL_K_MIN;
+  if (n > FEEL_K_MAX) return FEEL_K_MAX;
+  return Math.round(n * 100) / 100;
 }
 
 const MAX_SAVED_DEVICES = 2;
@@ -81,7 +94,7 @@ const STORAGE_KEY = 'indoor_sensor_prefs_v1';
 export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   sensorDriveEnabled: false,
   preferredRideMode: 'manual',
-  fitnessLevel: 'normal',
+  fitnessLevel: 'medium',
   calibrationAvgRpm: null,
   calibrationAt: null,
   capacityRpm: null,
@@ -91,6 +104,7 @@ export const DEFAULT_INDOOR_SENSOR_PREFS: IndoorSensorPrefs = {
   autoReconnectEnabled: true,
   bikeProfile: 'unset',
   wheelCircumferenceMm: BIKE_PROFILE_CIRCUMFERENCE_MM.unset,
+  feelK: 1.00,
 };
 
 function isBikeProfile(v: unknown): v is BikeProfile {
@@ -111,13 +125,20 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_INDOOR_SENSOR_PREFS };
     const o = JSON.parse(raw) as Partial<IndoorSensorPrefs> & { loadHint?: string };
-    let fitnessLevel: FitnessLevel = 'normal';
-    if (o.fitnessLevel === 'frail' || o.fitnessLevel === 'normal' || o.fitnessLevel === 'active' || o.fitnessLevel === 'high') {
-      fitnessLevel = o.fitnessLevel;
+    let fitnessLevel: FitnessLevel = 'medium';
+    const rawFitness = (o as { fitnessLevel?: unknown }).fitnessLevel;
+    if (rawFitness === 'veryLow' || rawFitness === 'low' || rawFitness === 'medium' || rawFitness === 'high' || rawFitness === 'veryHigh') {
+      fitnessLevel = rawFitness;
+    } else if (rawFitness === 'frail') {
+      fitnessLevel = 'low';
+    } else if (rawFitness === 'normal') {
+      fitnessLevel = 'medium';
+    } else if (rawFitness === 'active') {
+      fitnessLevel = 'high';
     } else if (o.loadHint === 'light') {
-      fitnessLevel = 'frail';
+      fitnessLevel = 'low';
     } else if (o.loadHint === 'heavy') {
-      fitnessLevel = 'active';
+      fitnessLevel = 'high';
     }
 
     const calibrationAvgRpm =
@@ -161,6 +182,7 @@ export function loadIndoorSensorPrefs(): IndoorSensorPrefs {
         o.wheelCircumferenceMm <= 2500
           ? o.wheelCircumferenceMm
           : BIKE_PROFILE_CIRCUMFERENCE_MM.unset,
+      feelK: clampFeelK(o.feelK),
     };
   } catch {
     return { ...DEFAULT_INDOOR_SENSOR_PREFS };
