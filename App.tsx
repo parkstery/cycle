@@ -2471,10 +2471,20 @@ const App: React.FC = () => {
           const elevLen = elevation.length;
           // 기준 인덱스는 "미래" 로 밀어 주어야 새 항목의 validUntil 이 반드시 lastValid 보다 커진다
           const startPathIdx = Math.min(pathLen - 1, Math.max(currentIdx, lastValid));
-          const startElevIdx = Math.min(elevLen - 1, Math.floor((startPathIdx / pathLen) * elevLen));
-          const segmentSize = Math.min(20, elevLen - startElevIdx);
-          if (segmentSize > 0) {
-            const upcomingSlice = elevation.slice(startElevIdx, startElevIdx + segmentSize);
+          const rawStartElevIdx = Math.min(elevLen - 1, Math.floor((startPathIdx / pathLen) * elevLen));
+          // elevLen 대비 경로 길이가 촘촘해 edge 에서 1-점 슬라이스가 나오면
+          // getAdvancedCoaching 이 slope 계산 불가로 (Steady) 로 빠지는 문제가 있어,
+          // 슬라이스가 최소 2 샘플이 되도록 startElevIdx 를 과거 방향으로 한 번 백오프한다.
+          const MIN_SLICE_POINTS = 2;
+          const rawSegmentSize = Math.min(20, elevLen - rawStartElevIdx);
+          let sliceStartIdx = rawStartElevIdx;
+          let segmentSize = rawSegmentSize;
+          if (segmentSize < MIN_SLICE_POINTS && elevLen >= MIN_SLICE_POINTS) {
+            sliceStartIdx = Math.max(0, elevLen - MIN_SLICE_POINTS);
+            segmentSize = elevLen - sliceStartIdx;
+          }
+          if (segmentSize >= MIN_SLICE_POINTS) {
+            const upcomingSlice = elevation.slice(sliceStartIdx, sliceStartIdx + segmentSize);
             setIsCoachThinking(true);
             getPredictiveCoaching(upcomingSlice, pathLen, elevLen, startPathIdx, effectiveSpeedKmHRef.current, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
@@ -2501,10 +2511,16 @@ const App: React.FC = () => {
           const pathLen = route.path.length;
           const elevLen = elevation.length;
           const currentElev = elevation[Math.floor((currentIdx / pathLen) * elevLen)]?.elevation ?? 0;
-          const upcoming = elevation.slice(
-            Math.floor((currentIdx / pathLen) * elevLen),
-            Math.floor(((currentIdx + 20) / pathLen) * elevLen)
-          );
+          const rawStart = Math.floor((currentIdx / pathLen) * elevLen);
+          const rawEnd = Math.floor(((currentIdx + 20) / pathLen) * elevLen);
+          // 최소 2 샘플 보장 — 경로 끝 근처에서 1-점 슬라이스가 생겨 Steady 로 빠지는 것 방지
+          let sliceStart = rawStart;
+          let sliceEnd = rawEnd;
+          if (sliceEnd - sliceStart < 2 && elevLen >= 2) {
+            sliceStart = Math.max(0, elevLen - 2);
+            sliceEnd = elevLen;
+          }
+          const upcoming = elevation.slice(sliceStart, sliceEnd);
           setIsCoachThinking(true);
           try {
             const newCoaching = await getAdvancedCoaching(currentElev, upcoming, effectiveSpeedKmHRef.current, coachData?.resistance);
