@@ -186,13 +186,27 @@ export type SpeedDecision = {
   rawKmh: number;
 };
 
+/**
+ * Grade 기반 속도 배율 — FTMS 스마트 트레이너 분기 전용으로 사용.
+ * 케이던스/휠 타겟(저가·수동 저항)은 호출하지 않는다(이중 가감 방지).
+ * cap은 보수적으로 ±30%.
+ */
+export function trainerGradeFactor(gradePercent: number): number {
+  if (!Number.isFinite(gradePercent)) return 1;
+  const g = Math.max(-15, Math.min(15, gradePercent));
+  const f = 1 + 0.03 * g; // +1%경사당 +3% 가감
+  return Math.max(0.7, Math.min(1.3, f));
+}
+
 /** Source selector. Implements advisor's priority: trainer > wheel > cadence. */
 export function decideSpeed(
   snap: BleSnapshot,
   prefs: IndoorSensorPrefs,
   capacityRpm: number,
   st: SpeedFilterState,
-  manualKmh: number
+  manualKmh: number,
+  /** 현재 구간의 경사(%) — 스마트 트레이너 분기에서만 사용(선택). */
+  gradePercent: number = 0
 ): SpeedDecision {
   const now = snap.now;
   const trainerValid =
@@ -226,7 +240,9 @@ export function decideSpeed(
 
   if (trainerValid) {
     const raw = vFromTrainer(snap.trainerSpeedKmh!);
-    const kmh = applySpeedFilter(raw, 'trainer', ctx, st) * feelK;
+    // 트레이너 전용: 경사 반영(수동 저항 타겟 브랜치에는 적용하지 않음 — 이중 가감 방지)
+    const gradeK = trainerGradeFactor(gradePercent);
+    const kmh = applySpeedFilter(raw, 'trainer', ctx, st) * feelK * gradeK;
     return { source: 'trainer', kmh, rawKmh: raw };
   }
 
