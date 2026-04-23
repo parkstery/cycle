@@ -449,6 +449,8 @@ const App: React.FC = () => {
   const rpmSampleSumRef = useRef(0);
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
+  /** HUD 속도 앞 LED: 최근 BLE 패킷 수신 여부(신호 없음이면 흰색). */
+  const [sensorRecentPacketForHud, setSensorRecentPacketForHud] = useState(false);
   const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
   const [hasCadenceSignal, setHasCadenceSignal] = useState(false);
   const [bikeProfileModalOpen, setBikeProfileModalOpen] = useState(false);
@@ -765,6 +767,25 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
+  }, []);
+
+  /** HUD 현재속도 LED: 수신 패킷이 잠깐 끊기면 흰색으로 돌아감(라우트 패널 LED와 달리 신호 기준). */
+  useEffect(() => {
+    const hub = getIndoorBleHub();
+    const tick = () => {
+      const connected = hub.connectedCount() > 0;
+      const driveOn = sensorPrefsRef.current.sensorDriveEnabled;
+      if (!driveOn || !connected) {
+        setSensorRecentPacketForHud(false);
+        return;
+      }
+      const lastAt = hub.getLastSensorPacketAtMs();
+      const now = Date.now();
+      setSensorRecentPacketForHud(lastAt > 0 && now - lastAt < SENSOR_NO_PACKET_FORCE_ZERO_MS);
+    };
+    tick();
+    const id = window.setInterval(tick, 400);
+    return () => clearInterval(id);
   }, []);
 
   // Silent auto-connect to sensors on app launch.
@@ -2986,8 +3007,10 @@ const App: React.FC = () => {
       let elevationResults: Array<{ elevation: number; location: any; resolution: number }> = [];
       let elevationHydratedFromPayload = false;
       if (canOffline && payload.elevationSamples && payload.elevationSamples.length > 0) {
-        elevationResults = payload.elevationSamples.map(([lat, lng, elev]) => ({
-          elevation: elev,
+        const rawElevs = payload.elevationSamples.map(([, , elev]) => elev);
+        const smoothedElevs = openElevation.smoothElevations(rawElevs);
+        elevationResults = payload.elevationSamples.map(([lat, lng, elev], i) => ({
+          elevation: smoothedElevs[i] ?? elev,
           location: new google.maps.LatLng(lat, lng),
           resolution: 0
         }));
@@ -3077,8 +3100,9 @@ const App: React.FC = () => {
           try {
             const samples = openElevation.elevationSamplesForPath(path.length);
             const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
-            const hydrated = openRes.results.map((r) => ({
-              elevation: r.elevation,
+            const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
+            const hydrated = openRes.results.map((r, i) => ({
+              elevation: smoothed[i] ?? r.elevation,
               location: new google.maps.LatLng(r.latitude, r.longitude),
               resolution: 0
             }));
@@ -3486,9 +3510,10 @@ const App: React.FC = () => {
         try {
           const samples = openElevation.elevationSamplesForPath(path.length);
           const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+          const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
           elevationRes = {
-            results: openRes.results.map((r) => ({
-              elevation: r.elevation,
+            results: openRes.results.map((r, i) => ({
+              elevation: smoothed[i] ?? r.elevation,
               location: new google.maps.LatLng(r.latitude, r.longitude),
               resolution: 0
             }))
@@ -4424,12 +4449,19 @@ const App: React.FC = () => {
             </button>
           </div>
         )}
-        <span
-          className="text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-          title="Current speed"
-        >
-          {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
-        </span>
+        <div className="flex items-center gap-1" title="Current speed">
+          <span
+            className={`shrink-0 w-[6px] h-[6px] rounded-full ${
+              sensorPrefs.sensorDriveEnabled && sensorHubConnected && sensorRecentPacketForHud
+                ? 'bg-emerald-500 animate-sensor-led'
+                : 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.35)]'
+            }`}
+            aria-hidden
+          />
+          <span className="text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]">
+            {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
+          </span>
+        </div>
         <span
           className="mt-0.5 text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
           title="Average speed"
@@ -4664,7 +4696,7 @@ const App: React.FC = () => {
                     onClick={() => setSensorsModalOpen(true)}
                     title="Sensors & speed"
                     aria-label="Sensors & speed"
-                    className="relative shrink-0 h-7 min-w-[34px] px-2 flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
+                    className="relative shrink-0 h-7 min-w-[34px] px-2 flex items-center justify-center gap-1 rounded-md border border-blue-300 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
                   >
                     <Gauge size={16} strokeWidth={2.2} />
                     <span className="text-[11px] font-bold leading-none">Sensor</span>
