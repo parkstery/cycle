@@ -28,13 +28,24 @@ export const getAdvancedCoaching = async (
 ): Promise<CoachingData & { tipId?: string; resId?: string }> => {
   // 1. Calculate accurate slope + DEM 신뢰도 평가
   let slope = 0;
+  // distance 는 "슬라이스 내부 연속 샘플 거리의 누적 합(= 경로 상 실제 길이 근사)".
+  // 기존에는 시점-종점 직선거리(computeDistanceBetween(start, end)) 를 사용했는데,
+  // foot 트레일(등산로/산책로) 처럼 스위치백·루프가 있는 경로에서는 경로상 150m 떨어진
+  // 두 샘플이 직선거리로 10m 이내일 수 있어 lowConfidence(distance<15m) 가 오발동,
+  // 도착 직전에 (Steady) 로 빠지는 문제를 유발한다. 누적 거리로 바꾸면 해결된다.
   let distance = 0;
   let rise = 0;
   let elevationSpanM = 0;
   if (upcomingPoints.length > 1) {
     const start = upcomingPoints[0];
     const end = upcomingPoints[upcomingPoints.length - 1];
-    distance = computeDistanceBetween(start.location, end.location);
+    for (let i = 1; i < upcomingPoints.length; i++) {
+      try {
+        distance += computeDistanceBetween(upcomingPoints[i - 1].location, upcomingPoints[i].location);
+      } catch {
+        // 위치 좌표 누락 등 방어 — 해당 구간만 건너뛴다
+      }
+    }
     rise = end.elevation - start.elevation;
     if (distance > 0) slope = (rise / distance) * 100;
     // 구간 내 고도 최대-최소(노이즈 판별용)
@@ -45,12 +56,13 @@ export const getAdvancedCoaching = async (
       if (p.elevation > maxEl) maxEl = p.elevation;
     }
     if (Number.isFinite(minEl) && Number.isFinite(maxEl)) elevationSpanM = maxEl - minEl;
+    // start/end 는 현재 로직에서 참조되지 않지만 의도 명시를 위해 남겨 둠
+    void start;
+    void end;
   }
 
   // Steady(R3)로 중립 처리하는 경우는 "슬라이스가 사실상 점" 인 degenerate 케이스로만 제한한다.
-  // 기존 zig-zag 조건(span > rise*5 && |slope|<0.5) 은 "내부에 기복이 있지만 시점·종점 고도가
-  // 비슷한 롤링 힐"(예: Lake Louise 트레일) 을 오판하여 Steady 로 빠지게 만들었다.
-  // 이런 구간은 평균 slope 가 작더라도 R3 로 해석하는 것이 의미상 맞으므로 조건을 제거한다.
+  // 누적 경로 거리 기준으로 평가하므로 foot 트레일의 스위치백 U 턴 구간도 오판하지 않는다.
   const lowConfidence = distance < 15;
   if (lowConfidence) slope = 0;
 
