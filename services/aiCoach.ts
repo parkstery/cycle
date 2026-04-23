@@ -26,17 +26,39 @@ export const getAdvancedCoaching = async (
   _currentSpeed: number,
   previousResistance?: string
 ): Promise<CoachingData & { tipId?: string; resId?: string }> => {
-  // 1. Calculate accurate slope
+  // 1. Calculate accurate slope + DEM 신뢰도 평가
   let slope = 0;
+  let distance = 0;
+  let rise = 0;
+  let elevationSpanM = 0;
   if (upcomingPoints.length > 1) {
     const start = upcomingPoints[0];
     const end = upcomingPoints[upcomingPoints.length - 1];
-    const distance = computeDistanceBetween(start.location, end.location);
-    const rise = end.elevation - start.elevation;
+    distance = computeDistanceBetween(start.location, end.location);
+    rise = end.elevation - start.elevation;
     if (distance > 0) slope = (rise / distance) * 100;
+    // 구간 내 고도 최대-최소(노이즈 판별용)
+    let minEl = Infinity;
+    let maxEl = -Infinity;
+    for (const p of upcomingPoints) {
+      if (p.elevation < minEl) minEl = p.elevation;
+      if (p.elevation > maxEl) maxEl = p.elevation;
+    }
+    if (Number.isFinite(minEl) && Number.isFinite(maxEl)) elevationSpanM = maxEl - minEl;
   }
 
-  // 2. Resistance based on slope (기존 고정 로직 유지)
+  // DEM 신뢰도가 낮은 구간(교량, 짧은 구간, 허수 피크)에서 R 의미가 약해지므로
+  // 아래 조건을 만족하면 Steady(R3)로 중립 처리한다.
+  // - 구간 길이 < 80m
+  // - 순고도차 |rise| < 1m (DEM 세로 정확도 미만)
+  // - 구간 내 고도 스팬이 순상승의 2배 이상 (지그재그로 흔들린 구간)
+  const lowConfidence =
+    distance < 80 ||
+    Math.abs(rise) < 1 ||
+    (elevationSpanM > Math.max(2, Math.abs(rise) * 2) && Math.abs(slope) < 3);
+  if (lowConfidence) slope = 0;
+
+  // 2. Resistance based on slope
   let targetRes = 3;
   if (slope >= 10) targetRes = 8;
   else if (slope >= 7) targetRes = 7;
@@ -47,8 +69,8 @@ export const getAdvancedCoaching = async (
   else if (slope >= -3) targetRes = 2;
   else targetRes = 1;
 
-  const resistanceText = `Resistance ${targetRes}`;
-  const resId = `res_${targetRes}`;
+  const resistanceText = lowConfidence ? 'Steady' : `Resistance ${targetRes}`;
+  const resId = lowConfidence ? 'res_steady' : `res_${targetRes}`;
 
   // 3. 경사도(저항 밴드)별 코칭 멘트 후보 4개 중 랜덤 선택 (Gemini 없음)
   const candidateIndices = getTipIndicesByResistance(targetRes);
@@ -65,7 +87,7 @@ export const getAdvancedCoaching = async (
   // UI 표시용: 저항이 바뀐 경우 "(Set to N)" 붙임 (캐시 재생은 tipId + resId 로 분리 재생)
   const tipForDisplay =
     resistanceText !== previousResistance
-      ? `${tipText} (R ${targetRes})`
+      ? (lowConfidence ? `${tipText} (Steady)` : `${tipText} (R ${targetRes})`)
       : tipText;
 
   return {

@@ -57,6 +57,19 @@ const elevationCache = new Map<string, OpenElevationResultItem[]>();
 export type ElevationProvider = 'open-elevation' | 'opentopodata';
 
 /**
+ * 경로 길이에 따라 elevation 샘플링 수를 정한다.
+ * 서버 없이 무료 API 의존이라 과도한 호출을 피하기 위해 상한 200.
+ * 경로는 calculateRoute 단계에서 ~10m 간격으로 densify 되므로
+ * 포인트 수로 길이를 근사한다.
+ */
+export function elevationSamplesForPath(pointCount: number, intervalM: number = 10): number {
+  const approxMeters = Math.max(0, pointCount - 1) * intervalM;
+  if (approxMeters <= 20_000) return 100;
+  if (approxMeters <= 50_000) return 150;
+  return 200;
+}
+
+/**
  * 경로를 따라 samples개 지점의 고도를 조회.
  * options.provider 지정 시 해당 공급자만 사용(이중화 테스트: URL ?elevation_provider=opentopodata 활용).
  * 반환: { results: [{ latitude, longitude, elevation }] } — App에서 location(LatLng)으로 매핑용.

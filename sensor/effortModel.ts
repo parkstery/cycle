@@ -19,6 +19,18 @@ export function initialCapacityFromTestRpm(testAvgRpm: number): number {
   return Math.max(35, testAvgRpm / 0.9);
 }
 
+/** Fitness 레벨별 기본 capacity(RPM) 프리셋 — `capacityRpm === null`일 때만 사용 */
+const CAPACITY_PRESET_RPM: Record<FitnessLevel, number> = {
+  veryLow: 60,
+  low: 70,
+  medium: 80,
+  high: 90,
+  veryHigh: 100,
+};
+export function presetCapacityRpm(level: FitnessLevel): number {
+  return CAPACITY_PRESET_RPM[level] ?? CAPACITY_PRESET_RPM.medium;
+}
+
 /**
  * Linear intensity curve.
  * x = current_rpm / capacity (intensity).

@@ -39,8 +39,6 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
   const [initError, setInitError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [calibrationOpen, setCalibrationOpen] = useState(false);
-
   const [calibRunning, setCalibRunning] = useState(false);
   /** 캘리브레이션 직후 사용자 안내 (성공/실패 요약) */
   const [calibResultMessage, setCalibResultMessage] = useState<string | null>(null);
@@ -389,71 +387,64 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             </div>
           </section>
 
-          <section className="space-y-1 border-t border-slate-200 pt-3 pb-3">
-            <button
-              type="button"
-              className="h-8 w-full min-w-0 flex items-center gap-1 text-left text-[12px] font-bold text-slate-700 rounded-md hover:bg-slate-50"
-              onClick={() => setCalibrationOpen((v) => !v)}
-            >
-              <ChevronDown size={14} className={`shrink-0 transition-transform ${calibrationOpen ? 'rotate-180' : ''}`} />
-              <span>Sensor Calibration (Optional)</span>
-            </button>
-            {calibrationOpen && (
-              <div className="pl-5">
-                {!calibRunning ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-                      <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
-                        Start Test
-                      </button>
-                      <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
-                      {prefs.calibrationAvgRpm != null && (
-                        <button
-                          type="button"
-                          className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
-                          onClick={() => {
-                            const next = {
-                              ...prefsRef.current,
-                              calibrationAvgRpm: null,
-                              calibrationAt: null,
-                              capacityRpm: null,
-                            };
-                            onChangePrefs(next);
-                            setCalibResultMessage(null);
-                          }}
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    {calibResultMessage && (
-                      <p className="text-[11px] font-medium text-emerald-700 leading-snug pr-1">{calibResultMessage}</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="shrink-0 text-[13px] font-black text-blue-700 tabular-nums w-[2.75rem]">{calibLeftSec}s</span>
-                    <span className="flex-1 min-w-0 text-center text-[12px] font-bold tabular-nums text-slate-800">
-                      {showCalibCadenceRpm && calibSnap!.cadenceRpm != null
-                        ? `${Math.round(calibSnap.cadenceRpm)} RPM`
-                        : '\u00a0'}
-                    </span>
-                    <button type="button" onClick={cancelCalibration} className="shrink-0 h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
           <section className="space-y-1 border-t border-slate-200 pt-3 pb-1">
             <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
               Others
             </button>
             {advancedOpen && (
-              <div className="pl-5 grid grid-cols-2 gap-2 items-center">
+              <div className="pl-5 space-y-3">
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold text-slate-500">Sensor Calibration (Optional)</div>
+                  <p className="text-[10px] text-slate-400 leading-snug">
+                    Capacity is auto-tuned while you ride; this 1-minute test only gives a more accurate starting point.
+                  </p>
+                  {!calibRunning ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
+                        <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
+                          Start Test
+                        </button>
+                        <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
+                        {prefs.calibrationAvgRpm != null && (
+                          <button
+                            type="button"
+                            className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
+                            onClick={() => {
+                              const next = {
+                                ...prefsRef.current,
+                                calibrationAvgRpm: null,
+                                calibrationAt: null,
+                                capacityRpm: null,
+                              };
+                              onChangePrefs(next);
+                              setCalibResultMessage(null);
+                            }}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {calibResultMessage && (
+                        <p className="text-[11px] font-medium text-emerald-700 leading-snug pr-1">{calibResultMessage}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="shrink-0 text-[13px] font-black text-blue-700 tabular-nums w-[2.75rem]">{calibLeftSec}s</span>
+                      <span className="flex-1 min-w-0 text-center text-[12px] font-bold tabular-nums text-slate-800">
+                        {showCalibCadenceRpm && calibSnap!.cadenceRpm != null
+                          ? `${Math.round(calibSnap.cadenceRpm)} RPM`
+                          : '\u00a0'}
+                      </span>
+                      <button type="button" onClick={cancelCalibration} className="shrink-0 h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              <div className="grid grid-cols-2 gap-2 items-center">
                 <span className="text-[10px] text-slate-500">Bike</span>
                 <select
                   className="h-8 px-2 rounded-md border border-slate-200 text-[11px] bg-white"
@@ -491,6 +482,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   </button>
                   <span className="text-[10px] text-slate-400">{prefs.preferredRideMode === 'sensor' ? 'Sensor' : 'Manual'}</span>
                 </div>
+              </div>
               </div>
             )}
           </section>

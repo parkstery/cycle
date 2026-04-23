@@ -21,7 +21,7 @@ import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
 import { createDualMergeState, pickRpmForIntensity, maybeUpdateWheelCadenceK } from './sensor/dualMerge';
-import { decideSpeed, createSpeedFilterState } from './sensor/effortModel';
+import { decideSpeed, createSpeedFilterState, presetCapacityRpm } from './sensor/effortModel';
 import type { SpeedSource, SpeedFilterState } from './sensor/effortModel';
 import { loadIndoorSensorPrefs, saveIndoorSensorPrefs, clampFeelK, FEEL_K_MIN, FEEL_K_MAX, FEEL_K_STEP } from './sensor/sensorPrefs';
 import type { BikeProfile } from './sensor/sensorPrefs';
@@ -735,9 +735,9 @@ const App: React.FC = () => {
     const cap0 =
       sensorPrefs.capacityRpm ??
       (sensorPrefs.calibrationAvgRpm != null ? sensorPrefs.calibrationAvgRpm / 0.9 : null) ??
-      90;
+      presetCapacityRpm(sensorPrefs.fitnessLevel);
     sensorCapacityLiveRef.current = Math.max(35, cap0);
-  }, [sensorPrefs.capacityRpm, sensorPrefs.calibrationAvgRpm]);
+  }, [sensorPrefs.capacityRpm, sensorPrefs.calibrationAvgRpm, sensorPrefs.fitnessLevel]);
 
   useEffect(() => {
     if (!sensorPrefs.sensorDriveEnabled) return;
@@ -3075,7 +3075,8 @@ const App: React.FC = () => {
       if (!elevationHydratedFromPayload) {
         (async () => {
           try {
-            const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
+            const samples = openElevation.elevationSamplesForPath(path.length);
+            const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
             const hydrated = openRes.results.map((r) => ({
               elevation: r.elevation,
               location: new google.maps.LatLng(r.latitude, r.longitude),
@@ -3483,7 +3484,8 @@ const App: React.FC = () => {
 
         let elevationRes: { results: Array<{ location: any; elevation: number; resolution: number }> };
         try {
-          const openRes = await openElevation.getElevationAlongPath(path, 100, elevationProvider ? { provider: elevationProvider } : undefined);
+          const samples = openElevation.elevationSamplesForPath(path.length);
+          const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
           elevationRes = {
             results: openRes.results.map((r) => ({
               elevation: r.elevation,
