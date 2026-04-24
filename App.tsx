@@ -1529,7 +1529,7 @@ const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [isMapReady]);
 
-  // start/end 둘 다 있을 때 car·bike·foot 버튼 1초간 순차 20% 확대 3회 반복 (세션당 1회)
+  // start/end 둘 다 있을 때 car·bike·foot 버튼 1초간 순차 20% 확대 3회 반복 (맵 START/END 재지정·Delete Route 시 hasShownModePulseRef 리셋으로 재실행 가능)
   useEffect(() => {
     if (!origin || !destination || hasShownModePulseRef.current) return;
     hasShownModePulseRef.current = true;
@@ -3332,6 +3332,7 @@ const App: React.FC = () => {
 
   const clearMapOverlays = () => {
     setLockedRouteProfile(null);
+    hasShownModePulseRef.current = false;
     setAppPhase('IDLE');
     setPreparingProgress(null);
     setRewardOfferModalStage(null);
@@ -4035,6 +4036,7 @@ const App: React.FC = () => {
   const handleSetStart = () => {
     if (clickedLocation) {
       setLockedRouteProfile(null);
+      hasShownModePulseRef.current = false;
       const resolvedName =
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
@@ -4058,6 +4060,7 @@ const App: React.FC = () => {
   const handleSetEnd = () => {
     if (clickedLocation) {
       setLockedRouteProfile(null);
+      hasShownModePulseRef.current = false;
       const resolvedName =
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
