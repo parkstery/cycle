@@ -4034,6 +4034,7 @@ const App: React.FC = () => {
 
   const handleSetStart = () => {
     if (clickedLocation) {
+      setLockedRouteProfile(null);
       const resolvedName =
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
@@ -4056,6 +4057,7 @@ const App: React.FC = () => {
 
   const handleSetEnd = () => {
     if (clickedLocation) {
+      setLockedRouteProfile(null);
       const resolvedName =
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
@@ -4077,6 +4079,7 @@ const App: React.FC = () => {
   };
 
   const handleSwapEndpoints = () => {
+    setLockedRouteProfile(null);
     originSetFromSwapRef.current = true;
     destSetFromSwapRef.current = true;
     const tempOrigin = origin;
@@ -4096,6 +4099,7 @@ const App: React.FC = () => {
 
   const handleAddWaypoint = () => {
     if (clickedLocation && waypoints.length < 3) {
+      setLockedRouteProfile(null);
       const wpName = clickedLocation.name || clickedLocation.address;
       const newWaypoints = [...waypoints, { name: wpName, location: clickedLocation.location }];
       setWaypoints(newWaypoints);
@@ -4108,6 +4112,7 @@ const App: React.FC = () => {
   };
 
   const handleRemoveWaypoint = (idx: number) => {
+    setLockedRouteProfile(null);
     const newWaypoints = waypoints.filter((_, i) => i !== idx);
     setWaypoints(newWaypoints);
 
