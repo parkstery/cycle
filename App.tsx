@@ -4436,14 +4436,12 @@ const App: React.FC = () => {
 
       {loading && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
-          <span className="route-search-blink text-white font-bold text-sm text-shadow-overlay-read">Searching for route...</span>
+          <span className="route-search-blink text-white font-bold text-sm text-glow-black">Searching for route...</span>
         </div>
       )}
       {appPhase === 'PREPARING' && preparingProgress && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none" style={{ top: SAFE_TOP_1REM }}>
-          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
-            <span className="text-white font-bold text-sm">Preparing Street View... ({preparingProgress.k}/{preparingProgress.n})</span>
-          </div>
+        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
+          <span className="text-white font-bold text-sm text-glow-black">Preparing Street View... ({preparingProgress.k}/{preparingProgress.n})</span>
         </div>
       )}
       {isSvActive && showSvWarning && (
@@ -4501,7 +4499,7 @@ const App: React.FC = () => {
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
-          <span className="text-white font-bold text-sm text-shadow-overlay-read">{coachData.tip}</span>
+          <span className="text-white font-bold text-sm text-glow-black">{coachData.tip}</span>
         </div>
       )}
 
