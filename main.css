@@ -53,3 +53,19 @@ html,
 .route-search-blink {
   animation: route-search-blink 1s ease-in-out infinite;
 }
+
+/* HUD 속도/RPM용 text-shadow(≈2px·4px 글로우 + 1px 획) 대비 약 3배 폭 — 경로 탐색·코칭 멘트 가독용 */
+.text-shadow-overlay-read {
+  text-shadow:
+    0 0 6px #000,
+    0 0 12px #000,
+    0 0 18px #000,
+    3px 0 0 #000,
+    -3px 0 0 #000,
+    0 3px 0 #000,
+    0 -3px 0 #000,
+    3px 3px 0 #000,
+    -3px 3px 0 #000,
+    3px -3px 0 #000,
+    -3px -3px 0 #000;
+}

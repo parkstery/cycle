@@ -4435,10 +4435,8 @@ const App: React.FC = () => {
       </div>
 
       {loading && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none" style={{ top: SAFE_TOP_1REM }}>
-          <div className="bg-slate-800/90 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl shadow-xl">
-            <span className="route-search-blink text-white font-bold text-sm">Searching for route...</span>
-          </div>
+        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
+          <span className="route-search-blink text-white font-bold text-sm text-shadow-overlay-read">Searching for route...</span>
         </div>
       )}
       {appPhase === 'PREPARING' && preparingProgress && (
@@ -4502,10 +4500,8 @@ const App: React.FC = () => {
         </a>
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center" style={{ top: SAFE_TOP_1REM }}>
-          <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2 shadow-2xl flex items-center justify-center animate-in fade-in slide-in-from-top-4 duration-500">
-            <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2">{coachData.tip}</p>
-          </div>
+        <div className="absolute left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center px-2 animate-in fade-in slide-in-from-top-4 duration-500" style={{ top: SAFE_TOP_1REM }}>
+          <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2 text-shadow-overlay-read">{coachData.tip}</p>
         </div>
       )}
 
