@@ -4500,8 +4500,8 @@ const App: React.FC = () => {
         </a>
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-[9999] w-full max-w-[60%] pointer-events-none flex justify-center px-2 animate-in fade-in slide-in-from-top-4 duration-500" style={{ top: SAFE_TOP_1REM }}>
-          <p className="text-white font-medium text-sm leading-snug text-center line-clamp-2 text-shadow-overlay-read">{coachData.tip}</p>
+        <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
+          <span className="text-white font-bold text-sm text-shadow-overlay-read">{coachData.tip}</span>
         </div>
       )}
 
