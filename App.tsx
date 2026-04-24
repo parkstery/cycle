@@ -566,6 +566,9 @@ const App: React.FC = () => {
   /** 맵 클릭으로 출발/도착이 설정된 경우 해당 턴에서는 추천 목록을 표시하지 않음 */
   const originSetFromMapClickRef = useRef(false);
   const destSetFromMapClickRef = useRef(false);
+  /** 출발↔도착 스왑으로 문자열만 바뀐 경우 해당 턴에서는 추천 목록을 표시하지 않음 */
+  const originSetFromSwapRef = useRef(false);
+  const destSetFromSwapRef = useRef(false);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
@@ -1596,11 +1599,17 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭으로 설정된 경우 추천 목록 표시 안 함)
+  // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
     if (originSetFromMapClickRef.current) {
       originSetFromMapClickRef.current = false;
       setOriginSuggestions([]);
+      setShowOriginSuggestions(false);
+      setOriginHighlightIndex(-1);
+      return;
+    }
+    if (originSetFromSwapRef.current) {
+      originSetFromSwapRef.current = false;
       setShowOriginSuggestions(false);
       setOriginHighlightIndex(-1);
       return;
@@ -1629,11 +1638,17 @@ const App: React.FC = () => {
     };
   }, [origin]);
 
-  // 도착지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭으로 설정된 경우 추천 목록 표시 안 함)
+  // 도착지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
     if (destSetFromMapClickRef.current) {
       destSetFromMapClickRef.current = false;
       setDestinationSuggestions([]);
+      setShowDestinationSuggestions(false);
+      setDestinationHighlightIndex(-1);
+      return;
+    }
+    if (destSetFromSwapRef.current) {
+      destSetFromSwapRef.current = false;
       setShowDestinationSuggestions(false);
       setDestinationHighlightIndex(-1);
       return;
@@ -4062,6 +4077,8 @@ const App: React.FC = () => {
   };
 
   const handleSwapEndpoints = () => {
+    originSetFromSwapRef.current = true;
+    destSetFromSwapRef.current = true;
     const tempOrigin = origin;
     const newOrigin = destination;
     const newDestination = tempOrigin;
