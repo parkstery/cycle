@@ -517,6 +517,8 @@ const App: React.FC = () => {
   const [isUserPano, setIsUserPano] = useState(false); // true when showing user-contributed panorama (fallback)
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
+  const mapTypeRef = useRef(mapType);
+  mapTypeRef.current = mapType;
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -585,6 +587,8 @@ const App: React.FC = () => {
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+  /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
+  const [googleMapsBootstrapError, setGoogleMapsBootstrapError] = useState<string | null>(null);
   const [mapRevealed, setMapRevealed] = useState(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -1596,35 +1600,66 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
+  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후, mapRef 가 잡힐 때까지 rAF 재시도 (Android WebView에서 ref 타이밍 레이스 방지)
   useEffect(() => {
-    if (!isMapsApiLoaded || !mapRevealed || !mapRef.current || googleMapRef.current) return;
-    try {
-      const map = new google.maps.Map(mapRef.current, {
-        center: { lat: 37.5512, lng: 126.9882 },
-        zoom: 14,
-        mapTypeId: mapType,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoomControl: false,
-        cameraControl: false,
-        scaleControl: true,
-        scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
-        rotateControl: false,
-        tiltControl: false,
-        clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
-      });
-      googleMapRef.current = map;
-      map.addListener('click', (e: google.maps.MapMouseEvent) => {
-        if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
-      });
-      setIsMapReady(true);
-    } catch (err) {
-      console.error('[Google Map init]', err);
-      setIsMapReady(true);
-    }
+    if (!isMapsApiLoaded || !mapRevealed || googleMapRef.current) return;
+
+    let cancelled = false;
+    let rafId = 0;
+    let attempts = 0;
+    const maxAttempts = 180; // ~3s @60fps — 인트로(2s) 직후 레이아웃 지연까지 커버
+
+    const tryCreateMap = () => {
+      if (cancelled || googleMapRef.current) return;
+      const el = mapRef.current;
+      if (el) {
+        try {
+          const map = new google.maps.Map(el, {
+            center: { lat: 37.5512, lng: 126.9882 },
+            zoom: 14,
+            mapTypeId: mapTypeRef.current,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            zoomControl: false,
+            cameraControl: false,
+            scaleControl: true,
+            scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
+            rotateControl: false,
+            tiltControl: false,
+            clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
+          });
+          googleMapRef.current = map;
+          map.addListener('click', (e: google.maps.MapMouseEvent) => {
+            if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
+          });
+          if (!cancelled) setIsMapReady(true);
+        } catch (err) {
+          console.error('[Google Map init]', err);
+          if (!cancelled) {
+            setGoogleMapsBootstrapError((prev) => prev ?? 'Google 지도를 초기화하지 못했습니다.');
+            setIsMapReady(true);
+          }
+        }
+        return;
+      }
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        console.error('[Google Map init] mapRef not ready after', maxAttempts, 'frames');
+        if (!cancelled) {
+          setGoogleMapsBootstrapError((prev) => prev ?? '지도 영역을 준비하지 못했습니다. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
+          setIsMapReady(true);
+        }
+        return;
+      }
+      rafId = window.requestAnimationFrame(tryCreateMap);
+    };
+
+    rafId = window.requestAnimationFrame(tryCreateMap);
+
     return () => {
+      cancelled = true;
+      if (rafId) window.cancelAnimationFrame(rafId);
       googleMapRef.current = null;
       setIsMapReady(false);
     };
@@ -1836,6 +1871,8 @@ const App: React.FC = () => {
       ?? '';
     if (!apiKey) {
       console.warn('[GoogleMaps] GOOGLE_MAPS_API_KEY is missing. maps script not loaded.');
+      setGoogleMapsBootstrapError('GOOGLE_MAPS_API_KEY 가 빌드에 없습니다. Android 빌드 시 키 주입을 확인하세요.');
+      setIsMapReady(true);
       return;
     }
     // Google이 키/제한/과금 문제로 지도 로드를 거부할 때 호출됨 → Logcat에서 원인 추적용
@@ -1843,6 +1880,8 @@ const App: React.FC = () => {
       console.error(
         '[GoogleMaps] gm_authFailure: Cloud Console에서 (1) Maps JavaScript API·Street View 활성화 (2) 결제 연결 (3) 앱 키 제한에 https://localhost/* 추가 를 확인하세요. (Capacitor WebView 출처는 보통 localhost)'
       );
+      setGoogleMapsBootstrapError('Google Maps 인증 실패(gm_authFailure). 콘솔/Cloud 설정을 확인하세요.');
+      setIsMapReady(true);
     };
     const callbackName = '__cycleSvApiReady';
     (window as any)[callbackName] = () => {
@@ -1852,6 +1891,11 @@ const App: React.FC = () => {
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}`;
     script.async = true;
+    script.onerror = () => {
+      console.error('[GoogleMaps] script onerror — 네트워크 또는 CSP 차단 가능');
+      setGoogleMapsBootstrapError('Google Maps 스크립트를 불러오지 못했습니다. 네트워크를 확인하세요.');
+      setIsMapReady(true);
+    };
     document.head.appendChild(script);
   }, []);
 
@@ -4306,6 +4350,22 @@ const App: React.FC = () => {
           <p className="absolute bottom-2 left-0 right-0 text-[16px] text-slate-500 text-center pb-2">
             © 2026 LiveOnSoft
           </p>
+        </div>
+      )}
+      {googleMapsBootstrapError && (
+        <div
+          className="fixed left-0 right-0 z-[9998] mx-2 rounded-xl px-3 py-2.5 bg-amber-950/95 text-amber-50 text-[12px] font-medium leading-snug shadow-xl flex items-start gap-2 border border-amber-800/60"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+          role="alert"
+        >
+          <span className="flex-1 min-w-0">{googleMapsBootstrapError}</span>
+          <button
+            type="button"
+            className="shrink-0 text-amber-200 underline text-[11px] px-1"
+            onClick={() => setGoogleMapsBootstrapError(null)}
+          >
+            닫기
+          </button>
         </div>
       )}
       {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%→72%, 20% 증가) */}
