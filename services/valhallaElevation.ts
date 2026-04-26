@@ -1,5 +1,20 @@
+import { Capacitor } from '@capacitor/core';
 import type { OpenElevationResponse } from './openElevation';
 import type { TravelMode } from '../types';
+
+/** 웹: 상대 경로 프록시. 네이티브: 빌드 시 `VITE_VALHALLA_ELEVATION_API_URL`(https 전체 URL) 필요. */
+export function getValhallaElevationApiUrl(): string {
+  const fromEnv = (import.meta.env.VITE_VALHALLA_ELEVATION_API_URL as string | undefined)?.trim();
+  if (Capacitor.isNativePlatform()) {
+    if (fromEnv && /^https:\/\//i.test(fromEnv)) return fromEnv.replace(/\/$/, '');
+    return '';
+  }
+  return '/api/valhalla-elevation';
+}
+
+export function isValhallaElevationConfigured(): boolean {
+  return getValhallaElevationApiUrl().length > 0;
+}
 
 function costingForTravelMode(mode: TravelMode): string {
   if (mode === TravelMode.DRIVING) return 'auto';
@@ -26,14 +41,18 @@ export function pickWaypointLatLngsForValhalla(path: any[], maxPoints: number = 
 }
 
 /**
- * 웹: /api/valhalla-elevation (Vercel serverless). Capacitor 네이티브는 동일 엔드포인트가 없을 수 있어
- * 호출 전 App 쪽에서 엔진 선택/폴백을 처리하는 것을 권장.
+ * 웹: /api/valhalla-elevation. 네이티브: VITE_VALHALLA_ELEVATION_API_URL 로 배포된 동일 API POST URL.
  */
 export async function getValhallaElevationAlongOsrmPath(
   path: any[],
   mode: TravelMode,
   options?: { elevationIntervalM?: number; maxWaypoints?: number }
 ): Promise<OpenElevationResponse> {
+  const endpoint = getValhallaElevationApiUrl();
+  if (!endpoint) {
+    throw new Error('Valhalla 표고 URL 미설정 — Android 빌드에 VITE_VALHALLA_ELEVATION_API_URL 을 넣어 주세요.');
+  }
+
   const waypoints = pickWaypointLatLngsForValhalla(path, options?.maxWaypoints ?? 40);
   const locations = waypoints.map((p: any) => {
     const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
@@ -41,7 +60,7 @@ export async function getValhallaElevationAlongOsrmPath(
     return { lat, lng };
   });
 
-  const res = await fetch('/api/valhalla-elevation', {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

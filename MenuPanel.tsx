@@ -385,6 +385,11 @@ interface MenuPanelProps {
   setMenuView: (v: MenuView) => void;
   legalExpanded?: boolean;
   setLegalExpanded?: (v: boolean) => void;
+  /** OSRM 유지 + Valhalla 표고(A안). 미전달 시 Open-Elevation만 사용하는 것으로 표시. */
+  elevationEngine?: "open" | "valhalla";
+  onElevationEngineChange?: (v: "open" | "valhalla") => void;
+  /** Android 등: VITE_VALHALLA_ELEVATION_API_URL 이 빌드에 없으면 false */
+  valhallaElevationConfigured?: boolean;
 }
 
 const appInfoBottomStyle = () =>
@@ -398,6 +403,9 @@ export default function MenuPanel({
   onOpenAbout,
   menuView,
   setMenuView,
+  elevationEngine = "open",
+  onElevationEngineChange,
+  valhallaElevationConfigured = true,
 }: MenuPanelProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -499,6 +507,56 @@ export default function MenuPanel({
                   <ChevronRight size={18} className="text-slate-400" />
                 </button>
               </li>
+
+              {onElevationEngineChange && (
+                <li className="border-t border-slate-200">
+                  <div className="ps-4 pe-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-slate-900">Valhalla 표고 (A안)</div>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                          OSRM 경로는 그대로, 고도만 Valhalla. 켠 뒤 경로를 다시 계산하면 반영됩니다.
+                        </p>
+                        {!valhallaElevationConfigured && (
+                          <p className="text-xs text-amber-700 mt-1 leading-snug">
+                            앱(Android)에서는 빌드 시 배포 URL{" "}
+                            <span className="font-mono text-[10px]">VITE_VALHALLA_ELEVATION_API_URL</span> 이 필요합니다.
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={elevationEngine === "valhalla"}
+                        disabled={!valhallaElevationConfigured && elevationEngine === "open"}
+                        title={
+                          !valhallaElevationConfigured && elevationEngine === "open"
+                            ? "배포 API URL이 없어 Valhalla를 켤 수 없습니다"
+                            : elevationEngine === "valhalla"
+                              ? "Open-Elevation으로 전환"
+                              : "Valhalla 표고 사용"
+                        }
+                        onClick={() =>
+                          onElevationEngineChange(elevationEngine === "valhalla" ? "open" : "valhalla")
+                        }
+                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                          elevationEngine === "valhalla" ? "bg-emerald-600" : "bg-slate-300"
+                        } ${
+                          !valhallaElevationConfigured && elevationEngine === "open"
+                            ? "opacity-40 cursor-not-allowed"
+                            : "cursor-pointer"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                            elevationEngine === "valhalla" ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              )}
 
               <li className="ps-4 pe-4 py-1.5 pt-2 text-base font-medium text-slate-800 uppercase tracking-wider">
                 Guide

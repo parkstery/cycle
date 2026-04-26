@@ -11,7 +11,7 @@ import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { applyRoadElevationModel } from './services/roadElevation';
-import { getValhallaElevationAlongOsrmPath } from './services/valhallaElevation';
+import { getValhallaElevationAlongOsrmPath, isValhallaElevationConfigured } from './services/valhallaElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -45,6 +45,9 @@ const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
 const ROUTE_DENSIFY_INTERVAL_M = 10;
+
+/** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
+const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
 const DEFAULT_ROUTE_ASSET_PATHS = [
   'my-routes/default-slot-1.json',
   'my-routes/default-slot-2.json',
@@ -1037,17 +1040,36 @@ const App: React.FC = () => {
     return (p === 'opentopodata' || p === 'open-elevation') ? p : undefined;
   })() : undefined;
 
-  /** A안 테스트: URL ?elevation_engine=valhalla — OSRM 경로 유지, 표고만 Valhalla(elevation_interval) */
-  const elevationEngine = typeof window !== 'undefined'
-    ? (new URLSearchParams(window.location.search).get('elevation_engine') === 'valhalla' ? 'valhalla' : 'open')
-    : 'open';
+  /** A안: OSRM 경로 유지, 표고만 Valhalla. 메뉴 토글 + localStorage; URL `?elevation_engine=valhalla|open` 이 최초 로드 시 우선. */
+  const [elevationEngine, setElevationEngine] = useState<'open' | 'valhalla'>(() => {
+    if (typeof window === 'undefined') return 'open';
+    const q = new URLSearchParams(window.location.search).get('elevation_engine');
+    if (q === 'valhalla') return 'valhalla';
+    if (q === 'open') return 'open';
+    try {
+      const s = localStorage.getItem(ELEVATION_ENGINE_STORAGE_KEY);
+      if (s === 'valhalla') return 'valhalla';
+    } catch {
+      /* ignore */
+    }
+    return 'open';
+  });
+
+  const persistElevationEngine = useCallback((v: 'open' | 'valhalla') => {
+    setElevationEngine(v);
+    try {
+      localStorage.setItem(ELEVATION_ENGINE_STORAGE_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const fetchElevationAlongOsrmPath = async (
     path: any[],
     samples: number,
     mode: TravelMode
   ) => {
-    if (elevationEngine === 'valhalla' && !Capacitor.isNativePlatform()) {
+    if (elevationEngine === 'valhalla' && isValhallaElevationConfigured()) {
       try {
         return await getValhallaElevationAlongOsrmPath(path, mode, { elevationIntervalM: 30, maxWaypoints: 40 });
       } catch (e) {
@@ -3326,7 +3348,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
+  }, [elevationProvider, elevationEngine, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
@@ -3861,7 +3883,7 @@ const App: React.FC = () => {
       alert("경로를 찾을 수 없습니다.");
     }
     finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
+  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
 
   /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
@@ -5083,6 +5105,9 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
+          elevationEngine={elevationEngine}
+          onElevationEngineChange={persistElevationEngine}
+          valhallaElevationConfigured={isValhallaElevationConfigured()}
         />,
         document.body
       )}
