@@ -184,6 +184,10 @@ export default defineConfig(({ mode }) => {
       'process.env': JSON.stringify({
         GOOGLE_MAPS_API_KEY,
       }),
-    }
+      // Android 등 클라이언트에서 Stadia Route 직접 호출 시 — .env 의 STADIA_MAPS_API_KEY 를 VITE_ 없이도 쓰게 함(키는 번들에 포함됨).
+      'import.meta.env.VITE_STADIA_MAPS_API_KEY': JSON.stringify(
+        env.STADIA_MAPS_API_KEY ?? env.VITE_STADIA_MAPS_API_KEY ?? ''
+      ),
+    },
   };
 });
