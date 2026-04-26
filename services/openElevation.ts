@@ -70,6 +70,36 @@ export function elevationSamplesForPath(pointCount: number, intervalM: number = 
 }
 
 /**
+ * 고도 프로필의 급격한 스파이크를 완화하기 위한 이동평균 스무딩.
+ * - 입력/출력 길이는 항상 동일하게 유지한다.
+ * - 유효하지 않은 값은 0으로 보정한다.
+ */
+export function smoothElevations(values: number[], windowRadius: number = 2): number[] {
+  if (!Array.isArray(values) || values.length === 0) return [];
+  const radius = Math.max(0, Math.floor(windowRadius));
+  if (radius === 0) {
+    return values.map((v) => (Number.isFinite(v) ? v : 0));
+  }
+
+  const normalized = values.map((v) => (Number.isFinite(v) ? Number(v) : 0));
+  const out = new Array<number>(normalized.length);
+
+  for (let i = 0; i < normalized.length; i++) {
+    const start = Math.max(0, i - radius);
+    const end = Math.min(normalized.length - 1, i + radius);
+    let sum = 0;
+    let count = 0;
+    for (let j = start; j <= end; j++) {
+      sum += normalized[j];
+      count++;
+    }
+    out[i] = count > 0 ? sum / count : normalized[i];
+  }
+
+  return out;
+}
+
+/**
  * 경로를 따라 samples개 지점의 고도를 조회.
  * options.provider 지정 시 해당 공급자만 사용(이중화 테스트: URL ?elevation_provider=opentopodata 활용).
  * 반환: { results: [{ latitude, longitude, elevation }] } — App에서 location(LatLng)으로 매핑용.

@@ -10,6 +10,7 @@ import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideE
 import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
+import { applyRoadElevationModel } from './services/roadElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -167,8 +168,16 @@ const SECOND_REWARD_OFFER_BEFORE_M = 300; // show second offer around 4.7km
 /** Android: 루트에서 두 번째 뒤로가기로 종료까지 허용 시간(ms) */
 const ANDROID_EXIT_DOUBLE_BACK_MS = 2000;
 
+/**
+ * Android native immersive: 상태바 영역을 컨트롤이 사용하도록 top inset을 0으로 둔다.
+ * (상단 스와이프 시 상태바는 transient로 잠깐 노출)
+ */
+const IS_ANDROID_NATIVE = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+const SAFE_TOP_INSET = IS_ANDROID_NATIVE ? '0px' : 'env(safe-area-inset-top, 0px)';
 /** 네이티브 WebView 패딩 없음 — safe-area는 CSS env()만 사용 (viewport-fit=cover) */
-const SAFE_TOP_1REM = 'calc(env(safe-area-inset-top, 0px) + 1rem)';
+const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
+const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
+const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 1rem + 2.4rem + 0.5rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
@@ -2132,6 +2141,7 @@ const App: React.FC = () => {
 
     const restoreRideSystemBars = async () => {
       try {
+        await SystemBars.hide({ bar: SystemBarType.StatusBar });
         await SystemBars.hide({ bar: SystemBarType.NavigationBar });
       } catch (e) {
         console.warn('[AdMob] interstitial 이후 시스템 바 복원 실패', e);
@@ -3117,11 +3127,13 @@ const App: React.FC = () => {
       if (canOffline && payload.elevationSamples && payload.elevationSamples.length > 0) {
         const rawElevs = payload.elevationSamples.map(([, , elev]) => elev);
         const smoothedElevs = openElevation.smoothElevations(rawElevs);
-        elevationResults = payload.elevationSamples.map(([lat, lng, elev], i) => ({
-          elevation: smoothedElevs[i] ?? elev,
-          location: new google.maps.LatLng(lat, lng),
-          resolution: 0
-        }));
+        elevationResults = applyRoadElevationModel(
+          payload.elevationSamples.map(([lat, lng, elev], i) => ({
+            elevation: smoothedElevs[i] ?? elev,
+            location: new google.maps.LatLng(lat, lng),
+            resolution: 0
+          }))
+        );
         elevationHydratedFromPayload = true;
       } else {
         const sampleStep = Math.max(1, Math.floor(path.length / 100));
@@ -3223,11 +3235,13 @@ const App: React.FC = () => {
             const samples = openElevation.elevationSamplesForPath(path.length);
             const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
             const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
-            const hydrated = openRes.results.map((r, i) => ({
-              elevation: smoothed[i] ?? r.elevation,
-              location: new google.maps.LatLng(r.latitude, r.longitude),
-              resolution: 0
-            }));
+            const hydrated = applyRoadElevationModel(
+              openRes.results.map((r, i) => ({
+                elevation: smoothed[i] ?? r.elevation,
+                location: new google.maps.LatLng(r.latitude, r.longitude),
+                resolution: 0
+              }))
+            );
             setRoute((prev) => prev ? { ...prev, elevation: hydrated } : prev);
             // payload v2 로 승격(다음 로드부터는 네트워크 불필요)
             const elevationSamples: [number, number, number][] = hydrated.map((r) => {
@@ -3639,11 +3653,13 @@ const App: React.FC = () => {
           const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
           const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
           elevationRes = {
-            results: openRes.results.map((r, i) => ({
-              elevation: smoothed[i] ?? r.elevation,
-              location: new google.maps.LatLng(r.latitude, r.longitude),
-              resolution: 0
-            }))
+            results: applyRoadElevationModel(
+              openRes.results.map((r, i) => ({
+                elevation: smoothed[i] ?? r.elevation,
+                location: new google.maps.LatLng(r.latitude, r.longitude),
+                resolution: 0
+              }))
+            )
           };
         } catch (e) {
           console.warn('[ELEVATION_ERROR] fallback_to_flat_profile', e);
@@ -4476,7 +4492,7 @@ const App: React.FC = () => {
           bottom: !isSvFullScreen ? 0 : undefined,
           ...(isSvActive && isSvFullScreen
             ? {
-                top: 'calc(env(safe-area-inset-top, 0px) + 4.25rem)',
+                top: SAFE_TOP_4_25REM,
                 left: SAFE_LEFT_1REM,
               }
             : {}),
@@ -4560,7 +4576,7 @@ const App: React.FC = () => {
         className="fixed z-[1000] flex flex-col items-end leading-none select-none"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 1rem + 2.4rem + 0.5rem)',
-          top: 'calc(env(safe-area-inset-top, 0px) + 1rem + 2.4rem + 0.5rem)',
+          top: SAFE_TOP_SPEED_PANEL,
           pointerEvents: 'none',
         }}
       >
@@ -5070,5 +5086,4 @@ const App: React.FC = () => {
     </div>
   );
 };
-
 export default App;

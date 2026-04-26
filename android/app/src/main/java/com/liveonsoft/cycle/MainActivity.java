@@ -82,8 +82,17 @@ public class MainActivity extends BridgeActivity {
             }
             controller.setSystemBarsBehavior(
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            controller.hide(WindowInsetsCompat.Type.navigationBars());
+            // 기본은 상태바/내비바를 모두 숨기고, 상단 스와이프로 잠시(시스템 기본 약 3초) 노출.
+            controller.hide(WindowInsetsCompat.Type.systemBars());
         } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applySystemBarsForOrientation();
         }
     }
 
