@@ -11,6 +11,7 @@ import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { applyRoadElevationModel } from './services/roadElevation';
+import { getValhallaElevationAlongOsrmPath } from './services/valhallaElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -1035,6 +1036,26 @@ const App: React.FC = () => {
     const p = new URLSearchParams(window.location.search).get('elevation_provider');
     return (p === 'opentopodata' || p === 'open-elevation') ? p : undefined;
   })() : undefined;
+
+  /** A안 테스트: URL ?elevation_engine=valhalla — OSRM 경로 유지, 표고만 Valhalla(elevation_interval) */
+  const elevationEngine = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('elevation_engine') === 'valhalla' ? 'valhalla' : 'open')
+    : 'open';
+
+  const fetchElevationAlongOsrmPath = async (
+    path: any[],
+    samples: number,
+    mode: TravelMode
+  ) => {
+    if (elevationEngine === 'valhalla' && !Capacitor.isNativePlatform()) {
+      try {
+        return await getValhallaElevationAlongOsrmPath(path, mode, { elevationIntervalM: 30, maxWaypoints: 40 });
+      } catch (e) {
+        console.warn('[ELEVATION] Valhalla 실패, Open-Elevation으로 폴백', e);
+      }
+    }
+    return openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+  };
 
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || isNaN(seconds)) return "00:00:00";
@@ -3233,7 +3254,7 @@ const App: React.FC = () => {
         (async () => {
           try {
             const samples = openElevation.elevationSamplesForPath(path.length);
-            const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+            const openRes = await fetchElevationAlongOsrmPath(path, samples, modeBySavedProfile);
             const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
             const hydrated = applyRoadElevationModel(
               openRes.results.map((r, i) => ({
@@ -3650,7 +3671,7 @@ const App: React.FC = () => {
         let elevationRes: { results: Array<{ location: any; elevation: number; resolution: number }> };
         try {
           const samples = openElevation.elevationSamplesForPath(path.length);
-          const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+          const openRes = await fetchElevationAlongOsrmPath(path, samples, activeMode);
           const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
           elevationRes = {
             results: applyRoadElevationModel(

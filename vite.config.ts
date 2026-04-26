@@ -15,9 +15,37 @@ function getOsrmHandler() {
   return osrmHandlerPromise;
 }
 
+/** Dev: Valhalla(Stadia) 표고 프록시 — .env 의 STADIA_MAPS_API_KEY 사용 */
+let valhallaElevationHandlerPromise: Promise<(req: any, res: any) => Promise<void>> | null = null;
+function getValhallaElevationHandler() {
+  if (!valhallaElevationHandlerPromise) {
+    valhallaElevationHandlerPromise = import(pathToFileURL(path.join(__dirname, 'api', 'valhalla-elevation.js')).href).then(
+      (m) => m.default
+    );
+  }
+  return valhallaElevationHandlerPromise;
+}
+
+async function readRequestBodyJson(req: import('http').IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  const raw = Buffer.concat(chunks).toString('utf8');
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  
+  if (env.STADIA_MAPS_API_KEY && !process.env.STADIA_MAPS_API_KEY) {
+    process.env.STADIA_MAPS_API_KEY = env.STADIA_MAPS_API_KEY;
+  }
+
   // Load explicit keys for better security separation
   const GOOGLE_MAPS_API_KEY =
     env.GOOGLE_MAPS_API_KEY
@@ -60,6 +88,48 @@ export default defineConfig(({ mode }) => {
                 },
               };
               const handler = await getOsrmHandler();
+              await handler(fakeReq, fakeRes);
+            } catch (e) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: String((e as Error)?.message ?? e) }));
+            }
+          });
+        },
+      },
+      {
+        name: 'valhalla-elevation-handler',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            if (!req.url?.startsWith('/api/valhalla-elevation')) return next();
+            if (req.method !== 'POST') {
+              res.writeHead(405, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Method not allowed' }));
+              return;
+            }
+            try {
+              const body = await readRequestBodyJson(req);
+              const fakeReq = { method: 'POST', body };
+              const fakeRes = {
+                _status: 200,
+                _headers: {} as Record<string, string>,
+                status(code: number) {
+                  this._status = code;
+                  return this;
+                },
+                setHeader(k: string, v: string) {
+                  this._headers[k] = v;
+                  return this;
+                },
+                end(bodyStr: string) {
+                  res.writeHead(this._status, this._headers);
+                  res.end(bodyStr);
+                },
+                json(obj: unknown) {
+                  this.setHeader('Content-Type', 'application/json');
+                  this.end(JSON.stringify(obj));
+                },
+              };
+              const handler = await getValhallaElevationHandler();
               await handler(fakeReq, fakeRes);
             } catch (e) {
               res.writeHead(502, { 'Content-Type': 'application/json' });
