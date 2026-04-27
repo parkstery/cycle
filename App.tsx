@@ -4008,6 +4008,8 @@ const App: React.FC = () => {
       await setPanoramaView(startPos, heading);
     }
 
+    // 첫 코칭 발화/음악 루프 등 ref 기반 로직이 React state effect 를 기다리지 않게 즉시 반영한다.
+    simulationActiveRef.current = true;
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
     setIsSvFullScreen(true);
@@ -4024,23 +4026,14 @@ const App: React.FC = () => {
         // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
         lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
         // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점.
-        // (실제 가청 시점 기준으로 30s 주기를 다시 맞추기 위해, 두 번째 speak 직후에도 갱신.)
         lastSpokenResistanceRef.current = coaching.resistance;
-        lastCoachSpeakAtMsRef.current = Date.now();
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        // 주행 시작 안내(briefing)와 첫 코칭 tip 을 분리 발화한다.
-        // 합쳐서 한 번에 speak 하면 Android WebView TTS 의 cancel-then-speak 레이스에서
-        // 앞 문장이 통째로 누락되어 사용자에겐 30s 주기 재추첨 발화가 첫 코칭처럼 들리는 문제가 있다.
-        // 짧은 안내 → 약간의 간격(180ms) → 코칭 tip 순서로 보내면 큐가 순차 처리될 확률이 크게 오른다.
-        const briefing = await getCourseBriefing(currentRoute);
-        if (briefing) speak(briefing);
-        window.setTimeout(() => {
-          if (!simulationActiveRef.current) return; // 사용자가 중간에 멈췄다면 발화 안 함
-          if (coaching.tip) speak(coaching.tip);
-          // 가청 시점 기준으로 다음 30s 주기를 다시 맞춤
-          lastCoachSpeakAtMsRef.current = Date.now();
-        }, 180);
+        // 첫 코칭은 주행 시작 직후 바로 발화한다.
+        // 이전처럼 briefing 후 setTimeout 으로 tip 을 미루면 ref 갱신 타이밍에 따라 첫 tip 이 누락되고,
+        // 사용자에게는 30초 주기 재발화가 첫 코칭처럼 들릴 수 있다.
+        if (coaching.tip) speak(coaching.tip);
+        lastCoachSpeakAtMsRef.current = Date.now();
       } finally {
         setIsCoachThinking(false);
       }
