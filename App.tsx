@@ -11,6 +11,7 @@ import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { applyRoadElevationModel } from './services/roadElevation';
+import { getValhallaElevationAlongOsrmPath, isValhallaElevationConfigured } from './services/valhallaElevation';
 import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -44,6 +45,9 @@ const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
 const ROUTE_DENSIFY_INTERVAL_M = 10;
+
+/** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
+const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
 const DEFAULT_ROUTE_ASSET_PATHS = [
   'my-routes/default-slot-1.json',
   'my-routes/default-slot-2.json',
@@ -511,8 +515,26 @@ const App: React.FC = () => {
   const [svStatus, setSvStatus] = useState<string>('');
   const [showSvWarning, setShowSvWarning] = useState(false);
   const [isUserPano, setIsUserPano] = useState(false); // true when showing user-contributed panorama (fallback)
+  /**
+   * Elevation 데이터 상태 표시:
+   *  - kind 'ok': 표고 정상, provider 표시(디버그 배지)
+   *  - kind 'flat': 표고 API 실패 → 평지 폴백, 사용자에게 토스트 안내
+   *  - null: 아직 결정 전
+   */
+  const [elevationStatus, setElevationStatus] = useState<{ kind: 'ok' | 'flat'; provider?: 'open-elevation' | 'opentopodata' } | null>(null);
+  const elevationFlatToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showElevationFlatToast = useCallback(() => {
+    setElevationStatus({ kind: 'flat' });
+    if (elevationFlatToastTimerRef.current) clearTimeout(elevationFlatToastTimerRef.current);
+    // 5초 후 토스트만 자동 닫힘 (배지는 'flat' 그대로 유지하지 않고 비웁니다)
+    elevationFlatToastTimerRef.current = setTimeout(() => {
+      setElevationStatus((prev) => (prev?.kind === 'flat' ? null : prev));
+    }, 5000);
+  }, []);
   const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
+  const mapTypeRef = useRef(mapType);
+  mapTypeRef.current = mapType;
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -581,6 +603,8 @@ const App: React.FC = () => {
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+  /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
+  const [googleMapsBootstrapError, setGoogleMapsBootstrapError] = useState<string | null>(null);
   const [mapRevealed, setMapRevealed] = useState(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -1035,6 +1059,63 @@ const App: React.FC = () => {
     const p = new URLSearchParams(window.location.search).get('elevation_provider');
     return (p === 'opentopodata' || p === 'open-elevation') ? p : undefined;
   })() : undefined;
+
+  /** A안: OSRM 경로 유지, 표고만 Valhalla. 메뉴 토글 + localStorage; URL `?elevation_engine=valhalla|open` 이 최초 로드 시 우선. */
+  const [elevationEngine, setElevationEngine] = useState<'open' | 'valhalla'>(() => {
+    if (typeof window === 'undefined') return 'open';
+    const q = new URLSearchParams(window.location.search).get('elevation_engine');
+    if (q === 'valhalla') return 'valhalla';
+    if (q === 'open') return 'open';
+    try {
+      const s = localStorage.getItem(ELEVATION_ENGINE_STORAGE_KEY);
+      if (s === 'valhalla') return 'valhalla';
+    } catch {
+      /* ignore */
+    }
+    return 'open';
+  });
+
+  const persistElevationEngine = useCallback((v: 'open' | 'valhalla') => {
+    setElevationEngine(v);
+    try {
+      localStorage.setItem(ELEVATION_ENGINE_STORAGE_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const fetchElevationAlongOsrmPath = async (
+    path: any[],
+    samples: number,
+    mode: TravelMode
+  ) => {
+    if (elevationEngine === 'valhalla' && isValhallaElevationConfigured()) {
+      try {
+        return await getValhallaElevationAlongOsrmPath(path, mode, { elevationIntervalM: 30, maxWaypoints: 40 });
+      } catch (e) {
+        console.warn('[ELEVATION] Valhalla 실패, Open-Elevation으로 폴백', e);
+      }
+    }
+    // 기본 공급자 실패 시 자동으로 대체 공급자를 한 번 더 시도해
+    // flat-profile(전부 0m) 폴백으로 바로 떨어지는 확률을 줄인다.
+    try {
+      return await openElevation.getElevationAlongPath(
+        path,
+        samples,
+        elevationProvider ? { provider: elevationProvider } : undefined
+      );
+    } catch (primaryErr) {
+      // 사용자가 URL 파라미터로 provider를 강제한 경우에는 의도를 존중해 재시도하지 않는다.
+      if (elevationProvider) throw primaryErr;
+      try {
+        console.warn('[ELEVATION] primary provider 실패, opentopodata 재시도', primaryErr);
+        return await openElevation.getElevationAlongPath(path, samples, { provider: 'opentopodata' });
+      } catch (secondaryErr) {
+        console.warn('[ELEVATION] opentopodata 재시도도 실패', secondaryErr);
+        throw primaryErr;
+      }
+    }
+  };
 
   const formatTime = (seconds: number) => {
     if (!isFinite(seconds) || isNaN(seconds)) return "00:00:00";
@@ -1553,35 +1634,66 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후 한 번만 생성
+  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후, mapRef 가 잡힐 때까지 rAF 재시도 (Android WebView에서 ref 타이밍 레이스 방지)
   useEffect(() => {
-    if (!isMapsApiLoaded || !mapRevealed || !mapRef.current || googleMapRef.current) return;
-    try {
-      const map = new google.maps.Map(mapRef.current, {
-        center: { lat: 37.5512, lng: 126.9882 },
-        zoom: 14,
-        mapTypeId: mapType,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoomControl: false,
-        cameraControl: false,
-        scaleControl: true,
-        scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
-        rotateControl: false,
-        tiltControl: false,
-        clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
-      });
-      googleMapRef.current = map;
-      map.addListener('click', (e: google.maps.MapMouseEvent) => {
-        if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
-      });
-      setIsMapReady(true);
-    } catch (err) {
-      console.error('[Google Map init]', err);
-      setIsMapReady(true);
-    }
+    if (!isMapsApiLoaded || !mapRevealed || googleMapRef.current) return;
+
+    let cancelled = false;
+    let rafId = 0;
+    let attempts = 0;
+    const maxAttempts = 180; // ~3s @60fps — 인트로(2s) 직후 레이아웃 지연까지 커버
+
+    const tryCreateMap = () => {
+      if (cancelled || googleMapRef.current) return;
+      const el = mapRef.current;
+      if (el) {
+        try {
+          const map = new google.maps.Map(el, {
+            center: { lat: 37.5512, lng: 126.9882 },
+            zoom: 14,
+            mapTypeId: mapTypeRef.current,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            zoomControl: false,
+            cameraControl: false,
+            scaleControl: true,
+            scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
+            rotateControl: false,
+            tiltControl: false,
+            clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
+          });
+          googleMapRef.current = map;
+          map.addListener('click', (e: google.maps.MapMouseEvent) => {
+            if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
+          });
+          if (!cancelled) setIsMapReady(true);
+        } catch (err) {
+          console.error('[Google Map init]', err);
+          if (!cancelled) {
+            setGoogleMapsBootstrapError((prev) => prev ?? 'Google 지도를 초기화하지 못했습니다.');
+            setIsMapReady(true);
+          }
+        }
+        return;
+      }
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        console.error('[Google Map init] mapRef not ready after', maxAttempts, 'frames');
+        if (!cancelled) {
+          setGoogleMapsBootstrapError((prev) => prev ?? '지도 영역을 준비하지 못했습니다. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
+          setIsMapReady(true);
+        }
+        return;
+      }
+      rafId = window.requestAnimationFrame(tryCreateMap);
+    };
+
+    rafId = window.requestAnimationFrame(tryCreateMap);
+
     return () => {
+      cancelled = true;
+      if (rafId) window.cancelAnimationFrame(rafId);
       googleMapRef.current = null;
       setIsMapReady(false);
     };
@@ -1793,6 +1905,8 @@ const App: React.FC = () => {
       ?? '';
     if (!apiKey) {
       console.warn('[GoogleMaps] GOOGLE_MAPS_API_KEY is missing. maps script not loaded.');
+      setGoogleMapsBootstrapError('GOOGLE_MAPS_API_KEY 가 빌드에 없습니다. Android 빌드 시 키 주입을 확인하세요.');
+      setIsMapReady(true);
       return;
     }
     // Google이 키/제한/과금 문제로 지도 로드를 거부할 때 호출됨 → Logcat에서 원인 추적용
@@ -1800,6 +1914,8 @@ const App: React.FC = () => {
       console.error(
         '[GoogleMaps] gm_authFailure: Cloud Console에서 (1) Maps JavaScript API·Street View 활성화 (2) 결제 연결 (3) 앱 키 제한에 https://localhost/* 추가 를 확인하세요. (Capacitor WebView 출처는 보통 localhost)'
       );
+      setGoogleMapsBootstrapError('Google Maps 인증 실패(gm_authFailure). 콘솔/Cloud 설정을 확인하세요.');
+      setIsMapReady(true);
     };
     const callbackName = '__cycleSvApiReady';
     (window as any)[callbackName] = () => {
@@ -1809,6 +1925,11 @@ const App: React.FC = () => {
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}`;
     script.async = true;
+    script.onerror = () => {
+      console.error('[GoogleMaps] script onerror — 네트워크 또는 CSP 차단 가능');
+      setGoogleMapsBootstrapError('Google Maps 스크립트를 불러오지 못했습니다. 네트워크를 확인하세요.');
+      setIsMapReady(true);
+    };
     document.head.appendChild(script);
   }, []);
 
@@ -3233,7 +3354,7 @@ const App: React.FC = () => {
         (async () => {
           try {
             const samples = openElevation.elevationSamplesForPath(path.length);
-            const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+            const openRes = await fetchElevationAlongOsrmPath(path, samples, modeBySavedProfile);
             const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
             const hydrated = applyRoadElevationModel(
               openRes.results.map((r, i) => ({
@@ -3243,6 +3364,8 @@ const App: React.FC = () => {
               }))
             );
             setRoute((prev) => prev ? { ...prev, elevation: hydrated } : prev);
+            const usedProvider = (openRes as { usedProvider?: 'open-elevation' | 'opentopodata' }).usedProvider;
+            setElevationStatus({ kind: 'ok', provider: usedProvider });
             // payload v2 로 승격(다음 로드부터는 네트워크 불필요)
             const elevationSamples: [number, number, number][] = hydrated.map((r) => {
               const lat = typeof r.location.lat === 'function' ? r.location.lat() : r.location.lat;
@@ -3272,6 +3395,8 @@ const App: React.FC = () => {
             updateFavoriteRoutePayload(saved.id, upgraded);
           } catch (e) {
             console.warn('[RESTORE] elevation self-heal failed (non-fatal)', e);
+            // 저장 경로는 elevationSamples 가 v2 페이로드로 이미 들어있을 수도 있어,
+            // 여기서는 평지 토스트를 띄우지 않는다(차트 자체는 표시될 수 있음).
           }
         })();
       }
@@ -3305,7 +3430,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
+  }, [elevationProvider, elevationEngine, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
@@ -3650,7 +3775,7 @@ const App: React.FC = () => {
         let elevationRes: { results: Array<{ location: any; elevation: number; resolution: number }> };
         try {
           const samples = openElevation.elevationSamplesForPath(path.length);
-          const openRes = await openElevation.getElevationAlongPath(path, samples, elevationProvider ? { provider: elevationProvider } : undefined);
+          const openRes = await fetchElevationAlongOsrmPath(path, samples, activeMode);
           const smoothed = openElevation.smoothElevations(openRes.results.map((r) => r.elevation));
           elevationRes = {
             results: applyRoadElevationModel(
@@ -3661,10 +3786,14 @@ const App: React.FC = () => {
               }))
             )
           };
+          // 디버그 배지: 어느 공급자가 응답을 만들었는지 표시
+          const usedProvider = (openRes as { usedProvider?: 'open-elevation' | 'opentopodata' }).usedProvider;
+          setElevationStatus({ kind: 'ok', provider: usedProvider });
         } catch (e) {
           console.warn('[ELEVATION_ERROR] fallback_to_flat_profile', e);
           // Elevation API 실패(안드로이드 WebView TLS/네트워크 등) 시에도
           // OSRM 경로 자체는 유효하므로 평지(고도 0)로 진행한다.
+          showElevationFlatToast();
           elevationRes = {
             results: path.map((p: any) => ({
               elevation: 0,
@@ -3840,7 +3969,7 @@ const App: React.FC = () => {
       alert("경로를 찾을 수 없습니다.");
     }
     finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
+  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
 
   /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
@@ -3894,15 +4023,24 @@ const App: React.FC = () => {
         // 메인 effect 가 setRoute 이후 flush 시점에 같은 세그먼트로 중복 speak 하지 않도록
         // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
         lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
-        // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점
+        // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점.
+        // (실제 가청 시점 기준으로 30s 주기를 다시 맞추기 위해, 두 번째 speak 직후에도 갱신.)
         lastSpokenResistanceRef.current = coaching.resistance;
         lastCoachSpeakAtMsRef.current = Date.now();
         setCoachData(coaching);
         setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        // 주행 시작 안내와 첫 코칭 tip 을 하나의 발화로 합쳐 TTS 자가 취소(앞 발화 잘림) 방지
+        // 주행 시작 안내(briefing)와 첫 코칭 tip 을 분리 발화한다.
+        // 합쳐서 한 번에 speak 하면 Android WebView TTS 의 cancel-then-speak 레이스에서
+        // 앞 문장이 통째로 누락되어 사용자에겐 30s 주기 재추첨 발화가 첫 코칭처럼 들리는 문제가 있다.
+        // 짧은 안내 → 약간의 간격(180ms) → 코칭 tip 순서로 보내면 큐가 순차 처리될 확률이 크게 오른다.
         const briefing = await getCourseBriefing(currentRoute);
-        const firstUtterance = [briefing, coaching.tip].filter(Boolean).join(' ');
-        speak(firstUtterance);
+        if (briefing) speak(briefing);
+        window.setTimeout(() => {
+          if (!simulationActiveRef.current) return; // 사용자가 중간에 멈췄다면 발화 안 함
+          if (coaching.tip) speak(coaching.tip);
+          // 가청 시점 기준으로 다음 30s 주기를 다시 맞춤
+          lastCoachSpeakAtMsRef.current = Date.now();
+        }, 180);
       } finally {
         setIsCoachThinking(false);
       }
@@ -4265,6 +4403,22 @@ const App: React.FC = () => {
           </p>
         </div>
       )}
+      {googleMapsBootstrapError && (
+        <div
+          className="fixed left-0 right-0 z-[9998] mx-2 rounded-xl px-3 py-2.5 bg-amber-950/95 text-amber-50 text-[12px] font-medium leading-snug shadow-xl flex items-start gap-2 border border-amber-800/60"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+          role="alert"
+        >
+          <span className="flex-1 min-w-0">{googleMapsBootstrapError}</span>
+          <button
+            type="button"
+            className="shrink-0 text-amber-200 underline text-[11px] px-1"
+            onClick={() => setGoogleMapsBootstrapError(null)}
+          >
+            닫기
+          </button>
+        </div>
+      )}
       {/* 인트로 종료 후 3초간 표시: Please click 2 points on the road. (높이 60%→72%, 20% 증가) */}
       {/* {showClickTwoPointsHint && (
         <div className="absolute inset-0 z-[16] flex items-center justify-center pointer-events-none">
@@ -4478,6 +4632,29 @@ const App: React.FC = () => {
         >
           <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
             <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
+          </div>
+        </div>
+      )}
+      {/* Elevation: 평지 폴백 토스트 (5초 자동 사라짐) */}
+      {elevationStatus?.kind === 'flat' && (
+        <div
+          className="absolute z-[60] flex items-center justify-start pointer-events-none"
+          style={{ left: SAFE_LEFT_1REM, top: '42%' }}
+        >
+          <div className="bg-amber-600/90 backdrop-blur-xl border border-white/20 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
+            <ShieldAlert size={14} className="text-white" />
+            <span className="text-white font-bold text-[11px]">표고 정보를 불러오지 못해 평지로 진행합니다.</span>
+          </div>
+        </div>
+      )}
+      {/* Elevation: 디버그 배지 (어떤 공급자가 응답했는지) — 작게 우상단 보조 위치. */}
+      {elevationStatus?.kind === 'ok' && elevationStatus.provider && (
+        <div
+          className="absolute z-[55] pointer-events-none"
+          style={{ right: SAFE_RIGHT_1REM, bottom: '6.5rem' }}
+        >
+          <div className="bg-black/55 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded-md">
+            <span className="text-white/85 text-[10px] font-mono">elev: {elevationStatus.provider === 'open-elevation' ? 'open' : 'topo'}</span>
           </div>
         </div>
       )}
@@ -5062,6 +5239,9 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
+          elevationEngine={elevationEngine}
+          onElevationEngineChange={persistElevationEngine}
+          valhallaElevationConfigured={isValhallaElevationConfigured()}
         />,
         document.body
       )}

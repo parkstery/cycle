@@ -27,12 +27,24 @@ export const getAdvancedCoaching = async (
   previousResistance?: string
 ): Promise<CoachingData & { tipId?: string; resId?: string }> => {
   // 1. 도로 종단선형 추정 기반 slope 계산 + DEM 신뢰도 평가
+  //    - long 채널: 장구간 안정 (trim, rate-limit, bridge 감쇠)
+  //    - short 채널: ±60 m 짧은 윈도우 (짧은 가파른 진입을 놓치지 않도록)
+  //    결합 규칙: 두 채널 부호가 같으면 절대값 큰 쪽을 채택, 다르면 long 채널 우선.
+  //    이렇게 하면 장구간 안정성을 깨지 않으면서도, 100~300 m 짧은 오르막에서
+  //    long 채널이 평탄화로 깎였을 때 short 채널이 R 을 끌어올린다.
   let slope = 0;
   let distance = 0;
   let elevationSpanM = 0;
+  let trendSlope = 0;
+  let trendRiseM = 0;
   if (upcomingPoints.length > 1) {
     const est = estimateRoadSlope(upcomingPoints);
-    slope = est.slope;
+    const longSlope = est.slope;
+    const shortSlope = est.slopeShort;
+    trendSlope = est.trendSlope;
+    trendRiseM = est.trendRiseM;
+    const candidates = [longSlope, shortSlope, trendSlope];
+    slope = candidates.reduce((best, v) => (Math.abs(v) > Math.abs(best) ? v : best), 0);
     distance = est.distanceM;
     elevationSpanM = est.elevationSpanM;
   }
@@ -53,6 +65,24 @@ export const getAdvancedCoaching = async (
   else if (slope >= -1) targetRes = 3;
   else if (slope >= -3) targetRes = 2;
   else targetRes = 1;
+
+  // 지속 오르막/내리막 보정:
+  // 로컬 slope 가 스무딩으로 0 근처에 깎여도, upcoming slice 전체가 꾸준히 오르거나 내려가면
+  // R3(평지)로 고착되지 않게 최소/최대 밴드를 강제한다.
+  const sustainedTrendReliable = distance >= 120 && elevationSpanM >= 3;
+  if (!lowConfidence && sustainedTrendReliable) {
+    const uphillRiseReliable = trendRiseM >= 3;
+    if (uphillRiseReliable) {
+      if (trendSlope >= 10) targetRes = Math.max(targetRes, 8);
+      else if (trendSlope >= 7) targetRes = Math.max(targetRes, 7);
+      else if (trendSlope >= 4) targetRes = Math.max(targetRes, 6);
+      else if (trendSlope >= 2) targetRes = Math.max(targetRes, 5);
+      else if (trendSlope >= 0.8) targetRes = Math.max(targetRes, 4);
+    } else if (trendRiseM <= -3) {
+      if (trendSlope <= -3) targetRes = Math.min(targetRes, 1);
+      else if (trendSlope <= -1) targetRes = Math.min(targetRes, 2);
+    }
+  }
 
   // resistanceText / resId — 항상 R1~R8 로 노출 (Steady 라벨은 사용자 요청에 따라 폐기).
   // degenerate 슬라이스(lowConfidence) 도 slope=0 → R3 으로 분류되므로 의미상 동일하다.

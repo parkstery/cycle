@@ -8,6 +8,7 @@
 import { Capacitor } from '@capacitor/core';
 
 const OPEN_ELEVATION_DIRECT = 'https://api.open-elevation.com/api/v1/lookup';
+const OPENTOPODATA_DIRECT = 'https://api.opentopodata.org/v1/srtm90m';
 const OPEN_ELEVATION_URL = Capacitor.isNativePlatform() ? OPEN_ELEVATION_DIRECT : '/api/elevation';
 
 export interface OpenElevationResultItem {
@@ -18,6 +19,8 @@ export interface OpenElevationResultItem {
 
 export interface OpenElevationResponse {
   results: OpenElevationResultItem[];
+  /** 실제 응답을 만들어낸 공급자. 자동 폴백/디버그 배지 표시용. */
+  usedProvider?: ElevationProvider;
 }
 
 /** LatLng 호환: .lat() .lng() 또는 .lat .lng */
@@ -55,6 +58,35 @@ function pathCacheKey(path: LatLngLike[], samples: number): string {
 const elevationCache = new Map<string, OpenElevationResultItem[]>();
 
 export type ElevationProvider = 'open-elevation' | 'opentopodata';
+
+async function fetchOpenElevation(locations: Array<{ latitude: number; longitude: number }>): Promise<OpenElevationResponse> {
+  const res = await fetch(OPEN_ELEVATION_DIRECT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations }),
+  });
+  if (!res.ok) throw new Error(`Open-Elevation ${res.status}`);
+  const data = (await res.json()) as OpenElevationResponse;
+  if (!data.results || !Array.isArray(data.results)) throw new Error('Open-Elevation invalid response');
+  return data;
+}
+
+async function fetchOpenTopoData(locations: Array<{ latitude: number; longitude: number }>): Promise<OpenElevationResponse> {
+  const locationsStr = locations.map((l) => `${l.latitude},${l.longitude}`).join('|');
+  const url = `${OPENTOPODATA_DIRECT}?locations=${encodeURIComponent(locationsStr)}`;
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error(`OpenTopoData ${res.status}`);
+  const data = (await res.json()) as { status?: string; results?: Array<{ elevation?: number }> };
+  if (data.status !== 'OK' || !Array.isArray(data.results)) throw new Error('OpenTopoData invalid response');
+  const normalized: OpenElevationResponse = {
+    results: locations.map((loc, i) => ({
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      elevation: Number(data.results?.[i]?.elevation ?? 0),
+    })),
+  };
+  return normalized;
+}
 
 /**
  * 경로 길이에 따라 elevation 샘플링 수를 정한다.
@@ -114,22 +146,54 @@ export async function getElevationAlongPath(
   const provider = options?.provider;
   const key = pathCacheKey(path, samples) + (provider ? `:${provider}` : '');
   const cached = elevationCache.get(key);
-  if (cached) return { results: cached };
+  if (cached) return { results: cached, usedProvider: provider };
 
   const locations = samplePath(path, samples);
-  const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = { locations };
-  if (provider) body.provider = provider;
+  // Web: /api/elevation 서버 핸들러(공급자 자동 폴백 내장) 사용
+  if (!Capacitor.isNativePlatform()) {
+    const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = { locations };
+    if (provider) body.provider = provider;
+    const res = await fetch(OPEN_ELEVATION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Elevation ${res.status}`);
+    const usedProviderHeader = res.headers.get('X-Elevation-Provider');
+    if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader);
+    const data = (await res.json()) as OpenElevationResponse;
+    if (!data.results || !Array.isArray(data.results)) throw new Error('Elevation invalid response');
+    if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
+      data.usedProvider = usedProviderHeader;
+    } else if (provider) {
+      data.usedProvider = provider;
+    }
+    elevationCache.set(key, data.results);
+    return data;
+  }
 
-  const res = await fetch(OPEN_ELEVATION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Elevation ${res.status}`);
-  const usedProvider = res.headers.get('X-Elevation-Provider');
-  if (usedProvider) console.log('[Elevation] X-Elevation-Provider:', usedProvider);
-  const data = (await res.json()) as OpenElevationResponse;
-  if (!data.results || !Array.isArray(data.results)) throw new Error('Elevation invalid response');
+  // Native: 외부 공급자를 직접 호출하므로 여기서도 자동 폴백을 수행한다.
+  let data: OpenElevationResponse;
+  let usedProvider: ElevationProvider;
+  if (provider === 'open-elevation') {
+    data = await fetchOpenElevation(locations);
+    usedProvider = 'open-elevation';
+  } else if (provider === 'opentopodata') {
+    data = await fetchOpenTopoData(locations);
+    usedProvider = 'opentopodata';
+  } else {
+    try {
+      data = await fetchOpenElevation(locations);
+      usedProvider = 'open-elevation';
+      console.log('[Elevation] provider used (native): open-elevation');
+    } catch (primaryErr) {
+      console.warn('[Elevation] open-elevation failed, fallback to opentopodata', primaryErr);
+      data = await fetchOpenTopoData(locations);
+      usedProvider = 'opentopodata';
+      console.log('[Elevation] provider used (native): opentopodata');
+    }
+  }
+  data.usedProvider = usedProvider;
   elevationCache.set(key, data.results);
   return data;
 }

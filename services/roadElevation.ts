@@ -1,6 +1,12 @@
 /**
  * DEM 기반 elevation 샘플을 "도로 종단선형"에 가깝게 보정.
  * 코칭(R)과 elevation 차트가 동일한 route.elevation 을 쓰도록 단일 소스화한다.
+ *
+ * 2026-04-27 개정 (C안):
+ *  - estimateRoadSlope 가 long(장구간 안정) / short(±60 m 짧은 윈도우) 두 채널을 반환.
+ *  - aiCoach 가 두 값을 결합해 짧은 가파른 진입을 놓치지 않게 한다.
+ *  - clampSlopeRateByDistance 시드를 첫 N 점 평균으로 보강.
+ *  - bridgePatternAttenuation 게이트를 강화하고 감쇠 계수를 완화 (오인 시에도 R 추락 방지).
  */
 
 import type { ElevationPoint } from '../types';
@@ -11,9 +17,18 @@ export const ROAD_SMOOTH_WINDOW_MAX_M = 420;
 export const ROAD_SLOPE_LOW_PASS_ALPHA = 0.25;
 export const ROAD_SLOPE_DELTA_LIMIT_PER_50M = 1.0;
 export const ROAD_SLOPE_DELTA_LIMIT_PER_M = ROAD_SLOPE_DELTA_LIMIT_PER_50M / 50;
-export const BRIDGE_PATTERN_DISTANCE_M = 1200;
-export const BRIDGE_PATTERN_ENDPOINT_DIFF_M = 8;
+
+/** 짧은 가파른 진입을 잡기 위한 보조(short) 채널의 반경. */
+export const ROAD_SHORT_WINDOW_HALF_M = 60;
+
+/** Bridge-pattern 감쇠 게이트: 일반 산복도로 오인을 줄이도록 보수적으로 강화. */
+export const BRIDGE_PATTERN_DISTANCE_M = 1500;
+export const BRIDGE_PATTERN_ENDPOINT_DIFF_M = 4;
 export const BRIDGE_PATTERN_MID_DIP_M = 10;
+/** 끝점-중앙 dip 외에 슬라이스 전체 변동(maxEl-minEl)이 dip 의 일정 비율 이상이면 교량으로 보지 않는다. */
+export const BRIDGE_PATTERN_VARIATION_GUARD_RATIO = 1.3;
+/** 교량으로 판단됐을 때의 감쇠 — 0.35 → 0.6 으로 완화. */
+export const BRIDGE_PATTERN_ATTENUATION = 0.6;
 
 type RoadSample = { elevation: number; cumulativeDistM: number };
 
@@ -104,10 +119,18 @@ function smoothSlopeBidirectional(rawSlope: number[], alpha: number): number[] {
   return rawSlope.map((_, i) => (forward[i] + backward[i]) / 2);
 }
 
-function clampSlopeRateByDistance(samples: RoadSample[], slope: number[], maxDeltaPerM: number): number[] {
+/**
+ * 시작 시드를 첫 N 점 평균으로 잡아, slope[0] 이 우연히 낮게 잡힌 경우에도
+ * 후속 클램프가 진입 구간을 너무 오래 잡아두지 않도록 한다.
+ */
+function clampSlopeRateByDistance(samples: RoadSample[], slope: number[], maxDeltaPerM: number, seedAvgN: number = 4): number[] {
   if (slope.length === 0) return [];
   const out = new Array<number>(slope.length);
-  out[0] = slope[0];
+  const seedCount = Math.max(1, Math.min(seedAvgN, slope.length));
+  let seed = 0;
+  for (let i = 0; i < seedCount; i++) seed += slope[i];
+  seed = seed / seedCount;
+  out[0] = seed;
   for (let i = 1; i < slope.length; i++) {
     const segM = Math.max(1, samples[i].cumulativeDistM - samples[i - 1].cumulativeDistM);
     const limit = maxDeltaPerM * segM;
@@ -119,9 +142,17 @@ function clampSlopeRateByDistance(samples: RoadSample[], slope: number[], maxDel
   return out;
 }
 
-function robustRepresentativeSlope(slopeSeries: number[]): number {
+/**
+ * 슬라이스 안에서 코칭에 쓸 대표 경사 한 값.
+ * - default: 20~80 % 트림 + tail 가중 (장구간 안정)
+ * - shortContext: 트림 없이 단순 평균 (짧은 슬라이스에서 피크가 깎이는 것 방지)
+ */
+function robustRepresentativeSlope(slopeSeries: number[], shortContext: boolean = false): number {
   if (slopeSeries.length === 0) return 0;
   if (slopeSeries.length === 1) return slopeSeries[0];
+  if (shortContext) {
+    return slopeSeries.reduce((acc, v) => acc + v, 0) / slopeSeries.length;
+  }
   const sorted = slopeSeries.slice().sort((a, b) => a - b);
   const lo = Math.floor(sorted.length * 0.2);
   const hi = Math.max(lo + 1, Math.ceil(sorted.length * 0.8));
@@ -140,25 +171,68 @@ function bridgePatternAttenuation(samples: RoadSample[], roadLikeElevation: numb
   const endpointMean = (startEl + endEl) / 2;
   const endpointDiff = Math.abs(endEl - startEl);
   let minIdx = 0;
+  let maxEl = roadLikeElevation[0] ?? 0;
+  let minEl = roadLikeElevation[0] ?? 0;
   for (let i = 1; i < roadLikeElevation.length; i++) {
     if (roadLikeElevation[i] < roadLikeElevation[minIdx]) minIdx = i;
+    if (roadLikeElevation[i] > maxEl) maxEl = roadLikeElevation[i];
+    if (roadLikeElevation[i] < minEl) minEl = roadLikeElevation[i];
   }
-  const minEl = roadLikeElevation[minIdx] ?? endpointMean;
-  const midDip = endpointMean - minEl;
+  const dipMin = roadLikeElevation[minIdx] ?? endpointMean;
+  const midDip = endpointMean - dipMin;
+  const totalSpan = maxEl - minEl;
   const centerRatio = roadLikeElevation.length > 1 ? minIdx / (roadLikeElevation.length - 1) : 0.5;
   const valleyIsCentral = centerRatio >= 0.2 && centerRatio <= 0.8;
+  // 추가 가드: 슬라이스 전체 변동이 midDip 의 1.3 배 이상이면 단순 dip 가 아닌 일반 굴곡으로 본다.
+  const variationOk = totalSpan <= midDip * BRIDGE_PATTERN_VARIATION_GUARD_RATIO;
   const isBridgeLike =
     endpointDiff <= BRIDGE_PATTERN_ENDPOINT_DIFF_M &&
     midDip >= BRIDGE_PATTERN_MID_DIP_M &&
-    valleyIsCentral;
+    valleyIsCentral &&
+    variationOk;
   if (!isBridgeLike) return slope;
-  return slope * 0.35;
+  return slope * BRIDGE_PATTERN_ATTENUATION;
 }
 
-/** 코칭 슬라이스용: 기존과 동일한 slope 추정 */
-export function estimateRoadSlope(upcomingPoints: ElevationPoint[]): { slope: number; distanceM: number; elevationSpanM: number } {
+/** 짧은 윈도우(±ROAD_SHORT_WINDOW_HALF_M) 에서의 단순 종단 경사. trim/rate-limit/감쇠 미적용. */
+function computeShortSlope(samples: RoadSample[]): number {
+  if (samples.length <= 1) return 0;
+  const halfWindow = ROAD_SHORT_WINDOW_HALF_M;
+  const roadLikeShort = buildRoadLikeElevation(samples, halfWindow);
+  const slopes = samples.map((_, i) => computeWindowSlope(samples, roadLikeShort, i, halfWindow));
+  return robustRepresentativeSlope(slopes, true);
+}
+
+/** upcoming slice 전체의 시작→끝 순경사. 지속 오르막/내리막 판정용 보조 채널. */
+function computeTrendSlope(samples: RoadSample[]): { trendSlope: number; trendRiseM: number } {
+  if (samples.length <= 1) return { trendSlope: 0, trendRiseM: 0 };
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const distM = Math.max(0, last.cumulativeDistM - first.cumulativeDistM);
+  if (distM < 1e-6) return { trendSlope: 0, trendRiseM: 0 };
+  const trendRiseM = last.elevation - first.elevation;
+  return { trendSlope: (trendRiseM / distM) * 100, trendRiseM };
+}
+
+export type EstimateRoadSlopeResult = {
+  /** 결합용 대표 slope (장구간 채널). 기존 호환. */
+  slope: number;
+  /** 짧은 윈도우 기반 보조 slope. aiCoach 에서 결합 사용. */
+  slopeShort: number;
+  /** upcoming slice 전체의 시작→끝 순경사. 완만하지만 지속적인 오르막/R3 고착 방지용. */
+  trendSlope: number;
+  /** upcoming slice 시작→끝 순상승량(m). trendSlope 신뢰도 보조값. */
+  trendRiseM: number;
+  distanceM: number;
+  elevationSpanM: number;
+};
+
+/** 코칭 슬라이스용: long/short 두 채널을 함께 반환. */
+export function estimateRoadSlope(upcomingPoints: ElevationPoint[]): EstimateRoadSlopeResult {
   const samples = buildRoadSamples(upcomingPoints);
-  if (samples.length <= 1) return { slope: 0, distanceM: 0, elevationSpanM: 0 };
+  if (samples.length <= 1) {
+    return { slope: 0, slopeShort: 0, trendSlope: 0, trendRiseM: 0, distanceM: 0, elevationSpanM: 0 };
+  }
   const distanceM = samples[samples.length - 1].cumulativeDistM;
   let minEl = Infinity;
   let maxEl = -Infinity;
@@ -167,15 +241,24 @@ export function estimateRoadSlope(upcomingPoints: ElevationPoint[]): { slope: nu
     if (p.elevation > maxEl) maxEl = p.elevation;
   }
   const elevationSpanM = Number.isFinite(minEl) && Number.isFinite(maxEl) ? maxEl - minEl : 0;
+
+  // ---- Long channel: 기존 robust 파이프라인 ----
   const adaptiveWindow = adaptiveWindowByDistance(distanceM);
   const halfWindow = adaptiveWindow / 2;
   const roadLikeElevation = buildRoadLikeElevation(samples, halfWindow);
   const rawSlope = samples.map((_, i) => computeWindowSlope(samples, roadLikeElevation, i, halfWindow));
   const slopeBidirectional = smoothSlopeBidirectional(rawSlope, ROAD_SLOPE_LOW_PASS_ALPHA);
   const slopeRoad = clampSlopeRateByDistance(samples, slopeBidirectional, ROAD_SLOPE_DELTA_LIMIT_PER_M);
-  const representative = robustRepresentativeSlope(slopeRoad);
+  // 짧은 슬라이스(<600 m)는 트림이 피크를 절단할 위험이 커 단순 평균으로 본다.
+  const isShortSlice = distanceM < 600;
+  const representative = robustRepresentativeSlope(slopeRoad, isShortSlice);
   const bridgeAwareSlope = bridgePatternAttenuation(samples, roadLikeElevation, representative);
-  return { slope: bridgeAwareSlope, distanceM, elevationSpanM };
+
+  // ---- Short channel: ±60 m, 가공 최소화 ----
+  const slopeShort = computeShortSlope(samples);
+  const { trendSlope, trendRiseM } = computeTrendSlope(samples);
+
+  return { slope: bridgeAwareSlope, slopeShort, trendSlope, trendRiseM, distanceM, elevationSpanM };
 }
 
 /**
@@ -193,20 +276,27 @@ export function applyRoadElevationModel(points: ElevationPoint[]): ElevationPoin
   const endEl = roadLike[roadLike.length - 1] ?? 0;
   const totalDist = distanceM;
   let minIdx = 0;
+  let topEl = roadLike[0] ?? 0;
+  let bottomEl = roadLike[0] ?? 0;
   for (let i = 1; i < roadLike.length; i++) {
     if (roadLike[i] < roadLike[minIdx]) minIdx = i;
+    if (roadLike[i] > topEl) topEl = roadLike[i];
+    if (roadLike[i] < bottomEl) bottomEl = roadLike[i];
   }
   const minEl = roadLike[minIdx] ?? startEl;
   const endpointMean = (startEl + endEl) / 2;
   const midDip = endpointMean - minEl;
+  const totalSpan = topEl - bottomEl;
   const centerRatio = roadLike.length > 1 ? minIdx / (roadLike.length - 1) : 0.5;
   const valleyIsCentral = centerRatio >= 0.2 && centerRatio <= 0.8;
   const endpointDiff = Math.abs(endEl - startEl);
+  const variationOk = totalSpan <= midDip * BRIDGE_PATTERN_VARIATION_GUARD_RATIO;
   const longBridgeLike =
     totalDist >= BRIDGE_PATTERN_DISTANCE_M &&
     endpointDiff <= BRIDGE_PATTERN_ENDPOINT_DIFF_M &&
     midDip >= BRIDGE_PATTERN_MID_DIP_M &&
-    valleyIsCentral;
+    valleyIsCentral &&
+    variationOk;
 
   const outElev = roadLike.slice();
   if (longBridgeLike && totalDist > 1e-6) {
