@@ -121,6 +121,10 @@ const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
 const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 탐색 중';
 const isCoordinateLabel = (text: string | undefined | null): boolean =>
   !!text && COORDINATE_LABEL_REGEX.test(text.trim());
+const isPendingMapAddress = (text: string | undefined | null): boolean =>
+  !text || text === 'Loading...' || text === MAP_PICK_FALLBACK_ADDRESS || isCoordinateLabel(text);
+const toHumanAddress = (text: string | undefined | null): string =>
+  isPendingMapAddress(text) ? '대한민국 인근' : (text as string).trim();
 const toLatLngPair = (p: any): [number, number] => {
   const lat = typeof p?.lat === 'function' ? p.lat() : p?.lat;
   const lng = typeof p?.lng === 'function' ? p.lng() : p?.lng;
@@ -4231,7 +4235,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newOrigin = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_FALLBACK_ADDRESS : resolvedName;
+      const newOrigin = toHumanAddress(resolvedName);
       originJustSelectedRef.current = true;
       originSetFromMapClickRef.current = true;
       setOrigin(newOrigin);
@@ -4239,6 +4243,13 @@ const App: React.FC = () => {
       setShowOriginSuggestions(false);
       setOriginHighlightIndex(-1);
       originLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
+      if (isPendingMapAddress(resolvedName)) {
+        const { lat, lng } = clickedLocation;
+        void resolveNearestAddress(lat, lng).then((addr) => {
+          const finalAddr = toHumanAddress(addr);
+          setOrigin((prev) => (isPendingMapAddress(prev) ? finalAddr : prev));
+        });
+      }
 
       if (startMarker.current) { startMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current); }
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
@@ -4255,7 +4266,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newDest = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_FALLBACK_ADDRESS : resolvedName;
+      const newDest = toHumanAddress(resolvedName);
       destJustSelectedRef.current = true;
       destSetFromMapClickRef.current = true;
       setDestination(newDest);
@@ -4263,6 +4274,13 @@ const App: React.FC = () => {
       setShowDestinationSuggestions(false);
       setDestinationHighlightIndex(-1);
       destLocationRef.current = clickedLocation.location; // CAPTURE EXACT COORDINATES
+      if (isPendingMapAddress(resolvedName)) {
+        const { lat, lng } = clickedLocation;
+        void resolveNearestAddress(lat, lng).then((addr) => {
+          const finalAddr = toHumanAddress(addr);
+          setDestination((prev) => (isPendingMapAddress(prev) ? finalAddr : prev));
+        });
+      }
 
       if (endMarker.current) { endMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current); }
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
