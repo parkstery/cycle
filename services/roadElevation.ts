@@ -30,6 +30,11 @@ export const BRIDGE_PATTERN_VARIATION_GUARD_RATIO = 1.3;
 /** 교량으로 판단됐을 때의 감쇠 — 0.35 → 0.6 으로 완화. */
 export const BRIDGE_PATTERN_ATTENUATION = 0.6;
 
+/** 국소 교량/하천 trench 복원: DEM 이 강/하천 수면으로 꺼진 구간을 deck line 으로 끌어올린다. */
+export const LOCAL_BRIDGE_MIN_WIDTH_M = 40;
+export const LOCAL_BRIDGE_MAX_WIDTH_M = 2200;
+export const LOCAL_BRIDGE_MAX_ENDPOINT_GRADE = 0.035;
+
 type RoadSample = { elevation: number; cumulativeDistM: number };
 
 function buildRoadSamples(points: ElevationPoint[]): RoadSample[] {
@@ -214,6 +219,103 @@ function computeTrendSlope(samples: RoadSample[]): { trendSlope: number; trendRi
   return { trendSlope: (trendRiseM / distM) * 100, trendRiseM };
 }
 
+type BridgeDeckCandidate = {
+  left: number;
+  right: number;
+  maxBelowM: number;
+  score: number;
+};
+
+function minBridgeDipByWidth(widthM: number): number {
+  if (widthM < 300) return 4;
+  if (widthM < 1200) return 6;
+  return 8;
+}
+
+/**
+ * DEM 이 도로교가 아니라 강/하천 횡단면을 따라 아래로 꺼지는 구간을 찾아
+ * 양 끝 shoulder 를 잇는 deck line 아래의 값만 끌어올린다.
+ *
+ * - 좁은 하천(40m~), 중간 하천, 한강급 장교량(~2.2km)을 모두 후보로 본다.
+ * - endpoint 간 기울기가 너무 큰 구간은 실제 도로 경사일 가능성이 있어 제외한다.
+ * - 보정은 하방만 수행하므로 실제 산/오르막을 깎지 않는다.
+ */
+function reconstructLocalBridgeDecks(samples: RoadSample[], elevations: number[]): number[] {
+  if (samples.length < 4) return elevations.slice();
+  const candidates: BridgeDeckCandidate[] = [];
+
+  for (let left = 0; left < samples.length - 2; left++) {
+    for (let right = left + 2; right < samples.length; right++) {
+      const widthM = samples[right].cumulativeDistM - samples[left].cumulativeDistM;
+      if (widthM < LOCAL_BRIDGE_MIN_WIDTH_M) continue;
+      if (widthM > LOCAL_BRIDGE_MAX_WIDTH_M) break;
+
+      const endpointDiffM = Math.abs(elevations[right] - elevations[left]);
+      const maxEndpointDiffM = Math.max(5, widthM * LOCAL_BRIDGE_MAX_ENDPOINT_GRADE);
+      if (endpointDiffM > maxEndpointDiffM) continue;
+
+      let maxBelowM = 0;
+      let maxBelowIdx = -1;
+      let materiallyBelowCount = 0;
+
+      for (let i = left + 1; i < right; i++) {
+        const t = (samples[i].cumulativeDistM - samples[left].cumulativeDistM) / widthM;
+        const deck = elevations[left] + (elevations[right] - elevations[left]) * t;
+        const below = deck - elevations[i];
+        if (below > maxBelowM) {
+          maxBelowM = below;
+          maxBelowIdx = i;
+        }
+      }
+
+      const minDipM = minBridgeDipByWidth(widthM);
+      if (maxBelowM < minDipM || maxBelowIdx < 0) continue;
+
+      const centerRatio =
+        (samples[maxBelowIdx].cumulativeDistM - samples[left].cumulativeDistM) / widthM;
+      if (centerRatio < 0.15 || centerRatio > 0.85) continue;
+
+      const materialBelowThreshold = Math.max(2, maxBelowM * 0.35);
+      for (let i = left + 1; i < right; i++) {
+        const t = (samples[i].cumulativeDistM - samples[left].cumulativeDistM) / widthM;
+        const deck = elevations[left] + (elevations[right] - elevations[left]) * t;
+        if (deck - elevations[i] >= materialBelowThreshold) materiallyBelowCount++;
+      }
+      if (materiallyBelowCount < 1) continue;
+
+      // 깊지만 과도하게 넓은 후보보다, 실제 trench 폭에 가까운 후보를 우선한다.
+      const score = maxBelowM - minDipM - widthM * 0.001;
+      candidates.push({ left, right, maxBelowM, score });
+    }
+  }
+
+  if (candidates.length === 0) return elevations.slice();
+
+  const out = elevations.slice();
+  const occupied = new Array<boolean>(samples.length).fill(false);
+  candidates.sort((a, b) => b.score - a.score || b.maxBelowM - a.maxBelowM);
+
+  for (const c of candidates) {
+    let overlap = 0;
+    for (let i = c.left; i <= c.right; i++) {
+      if (occupied[i]) overlap++;
+    }
+    const spanCount = c.right - c.left + 1;
+    if (overlap / spanCount > 0.4) continue;
+
+    const widthM = samples[c.right].cumulativeDistM - samples[c.left].cumulativeDistM;
+    if (widthM <= 1e-6) continue;
+    for (let i = c.left; i <= c.right; i++) {
+      const t = (samples[i].cumulativeDistM - samples[c.left].cumulativeDistM) / widthM;
+      const deck = elevations[c.left] + (elevations[c.right] - elevations[c.left]) * t;
+      if (deck > out[i]) out[i] = deck;
+      occupied[i] = true;
+    }
+  }
+
+  return out;
+}
+
 export type EstimateRoadSlopeResult = {
   /** 결합용 대표 slope (장구간 채널). 기존 호환. */
   slope: number;
@@ -298,7 +400,7 @@ export function applyRoadElevationModel(points: ElevationPoint[]): ElevationPoin
     valleyIsCentral &&
     variationOk;
 
-  const outElev = roadLike.slice();
+  const outElev = reconstructLocalBridgeDecks(samples, roadLike);
   if (longBridgeLike && totalDist > 1e-6) {
     for (let i = 0; i < outElev.length; i++) {
       const t = samples[i].cumulativeDistM / totalDist;
