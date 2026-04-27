@@ -117,6 +117,10 @@ const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boo
 
 /** 숫자 소수점 정밀도 고정 (저장용) */
 const fix8 = (n: number): number => Number(Number(n).toFixed(8));
+const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
+const MAP_PICK_PLACEHOLDER_ADDRESS = '선택한 위치';
+const isCoordinateLabel = (text: string | undefined | null): boolean =>
+  !!text && COORDINATE_LABEL_REGEX.test(text.trim());
 const toLatLngPair = (p: any): [number, number] => {
   const lat = typeof p?.lat === 'function' ? p.lat() : p?.lat;
   const lng = typeof p?.lng === 'function' ? p.lng() : p?.lng;
@@ -1853,22 +1857,24 @@ const App: React.FC = () => {
     const g = (window as any).google;
     handleLocationClickRef.current = (lat: number, lng: number) => {
       const location = new g.maps.LatLng(lat, lng);
-      const fallbackLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       // 1) 즉시 팝업 표시 (체감 지연 제거)
       setClickedLocation({
         lat,
         lng,
         name: 'Loading...',
-        address: fallbackLabel,
+        address: MAP_PICK_PLACEHOLDER_ADDRESS,
         elevation: null,
         location,
       });
       // 2) 주소 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
       nominatim
         .reverse(lat, lng)
-        .catch(() => ({ formatted_address: fallbackLabel }))
+        .catch(() => ({ formatted_address: MAP_PICK_PLACEHOLDER_ADDRESS }))
         .then((rev) => {
-          const name = rev.formatted_address;
+          const name =
+            rev.formatted_address && !isCoordinateLabel(rev.formatted_address)
+              ? rev.formatted_address
+              : MAP_PICK_PLACEHOLDER_ADDRESS;
           setClickedLocation((prev) => {
             if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
             return { ...prev, name, address: name };
@@ -4188,7 +4194,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newOrigin = resolvedName || `${clickedLocation.lat.toFixed(4)}, ${clickedLocation.lng.toFixed(4)}`;
+      const newOrigin = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_PLACEHOLDER_ADDRESS : resolvedName;
       originJustSelectedRef.current = true;
       originSetFromMapClickRef.current = true;
       setOrigin(newOrigin);
@@ -4212,7 +4218,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newDest = resolvedName || `${clickedLocation.lat.toFixed(4)}, ${clickedLocation.lng.toFixed(4)}`;
+      const newDest = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_PLACEHOLDER_ADDRESS : resolvedName;
       destJustSelectedRef.current = true;
       destSetFromMapClickRef.current = true;
       setDestination(newDest);
