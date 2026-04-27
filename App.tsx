@@ -118,7 +118,7 @@ const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boo
 /** 숫자 소수점 정밀도 고정 (저장용) */
 const fix8 = (n: number): number => Number(Number(n).toFixed(8));
 const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
-const MAP_PICK_PLACEHOLDER_ADDRESS = '선택한 위치';
+const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 확인 중';
 const isCoordinateLabel = (text: string | undefined | null): boolean =>
   !!text && COORDINATE_LABEL_REGEX.test(text.trim());
 const toLatLngPair = (p: any): [number, number] => {
@@ -1851,6 +1851,38 @@ const App: React.FC = () => {
     return () => ro.disconnect();
   }, [mapRevealed, isMapReady, triggerMapResize]);
 
+  const resolveNearestAddress = useCallback(async (lat: number, lng: number): Promise<string> => {
+    const sanitize = (v?: string | null): string | null => {
+      if (!v) return null;
+      const t = v.trim();
+      if (!t || isCoordinateLabel(t) || t === MAP_PICK_FALLBACK_ADDRESS) return null;
+      return t;
+    };
+    try {
+      const direct = await nominatim.reverse(lat, lng);
+      const s = sanitize(direct.formatted_address);
+      if (s) return s;
+    } catch {
+      // continue
+    }
+    // 중심점이 수면/하상으로 찍히는 경우를 위해 주변 오프셋 탐색(약 40m~250m)
+    const offsets: Array<[number, number]> = [
+      [0.00035, 0], [-0.00035, 0], [0, 0.00035], [0, -0.00035],
+      [0.00075, 0], [-0.00075, 0], [0, 0.00075], [0, -0.00075],
+      [0.0015, 0], [-0.0015, 0], [0, 0.0015], [0, -0.0015],
+    ];
+    for (const [dLat, dLng] of offsets) {
+      try {
+        const r = await nominatim.reverse(lat + dLat, lng + dLng);
+        const s = sanitize(r.formatted_address);
+        if (s) return s;
+      } catch {
+        // try next
+      }
+    }
+    return MAP_PICK_FALLBACK_ADDRESS;
+  }, []);
+
   // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)
   useEffect(() => {
     if (typeof (window as any).google === 'undefined' || !(window as any).google.maps?.LatLng) return;
@@ -1862,19 +1894,13 @@ const App: React.FC = () => {
         lat,
         lng,
         name: 'Loading...',
-        address: MAP_PICK_PLACEHOLDER_ADDRESS,
+        address: MAP_PICK_FALLBACK_ADDRESS,
         elevation: null,
         location,
       });
       // 2) 주소 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
-      nominatim
-        .reverse(lat, lng)
-        .catch(() => ({ formatted_address: MAP_PICK_PLACEHOLDER_ADDRESS }))
-        .then((rev) => {
-          const name =
-            rev.formatted_address && !isCoordinateLabel(rev.formatted_address)
-              ? rev.formatted_address
-              : MAP_PICK_PLACEHOLDER_ADDRESS;
+      resolveNearestAddress(lat, lng)
+        .then((name) => {
           setClickedLocation((prev) => {
             if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
             return { ...prev, name, address: name };
@@ -1892,7 +1918,7 @@ const App: React.FC = () => {
           });
         });
     };
-  }, [isMapsApiLoaded, elevationProvider]);
+  }, [isMapsApiLoaded, elevationProvider, resolveNearestAddress]);
 
   // Google Maps API: Map(베이스맵) + Street View
   useEffect(() => {
@@ -4194,7 +4220,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newOrigin = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_PLACEHOLDER_ADDRESS : resolvedName;
+      const newOrigin = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_FALLBACK_ADDRESS : resolvedName;
       originJustSelectedRef.current = true;
       originSetFromMapClickRef.current = true;
       setOrigin(newOrigin);
@@ -4218,7 +4244,7 @@ const App: React.FC = () => {
         clickedLocation.name && clickedLocation.name !== 'Loading...'
           ? clickedLocation.name
           : clickedLocation.address;
-      const newDest = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_PLACEHOLDER_ADDRESS : resolvedName;
+      const newDest = !resolvedName || isCoordinateLabel(resolvedName) ? MAP_PICK_FALLBACK_ADDRESS : resolvedName;
       destJustSelectedRef.current = true;
       destSetFromMapClickRef.current = true;
       setDestination(newDest);
