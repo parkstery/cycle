@@ -1272,8 +1272,27 @@ const App: React.FC = () => {
     setShowOriginSuggestions(false);
     setDestinationSuggestions([]);
     setShowDestinationSuggestions(false);
-    originLocationRef.current = null;
-    destLocationRef.current = null;
+    const pLoad = saved.routePayload;
+    const mkRefPoint = (pair: [number, number] | undefined | null) => {
+      if (!pair || pair.length < 2 || !Number.isFinite(pair[0]) || !Number.isFinite(pair[1])) return null;
+      const lat = pair[0];
+      const lng = pair[1];
+      return typeof google !== 'undefined' && google.maps?.LatLng
+        ? new google.maps.LatLng(lat, lng)
+        : { lat, lng };
+    };
+    let originSeedLoad = mkRefPoint(pLoad?.originLatLng);
+    let destSeedLoad = mkRefPoint(pLoad?.destLatLng);
+    if (!originSeedLoad && pLoad?.fullGeometry?.length) {
+      const fg = pLoad.fullGeometry;
+      originSeedLoad = mkRefPoint(fg[0] as [number, number]);
+    }
+    if (!destSeedLoad && pLoad?.fullGeometry?.length) {
+      const fg = pLoad.fullGeometry;
+      destSeedLoad = mkRefPoint(fg[fg.length - 1] as [number, number]);
+    }
+    originLocationRef.current = originSeedLoad;
+    destLocationRef.current = destSeedLoad;
     const restoredWaypoints = saved.waypoints.map(wp => ({
       name: wp.name,
       location: { lat: wp.lat, lng: wp.lng },
@@ -3772,17 +3791,33 @@ const App: React.FC = () => {
     if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
     // OSRM only (no Google Directions). Geocoding: Nominatim only.
 
-    // PRIORITIZE COORDINATE REFS if they are set (and assume they match the current text intent)
-    // If calculating from handleSetStart, originLocationRef was just set.
-    // If calculating from manual input, refs should be null.
-    const useOrigin = originLocationRef.current || finalOrigin;
-    const useDest = destLocationRef.current || finalDestination;
+    // OSRM 좌표: ref(맵 클릭·추천 선택·저장 경로 스냅)가 있으면 그 좌표만 사용한다.
+    // 입력란 문자열은 표시/저장용이며, ref 가 유효할 때 addressToCoord 로 재주입하지 않는다.
 
     try {
-      const getCoord = async (val: any, addr: string) => {
-        if (val && typeof val.lat === 'function') return val;
-        if (val && val.lat != null && val.lng != null) return new google.maps.LatLng(val.lat, val.lng);
-        const res = await nominatim.addressToCoord(addr);
+      const isFiniteRoutingPoint = (val: unknown): boolean => {
+        if (val == null || typeof val !== 'object') return false;
+        const v = val as { lat?: unknown; lng?: unknown };
+        if (typeof v.lat === 'function' && typeof v.lng === 'function') {
+          const lat = (v.lat as () => number)();
+          const lng = (v.lng as () => number)();
+          return Number.isFinite(lat) && Number.isFinite(lng);
+        }
+        return Number.isFinite(v.lat as number) && Number.isFinite(v.lng as number);
+      };
+      const originRoutingPoint = isFiniteRoutingPoint(originLocationRef.current) ? originLocationRef.current : null;
+      const destRoutingPoint = isFiniteRoutingPoint(destLocationRef.current) ? destLocationRef.current : null;
+
+      const getCoord = async (routingPoint: any, addressFallback: string, which: 'origin' | 'destination') => {
+        if (routingPoint != null && isFiniteRoutingPoint(routingPoint)) {
+          if (typeof routingPoint.lat === 'function' && typeof routingPoint.lng === 'function') return routingPoint;
+          return new google.maps.LatLng(routingPoint.lat, routingPoint.lng);
+        }
+        const trimmed = String(addressFallback || '').trim();
+        if (!trimmed) {
+          throw new Error(`[OSRM] ${which}: 고정 좌표 없고 주소도 비어 있음`);
+        }
+        const res = await nominatim.addressToCoord(trimmed);
         return new google.maps.LatLng(res.lat, res.lng);
       };
       const toLatLng = (p: any) => {
@@ -3800,8 +3835,8 @@ const App: React.FC = () => {
       let originLatLngOuter: any = null;
       let destLatLngOuter: any = null;
       try {
-        const originLatLng = await getCoord(useOrigin, finalOrigin);
-        const destLatLng = await getCoord(useDest, finalDestination);
+        const originLatLng = await getCoord(originRoutingPoint, finalOrigin, 'origin');
+        const destLatLng = await getCoord(destRoutingPoint, finalDestination, 'destination');
         originLatLngOuter = originLatLng;
         destLatLngOuter = destLatLng;
         const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
