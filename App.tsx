@@ -119,12 +119,17 @@ const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boo
 const fix8 = (n: number): number => Number(Number(n).toFixed(8));
 const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
 const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 탐색 중';
+const MAP_PICK_GENERIC_ADDRESS = '대한민국 인근';
 const isCoordinateLabel = (text: string | undefined | null): boolean =>
   !!text && COORDINATE_LABEL_REGEX.test(text.trim());
 const isPendingMapAddress = (text: string | undefined | null): boolean =>
-  !text || text === 'Loading...' || text === MAP_PICK_FALLBACK_ADDRESS || isCoordinateLabel(text);
+  !text ||
+  text === 'Loading...' ||
+  text === MAP_PICK_FALLBACK_ADDRESS ||
+  text === MAP_PICK_GENERIC_ADDRESS ||
+  isCoordinateLabel(text);
 const toHumanAddress = (text: string | undefined | null): string =>
-  isPendingMapAddress(text) ? '대한민국 인근' : (text as string).trim();
+  isPendingMapAddress(text) ? MAP_PICK_FALLBACK_ADDRESS : (text as string).trim();
 const toLatLngPair = (p: any): [number, number] => {
   const lat = typeof p?.lat === 'function' ? p.lat() : p?.lat;
   const lng = typeof p?.lng === 'function' ? p.lng() : p?.lng;
@@ -1859,9 +1864,10 @@ const App: React.FC = () => {
     const sanitize = (v?: string | null): string | null => {
       if (!v) return null;
       const t = v.trim();
-      if (!t || isCoordinateLabel(t) || t === MAP_PICK_FALLBACK_ADDRESS) return null;
+      if (!t || isCoordinateLabel(t) || t === MAP_PICK_FALLBACK_ADDRESS || t === MAP_PICK_GENERIC_ADDRESS) return null;
       return t;
     };
+    let bestCandidate: string | null = null;
     try {
       const direct = await nominatim.reverse(lat, lng);
       const s = sanitize(direct.formatted_address);
@@ -1869,33 +1875,49 @@ const App: React.FC = () => {
     } catch {
       // continue
     }
-    // 중심점이 수면/하상으로 찍히는 경우를 위해 주변 오프셋 탐색(약 40m~250m)
+    // 중심점이 수면/하상으로 찍히는 경우를 위해 주변 오프셋 탐색(약 40m~700m, 대각 포함)
     const offsets: Array<[number, number]> = [
       [0.00035, 0], [-0.00035, 0], [0, 0.00035], [0, -0.00035],
+      [0.00035, 0.00035], [0.00035, -0.00035], [-0.00035, 0.00035], [-0.00035, -0.00035],
       [0.00075, 0], [-0.00075, 0], [0, 0.00075], [0, -0.00075],
+      [0.00075, 0.00075], [0.00075, -0.00075], [-0.00075, 0.00075], [-0.00075, -0.00075],
       [0.0015, 0], [-0.0015, 0], [0, 0.0015], [0, -0.0015],
+      [0.0015, 0.0015], [0.0015, -0.0015], [-0.0015, 0.0015], [-0.0015, -0.0015],
+      [0.003, 0], [-0.003, 0], [0, 0.003], [0, -0.003],
+      [0.005, 0], [-0.005, 0], [0, 0.005], [0, -0.005],
     ];
     for (const [dLat, dLng] of offsets) {
       try {
         const r = await nominatim.reverse(lat + dLat, lng + dLng);
         const s = sanitize(r.formatted_address);
-        if (s) return s;
+        if (s) {
+          // 가장 먼저 잡히는 도로명/지번 주소를 우선 반환
+          return s;
+        }
+        if (r.formatted_address && !isCoordinateLabel(r.formatted_address)) {
+          bestCandidate = bestCandidate ?? r.formatted_address.trim();
+        }
       } catch {
         // try next
       }
     }
     // 최후 보정: 도로명까지 못 잡아도 zoom을 낮춰 행정구역 단위 주소를 확보한다.
-    for (const z of [16, 14, 12, 10, 8]) {
+    for (const z of [16, 14, 12, 10, 8, 6]) {
       try {
         const r = await nominatim.reverse(lat, lng, { zoom: z });
         const s = sanitize(r.formatted_address);
         if (s) return s;
+        if (r.formatted_address && !isCoordinateLabel(r.formatted_address)) {
+          bestCandidate = bestCandidate ?? r.formatted_address.trim();
+        }
       } catch {
         // try next zoom
       }
     }
-    // 완전 실패 시에도 "주소 없음" 대신 사람 친화 문구로 고정.
-    return '대한민국 인근';
+    // 완전 실패 직전: 좌표/임시문구가 아닌 후보가 하나라도 있으면 그것을 쓴다.
+    if (bestCandidate && !isPendingMapAddress(bestCandidate)) return bestCandidate;
+    // 그래도 실패하면 최종 일반 주소로 마감(좌표/선택한 위치/확인중 문구는 남기지 않음).
+    return MAP_PICK_GENERIC_ADDRESS;
   }, []);
 
   // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)
