@@ -118,7 +118,7 @@ const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boo
 /** 숫자 소수점 정밀도 고정 (저장용) */
 const fix8 = (n: number): number => Number(Number(n).toFixed(8));
 const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
-const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 확인 중';
+const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 탐색 중';
 const isCoordinateLabel = (text: string | undefined | null): boolean =>
   !!text && COORDINATE_LABEL_REGEX.test(text.trim());
 const toLatLngPair = (p: any): [number, number] => {
@@ -1880,7 +1880,18 @@ const App: React.FC = () => {
         // try next
       }
     }
-    return MAP_PICK_FALLBACK_ADDRESS;
+    // 최후 보정: 도로명까지 못 잡아도 zoom을 낮춰 행정구역 단위 주소를 확보한다.
+    for (const z of [16, 14, 12, 10, 8]) {
+      try {
+        const r = await nominatim.reverse(lat, lng, { zoom: z });
+        const s = sanitize(r.formatted_address);
+        if (s) return s;
+      } catch {
+        // try next zoom
+      }
+    }
+    // 완전 실패 시에도 "주소 없음" 대신 사람 친화 문구로 고정.
+    return '대한민국 인근';
   }, []);
 
   // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)

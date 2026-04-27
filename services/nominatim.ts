@@ -34,8 +34,8 @@ const searchCache = new Map<string, { lat: number; lng: number }>();
 export type SearchSuggestionItem = { display_name: string; lat: number; lng: number };
 const suggestCache = new Map<string, SearchSuggestionItem[]>();
 
-function reverseCacheKey(lat: number, lon: number): string {
-  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+function reverseCacheKey(lat: number, lon: number, zoom?: number): string {
+  return `${lat.toFixed(4)},${lon.toFixed(4)}:${zoom ?? 'default'}`;
 }
 
 /**
@@ -44,16 +44,19 @@ function reverseCacheKey(lat: number, lon: number): string {
  */
 export async function reverse(
   lat: number,
-  lon: number
+  lon: number,
+  options?: { zoom?: number }
 ): Promise<{ formatted_address: string }> {
-  const key = reverseCacheKey(lat, lon);
+  const zoom = options?.zoom;
+  const key = reverseCacheKey(lat, lon, zoom);
   const cached = reverseCache.get(key);
   if (cached) return cached;
 
   await throttle();
+  const zoomQuery = Number.isFinite(zoom) ? `&zoom=${Math.max(3, Math.min(18, Math.floor(zoom as number)))}` : '';
   const url = USE_PROXY
-    ? `/api/nominatim-reverse?lat=${lat}&lon=${lon}&format=json`
-    : `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    ? `/api/nominatim-reverse?lat=${lat}&lon=${lon}&format=json${zoomQuery}`
+    : `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json${zoomQuery}`;
   const res = await fetch(url, { headers: USE_PROXY ? {} : { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`Nominatim reverse ${res.status}`);
   const data = (await res.json()) as { display_name?: string };
