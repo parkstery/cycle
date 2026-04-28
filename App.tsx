@@ -918,16 +918,17 @@ const App: React.FC = () => {
       sensorPrefsRef.current = next;
       setSensorPrefs(next);
       saveIndoorSensorPrefs(next);
+      const saved = next.lastConnectedDevices ?? [];
+      const allowUnknown = next.autoReconnectEnabled;
       if (next.autoReconnectEnabled) {
-        const saved = next.lastConnectedDevices ?? [];
         hub.requestPersistentConnection(saved, { allowUnknown: true });
-        try {
-          await hub.tryAutoReconnect(saved, { allowUnknown: true, scanDurationMs: 12000 });
-        } catch {
-          // ignore
-        }
-        setSensorHubConnected(hub.connectedCount() > 0);
       }
+      try {
+        await hub.tryAutoReconnect(saved, { allowUnknown, scanDurationMs: 12000 });
+      } catch {
+        // ignore
+      }
+      setSensorHubConnected(hub.connectedCount() > 0);
       return;
     }
     const next = { ...cur, sensorDriveEnabled: false };
