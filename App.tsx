@@ -4942,7 +4942,7 @@ const App: React.FC = () => {
           </div>
         )}
         <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
-          {/* Off=흰색 / On+연결됨=녹색 / 스캔·연결 진행=녹색 점멸 / On이지만 미연결·유휴=흰색 */}
+          {/* 아이콘+ON/OFF 한 버튼: 연결 시 ON·녹색, 미연결 시 OFF·(모드·상태에 따라 흰색/녹색 점멸 동일) */}
           <button
             type="button"
             onClick={() => void toggleSensorQuickMode()}
@@ -4956,9 +4956,11 @@ const App: React.FC = () => {
                     : '연결된 센서 없음 · 탭하면 센서 끄기'
             }
             aria-label={
-              sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
+              sensorPrefs.sensorDriveEnabled
+                ? `Bluetooth sensors, ${sensorHubConnected ? 'connected' : 'not connected'}, tap to turn off`
+                : 'Turn on Bluetooth sensors'
             }
-            className={`shrink-0 w-[16.8px] h-[16.8px] flex items-center justify-center rounded-md active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000,0_0_4px_rgba(0,0,0,0.9)] drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)] ${
+            className={`shrink-0 flex items-center gap-0.5 rounded-md px-0.5 py-0.5 active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000,0_0_4px_rgba(0,0,0,0.9)] drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)] ${
               !sensorPrefs.sensorDriveEnabled
                 ? 'text-white'
                 : sensorBleBusyHud
@@ -4968,7 +4970,10 @@ const App: React.FC = () => {
                     : 'text-white'
             }`}
           >
-            <Bluetooth size={10} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
+            <Bluetooth size={10} strokeWidth={2.25} className="pointer-events-none shrink-0" aria-hidden />
+            <span className="text-[10px] font-black leading-none tracking-tight pointer-events-none select-none tabular-nums">
+              {sensorHubConnected ? 'ON' : 'OFF'}
+            </span>
           </button>
           <span className="text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]">
             {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
