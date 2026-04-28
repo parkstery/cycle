@@ -487,6 +487,8 @@ const App: React.FC = () => {
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   /** HUD 속도 앞 LED: 최근 BLE 패킷 수신 여부(신호 없음이면 흰색). */
   const [sensorRecentPacketForHud, setSensorRecentPacketForHud] = useState(false);
+  /** HUD 블루투스 아이콘: LE 스캔 중일 때 녹색 점멸 */
+  const [sensorBleScanningHud, setSensorBleScanningHud] = useState(() => getIndoorBleHub().isScanning());
   const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
   const [hasCadenceSignal, setHasCadenceSignal] = useState(false);
   const [bikeProfileModalOpen, setBikeProfileModalOpen] = useState(false);
@@ -834,6 +836,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setSensorHubConnected(getIndoorBleHub().connectedCount() > 0);
+  }, []);
+
+  useEffect(() => {
+    const hub = getIndoorBleHub();
+    const sync = () => setSensorBleScanningHud(hub.isScanning());
+    sync();
+    return hub.subscribe(sync);
   }, []);
 
   /** HUD 현재속도 LED: 수신 패킷이 잠깐 끊기면 흰색으로 돌아감(라우트 패널 LED와 달리 신호 기준). */
@@ -4950,16 +4959,22 @@ const App: React.FC = () => {
             type="button"
             onClick={() => void toggleSensorQuickMode()}
             title={
-              sensorPrefs.sensorDriveEnabled
-                ? '센서 끄기 (스캔·연결 중지)'
-                : '센서 켜기 (스캔·연결·감지)'
+              !sensorPrefs.sensorDriveEnabled
+                ? '센서 켜기 (스캔·연결·감지)'
+                : sensorBleScanningHud
+                  ? '스캔 중… 탭하면 센서 끄기'
+                  : '센서 끄기 (스캔·연결 중지)'
             }
             aria-label={
               sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
             }
-            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md bg-black/40 border border-white/25 active:scale-95 touch-manipulation ${
-              sensorPrefs.sensorDriveEnabled ? 'text-emerald-400' : 'text-white'
-            } [text-shadow:0_0_2px_#000]`}
+            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000] ${
+              sensorPrefs.sensorDriveEnabled
+                ? sensorBleScanningHud
+                  ? 'text-emerald-400 animate-sensor-led'
+                  : 'text-emerald-400'
+                : 'text-white'
+            }`}
           >
             <Bluetooth size={17} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
           </button>
