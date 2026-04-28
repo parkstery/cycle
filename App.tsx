@@ -485,7 +485,7 @@ const App: React.FC = () => {
   const rpmSampleSumRef = useRef(0);
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
-  /** HUD 블루투스 아이콘: 센서 On일 때 스캔·연결 진행 중이면 녹색 점멸 (항상 표시, Off일 때는 흰색). */
+  /** HUD 블루투스 아이콘: On+연결 시 녹색, 스캔·연결 중 점멸, On인데 미연결·유휴 시 흰색 (항상 표시). */
   const [sensorBleBusyHud, setSensorBleBusyHud] = useState(() => {
     const hub = getIndoorBleHub();
     const phase = hub.getAutoConnectPhase();
@@ -4942,7 +4942,7 @@ const App: React.FC = () => {
           </div>
         )}
         <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
-          {/* 센서 Off에서도 표시: Off=흰색 / On=녹색 / 스캔·연결 중=녹색 점멸 */}
+          {/* Off=흰색 / On+연결됨=녹색 / 스캔·연결 진행=녹색 점멸 / On이지만 미연결·유휴=흰색 */}
           <button
             type="button"
             onClick={() => void toggleSensorQuickMode()}
@@ -4951,7 +4951,9 @@ const App: React.FC = () => {
                 ? '센서 켜기 (스캔·연결·감지)'
                 : sensorBleBusyHud
                   ? '스캔·연결 중… 탭하면 센서 끄기'
-                  : '센서 끄기 (스캔·연결 중지)'
+                  : sensorHubConnected
+                    ? '센서 끄기 (스캔·연결 중지)'
+                    : '연결된 센서 없음 · 탭하면 센서 끄기'
             }
             aria-label={
               sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
@@ -4961,7 +4963,9 @@ const App: React.FC = () => {
                 ? 'text-white'
                 : sensorBleBusyHud
                   ? 'text-emerald-400 animate-sensor-led'
-                  : 'text-emerald-400'
+                  : sensorHubConnected
+                    ? 'text-emerald-400'
+                    : 'text-white'
             }`}
           >
             <Bluetooth size={10} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
