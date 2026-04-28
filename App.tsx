@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -862,7 +862,7 @@ const App: React.FC = () => {
   //   (e.g., cadence sensor sleeps between rides and wakes up on the next pedal stroke).
   useEffect(() => {
     const p = sensorPrefsRef.current;
-    if (!p.autoReconnectEnabled) return;
+    if (!p.autoReconnectEnabled || !p.sensorDriveEnabled) return;
     const hub = getIndoorBleHub();
     const savedDevices = p.lastConnectedDevices ?? [];
     const allowUnknown = true;
@@ -907,6 +907,47 @@ const App: React.FC = () => {
   const resetFeelK = useCallback(() => {
     setFeelK(1);
   }, [setFeelK]);
+
+  /** HUD 블루투스 버튼: 센서 스캔·연결·감지(속도 반영)을 한 번에 켜고 끔. Sensors 모달은 상세 설정 전용. */
+  const toggleSensorQuickMode = useCallback(async () => {
+    const hub = getIndoorBleHub();
+    const cur = sensorPrefsRef.current;
+    const goingOn = !cur.sensorDriveEnabled;
+    if (goingOn) {
+      const next = { ...cur, sensorDriveEnabled: true };
+      sensorPrefsRef.current = next;
+      setSensorPrefs(next);
+      saveIndoorSensorPrefs(next);
+      if (next.autoReconnectEnabled) {
+        const saved = next.lastConnectedDevices ?? [];
+        hub.requestPersistentConnection(saved, { allowUnknown: true });
+        try {
+          await hub.tryAutoReconnect(saved, { allowUnknown: true, scanDurationMs: 12000 });
+        } catch {
+          // ignore
+        }
+        setSensorHubConnected(hub.connectedCount() > 0);
+      }
+      return;
+    }
+    const next = { ...cur, sensorDriveEnabled: false };
+    sensorPrefsRef.current = next;
+    setSensorPrefs(next);
+    saveIndoorSensorPrefs(next);
+    hub.stopPersistentConnection();
+    try {
+      await hub.stopScan();
+    } catch {
+      // ignore
+    }
+    try {
+      await hub.disconnectAll();
+    } catch {
+      // ignore
+    }
+    setSensorHubConnected(false);
+    prevBleSensorConnectedRef.current = false;
+  }, []);
 
   useEffect(() => {
     const hub = getIndoorBleHub();
@@ -4903,7 +4944,24 @@ const App: React.FC = () => {
             </button>
           </div>
         )}
-        <div className="flex items-center gap-1" title="Current speed">
+        <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
+          <button
+            type="button"
+            onClick={() => void toggleSensorQuickMode()}
+            title={
+              sensorPrefs.sensorDriveEnabled
+                ? '센서 끄기 (스캔·연결 중지)'
+                : '센서 켜기 (스캔·연결·감지)'
+            }
+            aria-label={
+              sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
+            }
+            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md bg-black/40 border border-white/25 active:scale-95 touch-manipulation ${
+              sensorPrefs.sensorDriveEnabled ? 'text-emerald-400' : 'text-white'
+            } [text-shadow:0_0_2px_#000]`}
+          >
+            <Bluetooth size={17} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
+          </button>
           <span
             className={`shrink-0 w-[6px] h-[6px] rounded-full ${
               sensorPrefs.sensorDriveEnabled && sensorHubConnected && sensorRecentPacketForHud
@@ -5256,7 +5314,14 @@ const App: React.FC = () => {
               className={`rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 ${elevationExpanded ? 'shrink-0 order-last min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem]' : 'h-full w-full min-h-0 min-w-0'}`}
               aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}
             >
-              {elevationExpanded ? <ChevronRight size={16} /> : <AreaChartIcon size={16} />}
+              {elevationExpanded ? (
+                <ChevronRight
+                  size={16}
+                  style={{ filter: "drop-shadow(0 1px 1px rgba(255,255,255,0.95)) drop-shadow(0 0 2px rgba(255,255,255,0.9))" }}
+                />
+              ) : (
+                <AreaChartIcon size={16} />
+              )}
             </button>
             {elevationExpanded && (
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
