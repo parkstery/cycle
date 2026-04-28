@@ -487,8 +487,12 @@ const App: React.FC = () => {
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
   /** HUD 속도 앞 LED: 최근 BLE 패킷 수신 여부(신호 없음이면 흰색). */
   const [sensorRecentPacketForHud, setSensorRecentPacketForHud] = useState(false);
-  /** HUD 블루투스 아이콘: LE 스캔 중일 때 녹색 점멸 */
-  const [sensorBleScanningHud, setSensorBleScanningHud] = useState(() => getIndoorBleHub().isScanning());
+  /** HUD 블루투스 아이콘: 센서 On일 때 스캔·연결 진행 중이면 녹색 점멸 (항상 표시, Off일 때는 흰색). */
+  const [sensorBleBusyHud, setSensorBleBusyHud] = useState(() => {
+    const hub = getIndoorBleHub();
+    const phase = hub.getAutoConnectPhase();
+    return hub.isScanning() || phase === 'scanning' || phase === 'connecting';
+  });
   const [speedSource, setSpeedSource] = useState<SpeedSource>('manual');
   const [hasCadenceSignal, setHasCadenceSignal] = useState(false);
   const [bikeProfileModalOpen, setBikeProfileModalOpen] = useState(false);
@@ -840,9 +844,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const hub = getIndoorBleHub();
-    const sync = () => setSensorBleScanningHud(hub.isScanning());
-    sync();
-    return hub.subscribe(sync);
+    const syncBleHudBusy = () => {
+      const phase = hub.getAutoConnectPhase();
+      setSensorBleBusyHud(hub.isScanning() || phase === 'scanning' || phase === 'connecting');
+    };
+    syncBleHudBusy();
+    return hub.subscribe(syncBleHudBusy);
   }, []);
 
   /** HUD 현재속도 LED: 수신 패킷이 잠깐 끊기면 흰색으로 돌아감(라우트 패널 LED와 달리 신호 기준). */
@@ -4919,6 +4926,7 @@ const App: React.FC = () => {
           pointerEvents: 'none',
         }}
       >
+        {/* Feel 트림은 센서 모드일 때만; 블루투스 버튼은 아래 행에서 항상 노출 */}
         {sensorPrefs.sensorDriveEnabled && (
           <div
             className="mb-1 flex items-center gap-1 bg-black/50 rounded-full px-1.5 py-0.5 border border-white/20"
@@ -4955,25 +4963,26 @@ const App: React.FC = () => {
           </div>
         )}
         <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
+          {/* 센서 Off에서도 표시: Off=흰색 / On=녹색 / 스캔·연결 중=녹색 점멸 */}
           <button
             type="button"
             onClick={() => void toggleSensorQuickMode()}
             title={
               !sensorPrefs.sensorDriveEnabled
                 ? '센서 켜기 (스캔·연결·감지)'
-                : sensorBleScanningHud
-                  ? '스캔 중… 탭하면 센서 끄기'
+                : sensorBleBusyHud
+                  ? '스캔·연결 중… 탭하면 센서 끄기'
                   : '센서 끄기 (스캔·연결 중지)'
             }
             aria-label={
               sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
             }
             className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000] ${
-              sensorPrefs.sensorDriveEnabled
-                ? sensorBleScanningHud
+              !sensorPrefs.sensorDriveEnabled
+                ? 'text-white'
+                : sensorBleBusyHud
                   ? 'text-emerald-400 animate-sensor-led'
                   : 'text-emerald-400'
-                : 'text-white'
             }`}
           >
             <Bluetooth size={17} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
