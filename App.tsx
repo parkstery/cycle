@@ -485,8 +485,6 @@ const App: React.FC = () => {
   const rpmSampleSumRef = useRef(0);
   const rpmSampleCountRef = useRef(0);
   const [sensorHubConnected, setSensorHubConnected] = useState(false);
-  /** HUD 속도 앞 LED: 최근 BLE 패킷 수신 여부(신호 없음이면 흰색). */
-  const [sensorRecentPacketForHud, setSensorRecentPacketForHud] = useState(false);
   /** HUD 블루투스 아이콘: 센서 On일 때 스캔·연결 진행 중이면 녹색 점멸 (항상 표시, Off일 때는 흰색). */
   const [sensorBleBusyHud, setSensorBleBusyHud] = useState(() => {
     const hub = getIndoorBleHub();
@@ -850,25 +848,6 @@ const App: React.FC = () => {
     };
     syncBleHudBusy();
     return hub.subscribe(syncBleHudBusy);
-  }, []);
-
-  /** HUD 현재속도 LED: 수신 패킷이 잠깐 끊기면 흰색으로 돌아감(라우트 패널 LED와 달리 신호 기준). */
-  useEffect(() => {
-    const hub = getIndoorBleHub();
-    const tick = () => {
-      const connected = hub.connectedCount() > 0;
-      const driveOn = sensorPrefsRef.current.sensorDriveEnabled;
-      if (!driveOn || !connected) {
-        setSensorRecentPacketForHud(false);
-        return;
-      }
-      const lastAt = hub.getLastSensorPacketAtMs();
-      const now = Date.now();
-      setSensorRecentPacketForHud(lastAt > 0 && now - lastAt < SENSOR_NO_PACKET_FORCE_ZERO_MS);
-    };
-    tick();
-    const id = window.setInterval(tick, 400);
-    return () => clearInterval(id);
   }, []);
 
   // Silent auto-connect to sensors on app launch.
@@ -4977,7 +4956,7 @@ const App: React.FC = () => {
             aria-label={
               sensorPrefs.sensorDriveEnabled ? 'Turn off Bluetooth sensors' : 'Turn on Bluetooth sensors'
             }
-            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-md active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000] ${
+            className={`shrink-0 w-[16.8px] h-[16.8px] flex items-center justify-center rounded-md active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000,0_0_4px_rgba(0,0,0,0.9)] drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)] ${
               !sensorPrefs.sensorDriveEnabled
                 ? 'text-white'
                 : sensorBleBusyHud
@@ -4985,16 +4964,8 @@ const App: React.FC = () => {
                   : 'text-emerald-400'
             }`}
           >
-            <Bluetooth size={17} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
+            <Bluetooth size={10} strokeWidth={2.25} className="pointer-events-none" aria-hidden />
           </button>
-          <span
-            className={`shrink-0 w-[6px] h-[6px] rounded-full ${
-              sensorPrefs.sensorDriveEnabled && sensorHubConnected && sensorRecentPacketForHud
-                ? 'bg-emerald-500 animate-sensor-led'
-                : 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.35)]'
-            }`}
-            aria-hidden
-          />
           <span className="text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]">
             {effectiveSpeedKmH < 0.3 ? '0.0' : effectiveSpeedKmH.toFixed(1)} km/h
           </span>
