@@ -4970,7 +4970,12 @@ const App: React.FC = () => {
                     : 'text-white'
             }`}
           >
-            <Bluetooth size={10} strokeWidth={2.25} className="pointer-events-none shrink-0" aria-hidden />
+            <Bluetooth
+              size={10}
+              strokeWidth={2.25}
+              className="pointer-events-none shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)]"
+              aria-hidden
+            />
             <span className="text-[10px] font-black leading-none tracking-tight pointer-events-none select-none tabular-nums">
               {sensorHubConnected ? 'ON' : 'OFF'}
             </span>
