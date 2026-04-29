@@ -4960,7 +4960,7 @@ const App: React.FC = () => {
                 ? `Bluetooth sensors, ${sensorHubConnected ? 'connected' : 'not connected'}, tap to turn off`
                 : 'Turn on Bluetooth sensors'
             }
-            className={`shrink-0 flex items-center gap-0.5 rounded-md px-0.5 py-0.5 active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000,0_0_4px_rgba(0,0,0,0.9)] drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)] ${
+            className={`shrink-0 flex items-center gap-0.5 rounded-full border border-emerald-400/90 px-0.5 py-0.5 -translate-x-[4px] active:scale-95 touch-manipulation [text-shadow:0_0_2px_#000,0_0_4px_rgba(0,0,0,0.9)] drop-shadow-[0_0_2px_rgba(0,0,0,1)] drop-shadow-[0_0_6px_rgba(0,0,0,0.85)] ${
               !sensorPrefs.sensorDriveEnabled
                 ? 'text-white'
                 : sensorBleBusyHud
