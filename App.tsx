@@ -582,6 +582,8 @@ const App: React.FC = () => {
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
+  /** 우측 경로 목록: 저장 경로 vs 추천(파이어베이스 연동 예정) */
+  const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'recommended'>('my_routes');
   const [coachingOn, setCoachingOn] = useState(true);
   const [coachingMentVisible, setCoachingMentVisible] = useState(true); // 화면 상단 코칭 멘트 텍스트 표시 여부
   const [musicOn, setMusicOn] = useState(true);
@@ -5290,24 +5292,45 @@ const App: React.FC = () => {
               )}
 
               <div className={`border-l border-slate-200 pl-1 pr-2 flex flex-col justify-center gap-0 overflow-hidden transition-all duration-300 ease-in-out ${historyExpanded ? 'flex-1 opacity-100 translate-x-0' : 'flex-none w-0 opacity-0 -translate-x-2 pointer-events-none p-0 border-none'}`}>
-                <div className="flex justify-between items-center px-1 mb-0.5">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">My Routes</span>
-                  <span className="text-[9px] text-slate-300 font-medium">{favoriteRoutes.length}/5</span>
-                </div>
-                {favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
-                  <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
-                    <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
-                      <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
-                      </span>
-                      <span className="font-bold mr-1">{route.origin}</span>
-                      <span className="text-slate-400">to</span>
-                      <span className="font-bold ml-1">{route.destination}</span>
-                      {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
+                <div className="flex justify-between items-end gap-1 px-1 mb-0.5 border-b border-slate-100 pb-0.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPanelTab('my_routes')}
+                      className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'my_routes' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
+                    >
+                      My Routes
                     </button>
-                    <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-5 h-5 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={11} /></button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPanelTab('recommended')}
+                      className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'recommended' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
+                    >
+                      Recommanded
+                    </button>
                   </div>
-                )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)}
+                  {historyPanelTab === 'my_routes' && (
+                    <span className="text-[9px] text-slate-300 font-medium shrink-0">{favoriteRoutes.length}/5</span>
+                  )}
+                </div>
+                {historyPanelTab === 'my_routes' ? (
+                  favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
+                    <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
+                      <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
+                        <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
+                        </span>
+                        <span className="font-bold mr-1">{route.origin}</span>
+                        <span className="text-slate-400">to</span>
+                        <span className="font-bold ml-1">{route.destination}</span>
+                        {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
+                      </button>
+                      <button onClick={(e) => handleDeleteFavorite(route.id, e)} title="Delete route" className="shrink-0 w-5 h-5 flex items-center justify-center text-slate-400 active:text-red-500 rounded-full transition-colors" aria-label="Delete route"><X size={11} /></button>
+                    </div>
+                  )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)
+                ) : (
+                  <div className="text-[10px] text-slate-400 text-center italic mt-2 px-1">Recommended routes will load here (Firebase).</div>
+                )}
               </div>
             </div>
           )}
