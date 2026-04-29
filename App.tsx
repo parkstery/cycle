@@ -4905,42 +4905,47 @@ const App: React.FC = () => {
           pointerEvents: 'none',
         }}
       >
-        {/* Feel 트림은 센서 모드일 때만; 블루투스 버튼은 아래 행에서 항상 노출 */}
-        {sensorPrefs.sensorDriveEnabled && (
-          <div
-            className="mb-1 flex items-center gap-1 bg-black/50 rounded-full px-1.5 py-0.5 border border-white/20"
-            style={{ pointerEvents: 'auto' }}
-            title="Feel adjust: subtle speed multiplier"
+        {/* Feel 트림: 공간은 항상 유지(invisible)해 속도·케이던스 등 아래 줄이 센서 On/Off로 움직이지 않게 함 */}
+        <div
+          className={`mb-1 flex items-center gap-1 bg-black/50 rounded-full px-1.5 py-0.5 border border-white/20 ${
+            sensorPrefs.sensorDriveEnabled ? '' : 'invisible pointer-events-none'
+          }`}
+          style={{ pointerEvents: sensorPrefs.sensorDriveEnabled ? 'auto' : 'none' }}
+          title={sensorPrefs.sensorDriveEnabled ? 'Feel adjust: subtle speed multiplier' : undefined}
+          aria-hidden={!sensorPrefs.sensorDriveEnabled}
+        >
+          <button
+            type="button"
+            onClick={adjustFeelKDown}
+            disabled={!sensorPrefs.sensorDriveEnabled || (sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
+            className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
+            aria-label="Decrease feel"
+            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
           >
-            <button
-              type="button"
-              onClick={adjustFeelKDown}
-              disabled={(sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
-              className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
-              aria-label="Decrease feel"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={resetFeelK}
-              className="text-[12px] font-black text-white tabular-nums leading-none px-1 [text-shadow:0_0_2px_#000]"
-              aria-label="Reset feel"
-              title="Long-press/tap to reset"
-            >
-              {Math.round((sensorPrefs.feelK ?? 1) * 100)}%
-            </button>
-            <button
-              type="button"
-              onClick={adjustFeelKUp}
-              disabled={(sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
-              className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
-              aria-label="Increase feel"
-            >
-              +
-            </button>
-          </div>
-        )}
+            −
+          </button>
+          <button
+            type="button"
+            onClick={resetFeelK}
+            disabled={!sensorPrefs.sensorDriveEnabled}
+            className="text-[12px] font-black text-white tabular-nums leading-none px-1 [text-shadow:0_0_2px_#000] disabled:opacity-40"
+            aria-label="Reset feel"
+            title="Long-press/tap to reset"
+            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
+          >
+            {Math.round((sensorPrefs.feelK ?? 1) * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={adjustFeelKUp}
+            disabled={!sensorPrefs.sensorDriveEnabled || (sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
+            className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
+            aria-label="Increase feel"
+            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
+          >
+            +
+          </button>
+        </div>
         <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
           {/* 아이콘+ON/OFF 한 버튼: 연결 시 ON·녹색, 미연결 시 OFF·(모드·상태에 따라 흰색/녹색 점멸 동일) */}
           <button
