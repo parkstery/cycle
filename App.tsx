@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, EyeOff, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -248,6 +248,7 @@ const PANORAMA_VIEW_TIMEOUT_MS = 6000;
 const USE_CONTINUOUS_SV_DRIVE_THROUGH = true;
 
 type SvResultReason = 'timeout' | 'no_pano';
+type SvMapLayoutMode = 'split' | 'mini' | 'hidden';
 
 /**
  * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
@@ -529,7 +530,9 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
   const [isSvActive, setIsSvActive] = useState(false);
-  const [isSvFullScreen, setIsSvFullScreen] = useState(false);
+  const [svMapLayoutMode, setSvMapLayoutMode] = useState<SvMapLayoutMode>('split');
+  const isSvFullScreen = svMapLayoutMode !== 'split';
+  const isSvMapHidden = svMapLayoutMode === 'hidden';
   const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [svStatus, setSvStatus] = useState<string>('');
@@ -2321,7 +2324,7 @@ const App: React.FC = () => {
       }
       if (s.streetViewFullScreen) {
         lastAndroidExitPressRef.current = 0;
-        setIsSvFullScreen(false);
+        setSvMapLayoutMode('split');
         return;
       }
       if (s.historyExpanded) {
@@ -3730,7 +3733,7 @@ const App: React.FC = () => {
       // Update view (Hybrid)
       setPanoramaView(startPos, heading);
 
-      setIsSvFullScreen(true);
+      setSvMapLayoutMode('mini');
 
       getCourseBriefing(route).then(speak);
     }
@@ -3749,7 +3752,7 @@ const App: React.FC = () => {
     lastCoachSpeakAtMsRef.current = 0;
     lastSpokenResistanceRef.current = null;
     lastSpokenTipIndexRef.current = null;
-    setIsSvFullScreen(false);
+    setSvMapLayoutMode('split');
     setIsUserPano(false);
     // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
     // However, simulation.isActive sets isSvActive state usually in toggle? 
@@ -3781,7 +3784,7 @@ const App: React.FC = () => {
           );
           setPanoramaView(route.path[prev.currentIndex], heading);
         }
-        setIsSvFullScreen(true);
+        setSvMapLayoutMode('mini');
         setIsSvActive(true); // Ensure container is visible
       }
       return { ...prev, isActive };
@@ -3794,7 +3797,7 @@ const App: React.FC = () => {
     // Hide일 때는 Street View 전용 레이아웃 상태도 함께 정리해 map-only 화면을 보장한다.
     if (!nextActive) {
       setIsSvActive(false);
-      setIsSvFullScreen(false);
+      setSvMapLayoutMode('split');
       return;
     }
 
@@ -3832,6 +3835,19 @@ const App: React.FC = () => {
     setPanoramaViewByPanoId,
     simulation.currentIndex,
   ]);
+
+  const handleCycleStreetViewLayout = useCallback(() => {
+    // split -> mini -> hidden -> split
+    if (svMapLayoutMode === 'split') {
+      setSvMapLayoutMode('mini');
+      return;
+    }
+    if (svMapLayoutMode === 'mini') {
+      setSvMapLayoutMode('hidden');
+      return;
+    }
+    setSvMapLayoutMode('split');
+  }, [svMapLayoutMode]);
 
   /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/거리뷰/표고는 기존 effect가 동기화. */
   const jumpToRouteIndex = (targetIndex: number) => {
@@ -4215,7 +4231,7 @@ const App: React.FC = () => {
     simulationActiveRef.current = true;
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
-    setIsSvFullScreen(true);
+    setSvMapLayoutMode('mini');
     setIsSvActive(true);
 
     const elevLen = currentRoute.elevation.length;
@@ -4894,13 +4910,13 @@ const App: React.FC = () => {
       {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? "absolute w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden" : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? (isSvMapHidden ? 'absolute top-0 left-0 right-0 z-[25] opacity-0 pointer-events-none' : "absolute w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden") : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
         style={{
-          transitionProperty: (isSvActive && isSvFullScreen) ? 'top, left, border-radius, border-width' : 'top, left, right, bottom, width, height, border-radius',
-          width: (isSvActive && isSvFullScreen) ? 144 : undefined,
-          height: (isSvActive && isSvFullScreen) ? 144 : undefined,
+          transitionProperty: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 'top, left, border-radius, border-width, opacity' : 'top, left, right, bottom, width, height, border-radius, opacity',
+          width: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 144 : undefined,
+          height: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 144 : undefined,
           bottom: !isSvFullScreen ? 0 : undefined,
-          ...(isSvActive && isSvFullScreen
+          ...(isSvActive && isSvFullScreen && !isSvMapHidden
             ? {
                 top: SAFE_TOP_4_25REM,
                 left: SAFE_LEFT_1REM,
@@ -4975,8 +4991,12 @@ const App: React.FC = () => {
           <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
         </button>
         {isSvActive && (
-          <button onClick={() => setIsSvFullScreen(!isSvFullScreen)} title={isSvFullScreen ? "Minimize View" : "Maximize View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center bg-white text-slate-900`}>
-            {isSvFullScreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
+          <button
+            onClick={handleCycleStreetViewLayout}
+            title={!isSvFullScreen ? "Maximize View" : (isSvMapHidden ? "Minimize View" : "Hide Mini Map")}
+            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvMapHidden ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+          >
+            {!isSvFullScreen ? <Maximize2 size={19} /> : (isSvMapHidden ? <EyeOff size={19} /> : <Minimize2 size={19} />)}
           </button>
         )}
       </div>
@@ -5287,7 +5307,7 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     {showOriginSuggestions && originSuggestions.length > 0 && (
-                      <ul className="absolute top-full left-0 w-[195%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={originHighlightIndex >= 0 ? `origin-suggestion-${originHighlightIndex}` : undefined}>
+                      <ul className="absolute top-full left-0 w-[156%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={originHighlightIndex >= 0 ? `origin-suggestion-${originHighlightIndex}` : undefined}>
                         {originSuggestions.map((item, idx) => (
                           <li key={idx} id={`origin-suggestion-${idx}`} role="option" aria-selected={originHighlightIndex === idx}>
                             <button ref={idx === originHighlightIndex ? (el) => { originSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${originHighlightIndex === idx ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-blue-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }} onMouseEnter={() => setOriginHighlightIndex(idx)}>
@@ -5356,7 +5376,7 @@ const App: React.FC = () => {
                       </button>
                     </div>
                     {showDestinationSuggestions && destinationSuggestions.length > 0 && (
-                      <ul className="absolute top-full left-0 w-[195%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={destinationHighlightIndex >= 0 ? `dest-suggestion-${destinationHighlightIndex}` : undefined}>
+                      <ul className="absolute top-full left-0 w-[156%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={destinationHighlightIndex >= 0 ? `dest-suggestion-${destinationHighlightIndex}` : undefined}>
                         {destinationSuggestions.map((item, idx) => (
                           <li key={idx} id={`dest-suggestion-${idx}`} role="option" aria-selected={destinationHighlightIndex === idx}>
                             <button ref={idx === destinationHighlightIndex ? (el) => { destSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${destinationHighlightIndex === idx ? 'bg-red-100 text-red-900' : 'text-slate-700 hover:bg-red-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }} onMouseEnter={() => setDestinationHighlightIndex(idx)}>
