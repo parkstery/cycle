@@ -5010,43 +5010,43 @@ const App: React.FC = () => {
           pointerEvents: 'none',
         }}
       >
-        {/* Feel 트림: 공간은 항상 유지(invisible)해 속도·케이던스 등 아래 줄이 센서 On/Off로 움직이지 않게 함 */}
+        {/* Feel 트림: 실제 센서 연결 시에만 보이고, 공간은 항상 유지해 아래 텍스트 줄이 움직이지 않게 함 */}
         <div
           className={`mb-1 flex items-center gap-1 bg-black/50 rounded-full px-1.5 py-0.5 border border-white/20 ${
-            sensorPrefs.sensorDriveEnabled ? '' : 'invisible pointer-events-none'
+            sensorPrefs.sensorDriveEnabled && sensorHubConnected ? '' : 'invisible pointer-events-none'
           }`}
-          style={{ pointerEvents: sensorPrefs.sensorDriveEnabled ? 'auto' : 'none' }}
-          title={sensorPrefs.sensorDriveEnabled ? 'Feel adjust: subtle speed multiplier' : undefined}
-          aria-hidden={!sensorPrefs.sensorDriveEnabled}
+          style={{ pointerEvents: sensorPrefs.sensorDriveEnabled && sensorHubConnected ? 'auto' : 'none' }}
+          title={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? 'Feel adjust: subtle speed multiplier' : undefined}
+          aria-hidden={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected)}
         >
           <button
             type="button"
             onClick={adjustFeelKDown}
-            disabled={!sensorPrefs.sensorDriveEnabled || (sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
+            disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected) || (sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
             className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
             aria-label="Decrease feel"
-            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
+            tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             −
           </button>
           <button
             type="button"
             onClick={resetFeelK}
-            disabled={!sensorPrefs.sensorDriveEnabled}
+            disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected)}
             className="text-[12px] font-black text-white tabular-nums leading-none px-1 [text-shadow:0_0_2px_#000] disabled:opacity-40"
             aria-label="Reset feel"
             title="Long-press/tap to reset"
-            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
+            tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             {Math.round((sensorPrefs.feelK ?? 1) * 100)}%
           </button>
           <button
             type="button"
             onClick={adjustFeelKUp}
-            disabled={!sensorPrefs.sensorDriveEnabled || (sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
+            disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected) || (sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
             className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
             aria-label="Increase feel"
-            tabIndex={sensorPrefs.sensorDriveEnabled ? undefined : -1}
+            tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             +
           </button>
