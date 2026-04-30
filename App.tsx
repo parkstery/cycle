@@ -4620,6 +4620,8 @@ const App: React.FC = () => {
       localStorage.setItem('recent_places', JSON.stringify(updated));
       return updated;
     });
+    // 검색 후 맵 이동이 완료되면 상단 검색 패널(최근 검색 포함)을 닫는다.
+    setSearchExpanded(false);
   };
 
   const handleSelectPlaceSearchSuggestion = (item: SearchSuggestionItem) => {
