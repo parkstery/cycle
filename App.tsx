@@ -415,6 +415,7 @@ const App: React.FC = () => {
   const waypointMarkers = useRef<google.maps.Marker[]>([]);
   const tempMarker = useRef<google.maps.Marker | null>(null);
   const searchMarkerRef = useRef<google.maps.Marker | null>(null);
+  const searchMarkerCloseOverlayRef = useRef<any>(null);
   const svServiceRef = useRef<any>(null);
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
@@ -4536,15 +4537,75 @@ const App: React.FC = () => {
     }
   };
 
+  const clearPlaceSearchMarker = () => {
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+      searchMarkerRef.current = null;
+    }
+    if (searchMarkerCloseOverlayRef.current) {
+      searchMarkerCloseOverlayRef.current.setMap(null);
+      searchMarkerCloseOverlayRef.current = null;
+    }
+  };
+
+  const createPlaceMarkerCloseOverlay = (lat: number, lng: number, map: any) => {
+    const overlay = new google.maps.OverlayView();
+    overlay.onAdd = function () {
+      const div = document.createElement('button');
+      div.type = 'button';
+      div.title = '검색 포인트 닫기';
+      div.setAttribute('aria-label', '검색 포인트 닫기');
+      div.style.position = 'absolute';
+      div.style.width = '14px';
+      div.style.height = '14px';
+      div.style.border = '1px solid #ffffff';
+      div.style.borderRadius = '9999px';
+      div.style.background = '#ef4444';
+      div.style.color = '#ffffff';
+      div.style.fontSize = '10px';
+      div.style.fontWeight = '700';
+      div.style.lineHeight = '12px';
+      div.style.padding = '0';
+      div.style.display = 'flex';
+      div.style.alignItems = 'center';
+      div.style.justifyContent = 'center';
+      div.style.cursor = 'pointer';
+      div.style.boxShadow = '0 1px 4px rgba(0,0,0,0.35)';
+      div.style.transform = 'translate(-2px, -24px)';
+      div.textContent = 'x';
+      div.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        clearPlaceSearchMarker();
+      });
+      this.div = div;
+      const panes = this.getPanes();
+      panes?.overlayMouseTarget?.appendChild(div);
+    };
+    overlay.draw = function () {
+      if (!this.div) return;
+      const projection = this.getProjection();
+      if (!projection) return;
+      const point = projection.fromLatLngToDivPixel(new google.maps.LatLng(lat, lng));
+      if (!point) return;
+      this.div.style.left = `${point.x}px`;
+      this.div.style.top = `${point.y}px`;
+    };
+    overlay.onRemove = function () {
+      if (this.div?.parentNode) this.div.parentNode.removeChild(this.div);
+      this.div = null;
+    };
+    overlay.setMap(map);
+    searchMarkerCloseOverlayRef.current = overlay;
+  };
+
   const applyPlaceSearchOnMap = (lat: number, lng: number, recentLabel: string) => {
     const map = googleMapRef.current;
     if (!map) return;
     map.setCenter({ lat, lng });
     map.setZoom(16);
-    if (searchMarkerRef.current) {
-      searchMarkerRef.current.setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
-    }
+    clearPlaceSearchMarker();
     searchMarkerRef.current = new google.maps.Marker({
       position: { lat, lng },
       map,
@@ -4552,6 +4613,7 @@ const App: React.FC = () => {
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
     });
     googleMarkersRef.current.push(searchMarkerRef.current);
+    createPlaceMarkerCloseOverlay(lat, lng, map);
     setRecentPlaceSearches(prev => {
       const filtered = prev.filter(item => item !== recentLabel);
       const updated = [recentLabel, ...filtered].slice(0, 5);
@@ -4592,11 +4654,7 @@ const App: React.FC = () => {
     setShowPlaceSearchSuggestions(false);
     setPlaceSearchHighlightIndex(-1);
     setClickedLocation(null);
-    if (searchMarkerRef.current) {
-      searchMarkerRef.current.setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
-      searchMarkerRef.current = null;
-    }
+    clearPlaceSearchMarker();
   };
 
   const handleToggleMapType = () => {
