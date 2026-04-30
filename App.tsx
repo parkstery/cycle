@@ -5173,7 +5173,7 @@ const App: React.FC = () => {
           </div>
           {searchExpanded && showPlaceSearchSuggestions && placeSearchSuggestions.length > 0 && (
             <ul
-              className="absolute left-0 right-0 top-full z-[1100] mt-0.5 mx-2 py-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto"
+              className="absolute left-1/2 top-full z-[1100] mt-0.5 w-[150%] -translate-x-1/2 py-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto"
               role="listbox"
               aria-label="장소 추천"
               aria-activedescendant={placeSearchHighlightIndex >= 0 ? `place-search-suggestion-${placeSearchHighlightIndex}` : undefined}
