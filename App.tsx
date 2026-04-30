@@ -118,6 +118,9 @@ const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boo
 /** 숫자 소수점 정밀도 고정 (저장용) */
 const fix8 = (n: number): number => Number(Number(n).toFixed(8));
 const COORDINATE_LABEL_REGEX = /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/;
+/** 상단 장소 검색 자동완성 (Nominatim 제한·디바운스) */
+const PLACE_SEARCH_SUGGEST_LIMIT = 8;
+const PLACE_SEARCH_DEBOUNCE_MS = 350;
 const MAP_PICK_FALLBACK_ADDRESS = '인근 주소 탐색 중';
 const MAP_PICK_GENERIC_ADDRESS = '대한민국 인근';
 const isCoordinateLabel = (text: string | undefined | null): boolean =>
@@ -601,18 +604,27 @@ const App: React.FC = () => {
   /** 추천 목록 키보드 포커스 인덱스 (-1: 없음) */
   const [originHighlightIndex, setOriginHighlightIndex] = useState(-1);
   const [destinationHighlightIndex, setDestinationHighlightIndex] = useState(-1);
+  /** 상단 장소 검색 자동완성 */
+  const [placeSearchSuggestions, setPlaceSearchSuggestions] = useState<SearchSuggestionItem[]>([]);
+  const [showPlaceSearchSuggestions, setShowPlaceSearchSuggestions] = useState(false);
+  const [placeSearchHighlightIndex, setPlaceSearchHighlightIndex] = useState(-1);
   const originSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const placeSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const originSuggestReqIdRef = useRef(0);
   const destSuggestReqIdRef = useRef(0);
+  const placeSuggestReqIdRef = useRef(0);
   const closeOriginSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeDestSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closePlaceSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeInputContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchBarContainerRef = useRef<HTMLDivElement | null>(null);
   const originSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
   const destSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
   /** 항목 선택 직후에는 추천 목록을 다시 열지 않음 */
   const originJustSelectedRef = useRef(false);
   const destJustSelectedRef = useRef(false);
+  const placeJustSelectedRef = useRef(false);
   /** 맵 클릭으로 출발/도착이 설정된 경우 해당 턴에서는 추천 목록을 표시하지 않음 */
   const originSetFromMapClickRef = useRef(false);
   const destSetFromMapClickRef = useRef(false);
@@ -688,6 +700,7 @@ const App: React.FC = () => {
     hasClickedLocation: false,
     showOriginSuggestions: false,
     showDestinationSuggestions: false,
+    showPlaceSearchSuggestions: false,
     countdownActive: false,
     historyExpanded: false,
     routeSettingsPanelExpanded: true,
@@ -768,6 +781,7 @@ const App: React.FC = () => {
       hasClickedLocation: clickedLocation !== null,
       showOriginSuggestions,
       showDestinationSuggestions,
+      showPlaceSearchSuggestions,
       countdownActive: countdown !== null,
       historyExpanded,
       routeSettingsPanelExpanded,
@@ -788,6 +802,7 @@ const App: React.FC = () => {
     clickedLocation,
     showOriginSuggestions,
     showDestinationSuggestions,
+    showPlaceSearchSuggestions,
     countdown,
     historyExpanded,
     routeSettingsPanelExpanded,
@@ -1869,6 +1884,39 @@ const App: React.FC = () => {
     };
   }, [destination]);
 
+  // 상단 장소 검색 디바운스 → Nominatim 추천 (패널 접힘 시 요청·표시 안 함)
+  useEffect(() => {
+    if (!searchExpanded) {
+      setPlaceSearchSuggestions([]);
+      setShowPlaceSearchSuggestions(false);
+      setPlaceSearchHighlightIndex(-1);
+      return;
+    }
+    const q = searchTerm.trim();
+    if (q.length < 2) {
+      setPlaceSearchSuggestions([]);
+      setShowPlaceSearchSuggestions(false);
+      setPlaceSearchHighlightIndex(-1);
+      return;
+    }
+    if (placeSuggestDebounceRef.current) clearTimeout(placeSuggestDebounceRef.current);
+    placeSuggestDebounceRef.current = window.setTimeout(() => {
+      const reqId = ++placeSuggestReqIdRef.current;
+      nominatim.searchSuggestions(q, PLACE_SEARCH_SUGGEST_LIMIT).then((list) => {
+        if (reqId !== placeSuggestReqIdRef.current) return;
+        setPlaceSearchSuggestions(list);
+        if (!placeJustSelectedRef.current) setShowPlaceSearchSuggestions(list.length > 0);
+        placeJustSelectedRef.current = false;
+        setPlaceSearchHighlightIndex(-1);
+      }).catch(() => {
+        if (reqId === placeSuggestReqIdRef.current) setPlaceSearchSuggestions([]);
+      });
+    }, PLACE_SEARCH_DEBOUNCE_MS);
+    return () => {
+      if (placeSuggestDebounceRef.current) clearTimeout(placeSuggestDebounceRef.current);
+    };
+  }, [searchTerm, searchExpanded]);
+
   // 맵·다른 콘트롤 클릭 시 추천 목록 닫기
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -1878,6 +1926,11 @@ const App: React.FC = () => {
         setShowDestinationSuggestions(false);
         setOriginHighlightIndex(-1);
         setDestinationHighlightIndex(-1);
+      }
+      const searchEl = searchBarContainerRef.current;
+      if (searchEl && e.target instanceof Node && !searchEl.contains(e.target)) {
+        setShowPlaceSearchSuggestions(false);
+        setPlaceSearchHighlightIndex(-1);
       }
     };
     document.addEventListener('mousedown', onMouseDown);
@@ -2184,6 +2237,7 @@ const App: React.FC = () => {
       !s.hasClickedLocation &&
       !s.showOriginSuggestions &&
       !s.showDestinationSuggestions &&
+      !s.showPlaceSearchSuggestions &&
       !s.countdownActive &&
       !s.historyExpanded &&
       s.routeSettingsPanelExpanded &&
@@ -2231,6 +2285,12 @@ const App: React.FC = () => {
         lastAndroidExitPressRef.current = 0;
         setMenuOpen(false);
         setMenuView('list');
+        return;
+      }
+      if (s.searchExpanded && s.showPlaceSearchSuggestions) {
+        lastAndroidExitPressRef.current = 0;
+        setShowPlaceSearchSuggestions(false);
+        setPlaceSearchHighlightIndex(-1);
         return;
       }
       if (s.searchExpanded) {
@@ -4476,33 +4536,47 @@ const App: React.FC = () => {
     }
   };
 
+  const applyPlaceSearchOnMap = (lat: number, lng: number, recentLabel: string) => {
+    const map = googleMapRef.current;
+    if (!map) return;
+    map.setCenter({ lat, lng });
+    map.setZoom(16);
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.setMap(null);
+      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+    }
+    searchMarkerRef.current = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+    });
+    googleMarkersRef.current.push(searchMarkerRef.current);
+    setRecentPlaceSearches(prev => {
+      const filtered = prev.filter(item => item !== recentLabel);
+      const updated = [recentLabel, ...filtered].slice(0, 5);
+      localStorage.setItem('recent_places', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleSelectPlaceSearchSuggestion = (item: SearchSuggestionItem) => {
+    placeJustSelectedRef.current = true;
+    setSearchTerm(item.display_name);
+    setPlaceSearchSuggestions([]);
+    setShowPlaceSearchSuggestions(false);
+    setPlaceSearchHighlightIndex(-1);
+    applyPlaceSearchOnMap(item.lat, item.lng, item.display_name);
+  };
+
   const handlePlaceSearch = async (term?: string) => {
-    const query = term || searchTerm;
+    const query = (term ?? searchTerm).trim();
     if (!query || !googleMapRef.current) return;
+    setShowPlaceSearchSuggestions(false);
+    setPlaceSearchHighlightIndex(-1);
     try {
       const res = await nominatim.search(query);
-      const lat = res.lat;
-      const lng = res.lng;
-      const map = googleMapRef.current;
-      map.setCenter({ lat, lng });
-      map.setZoom(16);
-      if (searchMarkerRef.current) {
-        searchMarkerRef.current.setMap(null);
-        googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
-      }
-      searchMarkerRef.current = new google.maps.Marker({
-        position: { lat, lng },
-        map,
-        label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
-      });
-      googleMarkersRef.current.push(searchMarkerRef.current);
-      setRecentPlaceSearches(prev => {
-        const filtered = prev.filter(item => item !== query);
-        const updated = [query, ...filtered].slice(0, 5);
-        localStorage.setItem('recent_places', JSON.stringify(updated));
-        return updated;
-      });
+      applyPlaceSearchOnMap(res.lat, res.lng, query);
       setSearchTerm(query);
     } catch { /* ignore */ }
   };
@@ -4514,6 +4588,9 @@ const App: React.FC = () => {
 
   const handleClearSearch = () => {
     setSearchTerm('');
+    setPlaceSearchSuggestions([]);
+    setShowPlaceSearchSuggestions(false);
+    setPlaceSearchHighlightIndex(-1);
     setClickedLocation(null);
     if (searchMarkerRef.current) {
       searchMarkerRef.current.setMap(null);
@@ -5030,29 +5107,95 @@ const App: React.FC = () => {
       </div>
 
       <div
-        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl overflow-hidden pointer-events-auto ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
+        className={`fixed z-[1000] flex flex-col items-start transition-all duration-300 ease-out bg-white/95 backdrop-blur-md shadow-2xl pointer-events-auto ${searchExpanded ? 'overflow-visible' : 'overflow-hidden'} ${searchExpanded ? 'w-[255px] max-w-[calc(100vw-32px)] rounded-2xl border border-slate-200' : 'w-[2.4rem] h-[2.4rem] rounded-full border-2 border-blue-600 group'}`}
         style={{
           left: 'calc(env(safe-area-inset-left, 0px) + 1rem + 2.4rem + 6px)',
           top: SAFE_TOP_1REM,
         }}
       >
-        <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
-          <button
-            type="button"
-            onPointerDown={stopPointerPropagation}
-            onTouchStart={stopPointerPropagation}
-            onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
-            onClick={() => setSearchExpanded(!searchExpanded)}
-            title="Search Places"
-            className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
-          >
-            {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
-          </button>
-          <input type="text" placeholder="Search place..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePlaceSearch()} className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2" />
-          {searchTerm && (
-            <button onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500">
-              <X size={14} />
+        <div ref={searchBarContainerRef} className="relative w-full flex flex-col shrink-0">
+          <div className={`flex items-center w-full pr-5 shrink-0 ${searchExpanded ? 'h-12' : 'h-[2.4rem]'}`}>
+            <button
+              type="button"
+              onPointerDown={stopPointerPropagation}
+              onTouchStart={stopPointerPropagation}
+              onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
+              onClick={() => setSearchExpanded(!searchExpanded)}
+              title="Search Places"
+              className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
+            >
+              {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
             </button>
+            <input
+              type="text"
+              placeholder="장소 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => searchExpanded && placeSearchSuggestions.length > 0 && setShowPlaceSearchSuggestions(true)}
+              onBlur={() => {
+                if (closePlaceSuggestRef.current) clearTimeout(closePlaceSuggestRef.current);
+                closePlaceSuggestRef.current = window.setTimeout(() => setShowPlaceSearchSuggestions(false), 180);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  if (placeSearchSuggestions.length === 0) return;
+                  setShowPlaceSearchSuggestions(true);
+                  setPlaceSearchHighlightIndex((i) => (i < placeSearchSuggestions.length - 1 ? i + 1 : i));
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setPlaceSearchHighlightIndex((i) => (i <= 0 ? -1 : i - 1));
+                  return;
+                }
+                if (e.key === 'Enter') {
+                  if (placeSearchHighlightIndex >= 0 && placeSearchSuggestions[placeSearchHighlightIndex]) {
+                    e.preventDefault();
+                    handleSelectPlaceSearchSuggestion(placeSearchSuggestions[placeSearchHighlightIndex]);
+                    return;
+                  }
+                  handlePlaceSearch();
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  setShowPlaceSearchSuggestions(false);
+                  setPlaceSearchHighlightIndex(-1);
+                }
+              }}
+              className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2 min-w-0"
+            />
+            {searchTerm && (
+              <button type="button" onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500 touch-manipulation">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {searchExpanded && showPlaceSearchSuggestions && placeSearchSuggestions.length > 0 && (
+            <ul
+              className="absolute left-0 right-0 top-full z-[1100] mt-0.5 mx-2 py-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto"
+              role="listbox"
+              aria-label="장소 추천"
+              aria-activedescendant={placeSearchHighlightIndex >= 0 ? `place-search-suggestion-${placeSearchHighlightIndex}` : undefined}
+            >
+              {placeSearchSuggestions.map((item, idx) => (
+                <li key={`${item.lat},${item.lng},${idx}`} id={`place-search-suggestion-${idx}`} role="option" aria-selected={placeSearchHighlightIndex === idx}>
+                  <button
+                    type="button"
+                    ref={idx === placeSearchHighlightIndex ? (el) => { el?.scrollIntoView({ block: 'nearest' }); } : undefined}
+                    className={`w-full text-left px-2 py-2 text-[11px] leading-snug flex items-start gap-2 ${placeSearchHighlightIndex === idx ? 'bg-emerald-100 text-emerald-900' : 'text-slate-700 hover:bg-slate-50'}`}
+                    onMouseDown={(ev) => {
+                      ev.preventDefault();
+                      handleSelectPlaceSearchSuggestion(item);
+                    }}
+                    onMouseEnter={() => setPlaceSearchHighlightIndex(idx)}
+                  >
+                    <MapPin size={12} className="shrink-0 mt-0.5 text-slate-400" aria-hidden />
+                    <span className="truncate">{item.display_name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {searchExpanded && recentPlaceSearches.length > 0 && (
