@@ -38,10 +38,10 @@ const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
 /** 마커 PNG를 바꿀 때마다 숫자만 올리면 동일 파일명이라도 WebView가 새 파일을 받기 쉽다. */
-const CYCLING_MARKER_ASSET_REVISION = 2;
-/** 주행 마커 스프라이트—후면 테스트 시 파일명만 `_rear` 로 바꾼다. */
+const CYCLING_MARKER_ASSET_REVISION = 3;
+/** 주행 마커 PNG — 후면 실루엣 (`public/cycling_position_marker_rear.png`). 옆모습으로 바꿀 때는 파일명·revision 함께 조정. */
 const CYCLING_POSITION_MARKER_URL =
-  '/cycling_position_marker.png?v=' + CYCLING_MARKER_ASSET_REVISION;
+  '/cycling_position_marker_rear.png?v=' + CYCLING_MARKER_ASSET_REVISION;
 
 /** 피처 플래그: 저장된 경로를 OSRM/Elevation 재호출 없이 오프라인 복원. 문제 발생 시 false 로 내려 기존(재탐색) 동작으로 폴백. */
 const USE_OFFLINE_ROUTE_RESTORE = true;
