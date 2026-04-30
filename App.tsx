@@ -37,6 +37,9 @@ const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
+/** 주행 마커 스프라이트—후면 실루엣은 좌우 흔들림이 체감되기 쉽다. 옆모습 테스트 시 `/cycling_position_marker.png`. */
+const CYCLING_POSITION_MARKER_URL = '/cycling_position_marker_rear.png';
+
 /** 피처 플래그: 저장된 경로를 OSRM/Elevation 재호출 없이 오프라인 복원. 문제 발생 시 false 로 내려 기존(재탐색) 동작으로 폴백. */
 const USE_OFFLINE_ROUTE_RESTORE = true;
 
@@ -2164,7 +2167,7 @@ const App: React.FC = () => {
   // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
   useEffect(() => {
     if (cyclingMarkerDataUrlRef.current) return;
-    fetch('/cycling_position_marker.png')
+    fetch(CYCLING_POSITION_MARKER_URL)
       .then((r) => r.blob())
       .then((blob) => {
         const reader = new FileReader();
@@ -2635,10 +2638,11 @@ const App: React.FC = () => {
     const cyclingIcon = (() => {
       if (dataUrl) {
         const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></svg>';
+        const wobble = '<animateTransform attributeName="transform" type="rotate" values="-3 20 22;3 20 22;-3 20 22" dur="1.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"/>';
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><g>' + wobble + '<image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></g></svg>';
         return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
       }
-      return { url: '/cycling_position_marker.png', scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+      return { url: CYCLING_POSITION_MARKER_URL, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
     })();
     if (!simulationMarker.current && map) {
       simulationMarker.current = new google.maps.Marker({
@@ -5234,7 +5238,7 @@ const App: React.FC = () => {
         )}
       </div>
       <div
-        className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out overflow-hidden pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[282px] min-w-[282px] max-w-[282px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
+        className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out ${(showOriginSuggestions || showDestinationSuggestions) ? 'overflow-visible' : 'overflow-hidden'} pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[282px] min-w-[282px] max-w-[282px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
         style={{ left: SAFE_LEFT_1REM, bottom: SAFE_BOTTOM_25 }}
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
