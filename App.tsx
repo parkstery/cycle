@@ -37,8 +37,8 @@ const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
-/** 주행 마커 스프라이트—후면 실루엣은 좌우 흔들림이 체감되기 쉽다. 옆모습 테스트 시 `/cycling_position_marker.png`. */
-const CYCLING_POSITION_MARKER_URL = '/cycling_position_marker_rear.png';
+/** 주행 마커 스프라이트—후면 테스트 시 `/cycling_position_marker_rear.png`. */
+const CYCLING_POSITION_MARKER_URL = '/cycling_position_marker.png';
 
 /** 피처 플래그: 저장된 경로를 OSRM/Elevation 재호출 없이 오프라인 복원. 문제 발생 시 false 로 내려 기존(재탐색) 동작으로 폴백. */
 const USE_OFFLINE_ROUTE_RESTORE = true;
