@@ -2,9 +2,10 @@
  * Open-Elevation API — Google Elevation API 대체용.
  * 경로를 따라 샘플링한 좌표로 POST 한 번에 고도 조회.
  * 웹·네이티브(WebView) 공통: 가능하면 같은 출처의 /api/elevation 프록시(Vite·Vercel)를 쓴다.
- * Android WebView에서 Origin이 https://localhost 일 때 외부 표고 API는 CORS로 자주 막히므로 프록시 우선.
- * 프로덕션 앱: `.env.production` 의 VITE_ELEVATION_PROXY_ORIGIN(배포 웹 URL)로 원격 /api/elevation 호출.
- * 그마저 없으면 네이티브에서만 외부 직접 호출로 폴백(CORS로 실패할 수 있음).
+ * Capacitor 네이티브는 출처가 https://localhost 인 경우가 많아 동일 출처 /api/elevation 이 없음 →
+ * **원격 프록시(VITE_ELEVATION_PROXY_ORIGIN)를 웹보다 먼저** 시도한다. 그렇지 않으면 직접 OE 호출이 CORS·프리플라이트에 막힌다.
+ * 프로덕션 앱: `.env.production` 의 VITE_ELEVATION_PROXY_ORIGIN 필수에 가깝다.
+ * 원격 프록시도 없으면 네이티브에서만 외부 직접 호출로 폴백(CORS 실패 가능).
  * @see https://api.open-elevation.com/
  */
 
@@ -22,25 +23,34 @@ function elevationProxyPostUrl(): string | null {
   return `${window.location.origin}/api/elevation`;
 }
 
-/**
- * 표고 POST 프록시 URL 후보 (순서대로 시도).
- * - 동일 출처: Vite dev / Vercel 웹 등 API 라우트와 앱이 같을 때.
- * - VITE_ELEVATION_PROXY_ORIGIN: Capacitor 번들은 보통 `https://localhost` 만 제공해 /api 가 없음 → 배포된 웹의 /api/elevation 사용.
- */
-function elevationProxyPostUrlCandidates(): string[] {
-  const out: string[] = [];
-  const same = elevationProxyPostUrl();
-  if (same) out.push(same);
-
+function getRemoteElevationProxyUrl(): string | null {
   const raw =
     typeof import.meta.env !== 'undefined' && import.meta.env.VITE_ELEVATION_PROXY_ORIGIN
       ? String(import.meta.env.VITE_ELEVATION_PROXY_ORIGIN).trim().replace(/\/$/, '')
       : '';
-  if (raw) {
-    const remote = `${raw}/api/elevation`;
-    if (remote !== same) out.push(remote);
+  return raw ? `${raw}/api/elevation` : null;
+}
+
+/**
+ * 표고 POST 프록시 URL 후보 (순서대로 시도).
+ * - 웹: 동일 출처 먼저(Vite `/api`), 다음 원격(Vercel 등).
+ * - 네이티브: 원격 먼저 — localhost 에는 API 라우트가 없어 실패 후 직접 OE 호출로 가면 CORS로 막힘.
+ */
+function elevationProxyPostUrlCandidates(): string[] {
+  const same = elevationProxyPostUrl();
+  const remote = getRemoteElevationProxyUrl();
+  const ordered: string[] = [];
+
+  if (Capacitor.isNativePlatform()) {
+    if (remote) ordered.push(remote);
+    if (same) ordered.push(same);
+  } else {
+    if (same) ordered.push(same);
+    if (remote && remote !== same) ordered.push(remote);
   }
-  return out;
+
+  const seen = new Set<string>();
+  return ordered.filter((u) => (seen.has(u) ? false : (seen.add(u), true)));
 }
 
 export interface OpenElevationResultItem {
