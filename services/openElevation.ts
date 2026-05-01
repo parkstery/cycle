@@ -3,7 +3,8 @@
  * 경로를 따라 샘플링한 좌표로 POST 한 번에 고도 조회.
  * 웹·네이티브(WebView) 공통: 가능하면 같은 출처의 /api/elevation 프록시(Vite·Vercel)를 쓴다.
  * Android WebView에서 Origin이 https://localhost 일 때 외부 표고 API는 CORS로 자주 막히므로 프록시 우선.
- * 프록시가 없으면(패키지 번들만 로드 등) 네이티브에서만 외부 직접 호출로 폴백.
+ * 프로덕션 앱: `.env.production` 의 VITE_ELEVATION_PROXY_ORIGIN(배포 웹 URL)로 원격 /api/elevation 호출.
+ * 그마저 없으면 네이티브에서만 외부 직접 호출로 폴백(CORS로 실패할 수 있음).
  * @see https://api.open-elevation.com/
  */
 
@@ -19,6 +20,27 @@ function elevationProxyPostUrl(): string | null {
   if (protocol !== 'http:' && protocol !== 'https:') return null;
   if (!hostname) return null;
   return `${window.location.origin}/api/elevation`;
+}
+
+/**
+ * 표고 POST 프록시 URL 후보 (순서대로 시도).
+ * - 동일 출처: Vite dev / Vercel 웹 등 API 라우트와 앱이 같을 때.
+ * - VITE_ELEVATION_PROXY_ORIGIN: Capacitor 번들은 보통 `https://localhost` 만 제공해 /api 가 없음 → 배포된 웹의 /api/elevation 사용.
+ */
+function elevationProxyPostUrlCandidates(): string[] {
+  const out: string[] = [];
+  const same = elevationProxyPostUrl();
+  if (same) out.push(same);
+
+  const raw =
+    typeof import.meta.env !== 'undefined' && import.meta.env.VITE_ELEVATION_PROXY_ORIGIN
+      ? String(import.meta.env.VITE_ELEVATION_PROXY_ORIGIN).trim().replace(/\/$/, '')
+      : '';
+  if (raw) {
+    const remote = `${raw}/api/elevation`;
+    if (remote !== same) out.push(remote);
+  }
+  return out;
 }
 
 export interface OpenElevationResultItem {
@@ -181,32 +203,35 @@ export async function getElevationAlongPath(
   const locations = samplePath(path, samples);
 
   const tryProxy = async (): Promise<OpenElevationResponse | null> => {
-    const proxyUrl = elevationProxyPostUrl();
-    if (!proxyUrl) return null;
     const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = {
       locations,
     };
     if (provider) body.provider = provider;
-    try {
-      const res = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) return null;
-      const usedProviderHeader = res.headers.get('X-Elevation-Provider');
-      if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader);
-      const data = (await res.json()) as OpenElevationResponse;
-      if (!data.results || !Array.isArray(data.results)) return null;
-      if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
-        data.usedProvider = usedProviderHeader;
-      } else if (provider) {
-        data.usedProvider = provider;
+    const bodyJson = JSON.stringify(body);
+
+    for (const proxyUrl of elevationProxyPostUrlCandidates()) {
+      try {
+        const res = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyJson,
+        });
+        if (!res.ok) continue;
+        const usedProviderHeader = res.headers.get('X-Elevation-Provider');
+        if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader, proxyUrl);
+        const data = (await res.json()) as OpenElevationResponse;
+        if (!data.results || !Array.isArray(data.results)) continue;
+        if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
+          data.usedProvider = usedProviderHeader;
+        } else if (provider) {
+          data.usedProvider = provider;
+        }
+        return data;
+      } catch {
+        /* try next candidate */
       }
-      return data;
-    } catch {
-      return null;
     }
+    return null;
   };
 
   const proxied = await tryProxy();
