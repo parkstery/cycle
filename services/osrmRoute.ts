@@ -8,6 +8,9 @@
 const OSM_DE_BASE = 'https://routing.openstreetmap.de';
 const FALLBACK_BASE = 'https://router.project-osrm.org';
 
+const OSRM_PRIMARY_TIMEOUT_MS = 20000;
+const OSRM_FALLBACK_TIMEOUT_MS = 20000;
+
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
   if (p === 'cycling' || p === 'bike') return `${OSM_DE_BASE}/routed-bike`;
@@ -22,10 +25,16 @@ function getOsrmApiProfile(profile: string): 'driving' | 'cycling' | 'foot' {
   return 'driving';
 }
 
-async function fetchRouteHttp(url: string): Promise<{ r: Response; body: string }> {
-  const r = await fetch(url);
-  const body = await r.text();
-  return { r, body };
+async function fetchRouteHttp(url: string, timeoutMs: number): Promise<{ r: Response; body: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    const body = await r.text();
+    return { r, body };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export type OsrmRouteResponse = {
@@ -51,7 +60,7 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
 
   let primaryResult: { r: Response; body: string } | null = null;
   try {
-    primaryResult = await fetchRouteHttp(primaryUrl);
+    primaryResult = await fetchRouteHttp(primaryUrl, OSRM_PRIMARY_TIMEOUT_MS);
   } catch {
     primaryResult = null;
   }
@@ -66,7 +75,7 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
     routingSource = 'osm-de';
   } else {
     try {
-      ({ r, body } = await fetchRouteHttp(fallbackUrl));
+      ({ r, body } = await fetchRouteHttp(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
       if (r.ok) routingSource = 'project-osrm';
     } catch (e) {
       throw new Error(`OSRM fallback failed: ${String(e)}`);

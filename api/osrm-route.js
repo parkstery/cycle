@@ -2,6 +2,10 @@ const OSM_DE_BASE = 'https://routing.openstreetmap.de';
 /** OSM DE 장애·지역 미커버 시 폴백 (단일 호스트, driving / cycling / foot) */
 const FALLBACK_BASE = 'https://router.project-osrm.org';
 
+/** 무한 대기 방지 — 초과 시 Abort 후 폴백 또는 502 */
+const OSRM_PRIMARY_TIMEOUT_MS = 20000;
+const OSRM_FALLBACK_TIMEOUT_MS = 20000;
+
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).
  * car / bike / foot 경로가 각각 최적화된 서버로 분리되어 도심 골목길 등이 반영됨.
@@ -23,10 +27,16 @@ function getOsrmApiProfile(profile) {
   return 'driving';
 }
 
-async function fetchRouteHttp(url) {
-  const r = await fetch(url);
-  const body = await r.text();
-  return { r, body };
+async function fetchRouteHttp(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    const body = await r.text();
+    return { r, body };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export default async function handler(req, res) {
@@ -60,7 +70,7 @@ export default async function handler(req, res) {
     let routingSource;
 
     try {
-      ({ r, body } = await fetchRouteHttp(primaryBuilder(routeCoords)));
+      ({ r, body } = await fetchRouteHttp(primaryBuilder(routeCoords), OSRM_PRIMARY_TIMEOUT_MS));
       if (r.ok) routingSource = 'osm-de';
     } catch {
       r = { ok: false };
@@ -69,7 +79,7 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       try {
-        ({ r, body } = await fetchRouteHttp(fallbackBuilder(routeCoords)));
+        ({ r, body } = await fetchRouteHttp(fallbackBuilder(routeCoords), OSRM_FALLBACK_TIMEOUT_MS));
         if (r.ok) routingSource = 'project-osrm';
       } catch (e) {
         res.status(502).json({ error: String(e?.message ?? e) });
