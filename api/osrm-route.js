@@ -1,5 +1,7 @@
 const SNAP_RADIUS_M = 50;
 const OSM_DE_BASE = 'https://routing.openstreetmap.de';
+/** OSM DE 장애·지역 미커버 시 폴백 (단일 호스트, driving / cycling / foot) */
+const FALLBACK_BASE = 'https://router.project-osrm.org';
 
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).
@@ -13,12 +15,22 @@ function getRouteBase(profile) {
 }
 
 /**
+ * OSRM HTTP 경로 세그먼트 — routed-* 호스트와 폴백 호스트 모두 동일 규약(driving/cycling/foot).
+ */
+function getOsrmApiProfile(profile) {
+  const p = String(profile || 'driving').toLowerCase();
+  if (p === 'cycling' || p === 'bike') return 'cycling';
+  if (p === 'foot' || p === 'walk') return 'foot';
+  return 'driving';
+}
+
+/**
  * Snap a single coordinate to the road network via OSRM nearest (same host as route).
  */
-async function snapCoord(routeBase, coord) {
+async function snapCoord(routeBase, coord, apiProfile) {
   const trimmed = coord.trim();
   if (!trimmed) return trimmed;
-  const nearestUrl = `${routeBase}/nearest/v1/driving/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
+  const nearestUrl = `${routeBase}/nearest/v1/${apiProfile}/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
   try {
     const r = await fetch(nearestUrl);
     if (!r.ok) return trimmed;
@@ -29,6 +41,23 @@ async function snapCoord(routeBase, coord) {
     }
   } catch (_) {}
   return trimmed;
+}
+
+async function fetchRouteHttp(url) {
+  const r = await fetch(url);
+  const body = await r.text();
+  return { r, body };
+}
+
+/**
+ * coords 문자열에 대해 (스냅 → 실패 시 원본) 한 쌍의 시도.
+ */
+async function attemptRoutePair(routeUrlBuilder, snappedJoined, rawJoined, coordCount) {
+  let { r, body } = await fetchRouteHttp(routeUrlBuilder(snappedJoined));
+  if (!r.ok && r.status === 400 && coordCount >= 2) {
+    ({ r, body } = await fetchRouteHttp(routeUrlBuilder(rawJoined)));
+  }
+  return { r, body };
 }
 
 export default async function handler(req, res) {
@@ -50,21 +79,44 @@ export default async function handler(req, res) {
     }
 
     const base = getRouteBase(profile);
+    const apiProfile = getOsrmApiProfile(profile);
     const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
 
-    const fetchRoute = (coordsStr) =>
-      fetch(`${base}/route/v1/driving/${coordsStr}?${baseParams}`);
-
-    // 1) nearest로 스냅 후 route 시도 (실패 시 원본 좌표 사용)
     const snappedList = await Promise.all(
-      coordList.map((coord) => snapCoord(base, coord))
+      coordList.map((coord) => snapCoord(base, coord, apiProfile))
     );
-    let r = await fetchRoute(snappedList.join(';'));
-    let body = await r.text();
+    const snappedJoined = snappedList.join(';');
+    const rawJoined = coordList.join(';');
 
-    if (!r.ok && r.status === 400 && coordList.length >= 2) {
-      r = await fetchRoute(coordList.join(';'));
-      body = await r.text();
+    const primaryBuilder = (c) => `${base}/route/v1/${apiProfile}/${c}?${baseParams}`;
+    const fallbackBuilder = (c) => `${FALLBACK_BASE}/route/v1/${apiProfile}/${c}?${baseParams}`;
+
+    let r;
+    let body;
+    try {
+      ({ r, body } = await attemptRoutePair(
+        primaryBuilder,
+        snappedJoined,
+        rawJoined,
+        coordList.length
+      ));
+    } catch {
+      r = { ok: false };
+      body = '';
+    }
+
+    if (!r.ok) {
+      try {
+        ({ r, body } = await attemptRoutePair(
+          fallbackBuilder,
+          snappedJoined,
+          rawJoined,
+          coordList.length
+        ));
+      } catch (e) {
+        res.status(502).json({ error: String(e?.message ?? e) });
+        return;
+      }
     }
 
     if (!r.ok) {

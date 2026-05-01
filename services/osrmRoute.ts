@@ -6,6 +6,7 @@
 
 const SNAP_RADIUS_M = 50;
 const OSM_DE_BASE = 'https://routing.openstreetmap.de';
+const FALLBACK_BASE = 'https://router.project-osrm.org';
 
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
@@ -14,10 +15,17 @@ function getRouteBase(profile: string): string {
   return `${OSM_DE_BASE}/routed-car`;
 }
 
-async function snapCoord(routeBase: string, coord: string): Promise<string> {
+function getOsrmApiProfile(profile: string): 'driving' | 'cycling' | 'foot' {
+  const p = String(profile || 'driving').toLowerCase();
+  if (p === 'cycling' || p === 'bike') return 'cycling';
+  if (p === 'foot' || p === 'walk') return 'foot';
+  return 'driving';
+}
+
+async function snapCoord(routeBase: string, coord: string, apiProfile: string): Promise<string> {
   const trimmed = coord.trim();
   if (!trimmed) return trimmed;
-  const nearestUrl = `${routeBase}/nearest/v1/driving/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
+  const nearestUrl = `${routeBase}/nearest/v1/${apiProfile}/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
   try {
     const r = await fetch(nearestUrl);
     if (!r.ok) return trimmed;
@@ -30,6 +38,25 @@ async function snapCoord(routeBase: string, coord: string): Promise<string> {
     /* keep original */
   }
   return trimmed;
+}
+
+async function fetchRouteHttp(url: string): Promise<{ r: Response; body: string }> {
+  const r = await fetch(url);
+  const body = await r.text();
+  return { r, body };
+}
+
+async function attemptRoutePair(
+  routeUrlBuilder: (coordsStr: string) => string,
+  snappedJoined: string,
+  rawJoined: string,
+  coordCount: number
+): Promise<{ r: Response; body: string }> {
+  let { r, body } = await fetchRouteHttp(routeUrlBuilder(snappedJoined));
+  if (!r.ok && r.status === 400 && coordCount >= 2) {
+    ({ r, body } = await fetchRouteHttp(routeUrlBuilder(rawJoined)));
+  }
+  return { r, body };
 }
 
 export type OsrmRouteResponse = {
@@ -45,17 +72,34 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
   if (coordList.length === 0) throw new Error('Empty coords');
 
   const base = getRouteBase(profile);
+  const apiProfile = getOsrmApiProfile(profile);
   const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
-  const fetchRoute = (coordsStr: string) =>
-    fetch(`${base}/route/v1/driving/${coordsStr}?${baseParams}`);
 
-  const snappedList = await Promise.all(coordList.map((coord) => snapCoord(base, coord)));
-  let r = await fetchRoute(snappedList.join(';'));
-  let body = await r.text();
+  const snappedList = await Promise.all(coordList.map((coord) => snapCoord(base, coord, apiProfile)));
+  const snappedJoined = snappedList.join(';');
+  const rawJoined = coordList.join(';');
 
-  if (!r.ok && r.status === 400 && coordList.length >= 2) {
-    r = await fetchRoute(coordList.join(';'));
-    body = await r.text();
+  const primaryBuilder = (c: string) => `${base}/route/v1/${apiProfile}/${c}?${baseParams}`;
+  const fallbackBuilder = (c: string) => `${FALLBACK_BASE}/route/v1/${apiProfile}/${c}?${baseParams}`;
+
+  let primaryResult: { r: Response; body: string } | null = null;
+  try {
+    primaryResult = await attemptRoutePair(primaryBuilder, snappedJoined, rawJoined, coordList.length);
+  } catch {
+    primaryResult = null;
+  }
+
+  let r: Response;
+  let body: string;
+  if (primaryResult?.r.ok) {
+    r = primaryResult.r;
+    body = primaryResult.body;
+  } else {
+    try {
+      ({ r, body } = await attemptRoutePair(fallbackBuilder, snappedJoined, rawJoined, coordList.length));
+    } catch (e) {
+      throw new Error(`OSRM fallback failed: ${String(e)}`);
+    }
   }
 
   if (!r.ok) {
