@@ -1,4 +1,3 @@
-const SNAP_RADIUS_M = 50;
 const OSM_DE_BASE = 'https://routing.openstreetmap.de';
 /** OSM DE 장애·지역 미커버 시 폴백 (단일 호스트, driving / cycling / foot) */
 const FALLBACK_BASE = 'https://router.project-osrm.org';
@@ -24,39 +23,9 @@ function getOsrmApiProfile(profile) {
   return 'driving';
 }
 
-/**
- * Snap a single coordinate to the road network via OSRM nearest (same host as route).
- */
-async function snapCoord(routeBase, coord, apiProfile) {
-  const trimmed = coord.trim();
-  if (!trimmed) return trimmed;
-  const nearestUrl = `${routeBase}/nearest/v1/${apiProfile}/${trimmed}?number=1&radiuses=${SNAP_RADIUS_M}`;
-  try {
-    const r = await fetch(nearestUrl);
-    if (!r.ok) return trimmed;
-    const data = await r.json();
-    if (data.code === 'Ok' && data.waypoints?.[0]?.location) {
-      const [lng, lat] = data.waypoints[0].location;
-      return `${lng},${lat}`;
-    }
-  } catch (_) {}
-  return trimmed;
-}
-
 async function fetchRouteHttp(url) {
   const r = await fetch(url);
   const body = await r.text();
-  return { r, body };
-}
-
-/**
- * coords 문자열에 대해 (스냅 → 실패 시 원본) 한 쌍의 시도.
- */
-async function attemptRoutePair(routeUrlBuilder, snappedJoined, rawJoined, coordCount) {
-  let { r, body } = await fetchRouteHttp(routeUrlBuilder(snappedJoined));
-  if (!r.ok && r.status === 400 && coordCount >= 2) {
-    ({ r, body } = await fetchRouteHttp(routeUrlBuilder(rawJoined)));
-  }
   return { r, body };
 }
 
@@ -81,25 +50,18 @@ export default async function handler(req, res) {
     const base = getRouteBase(profile);
     const apiProfile = getOsrmApiProfile(profile);
     const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
-
-    const snappedList = await Promise.all(
-      coordList.map((coord) => snapCoord(base, coord, apiProfile))
-    );
-    const snappedJoined = snappedList.join(';');
-    const rawJoined = coordList.join(';');
+    const routeCoords = coordList.join(';');
 
     const primaryBuilder = (c) => `${base}/route/v1/${apiProfile}/${c}?${baseParams}`;
     const fallbackBuilder = (c) => `${FALLBACK_BASE}/route/v1/${apiProfile}/${c}?${baseParams}`;
 
     let r;
     let body;
+    let routingSource;
+
     try {
-      ({ r, body } = await attemptRoutePair(
-        primaryBuilder,
-        snappedJoined,
-        rawJoined,
-        coordList.length
-      ));
+      ({ r, body } = await fetchRouteHttp(primaryBuilder(routeCoords)));
+      if (r.ok) routingSource = 'osm-de';
     } catch {
       r = { ok: false };
       body = '';
@@ -107,12 +69,8 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       try {
-        ({ r, body } = await attemptRoutePair(
-          fallbackBuilder,
-          snappedJoined,
-          rawJoined,
-          coordList.length
-        ));
+        ({ r, body } = await fetchRouteHttp(fallbackBuilder(routeCoords)));
+        if (r.ok) routingSource = 'project-osrm';
       } catch (e) {
         res.status(502).json({ error: String(e?.message ?? e) });
         return;
@@ -129,6 +87,9 @@ export default async function handler(req, res) {
       return;
     }
     const data = JSON.parse(body);
+    if (routingSource) {
+      data._meta = { ...(data._meta || {}), routingSource };
+    }
     res.status(200).json(data);
   } catch (e) {
     res.status(502).json({ error: String(e?.message ?? e) });
