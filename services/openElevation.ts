@@ -91,6 +91,9 @@ const elevationCache = new Map<string, OpenElevationResultItem[]>();
 
 export type ElevationProvider = 'open-elevation' | 'opentopodata';
 
+/** 동일 출처·원격 /api/elevation POST — 서버리스 지연 시 무한 대기 방지 */
+const ELEVATION_PROXY_FETCH_MS = 45000;
+
 const NATIVE_OE_TIMEOUT_MS = 4000;
 const NATIVE_OT_TIMEOUT_MS = 15000;
 
@@ -211,11 +214,19 @@ export async function getElevationAlongPath(
 
     for (const proxyUrl of elevationProxyPostUrlCandidates()) {
       try {
-        const res = await fetch(proxyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: bodyJson,
-        });
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), ELEVATION_PROXY_FETCH_MS);
+        let res: Response;
+        try {
+          res = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: bodyJson,
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(tid);
+        }
         if (!res.ok) continue;
         const usedProviderHeader = res.headers.get('X-Elevation-Provider');
         if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader, proxyUrl);

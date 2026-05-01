@@ -2,9 +2,9 @@ const OSM_DE_BASE = 'https://routing.openstreetmap.de';
 /** OSM DE 장애·지역 미커버 시 폴백 (단일 호스트, driving / cycling / foot) */
 const FALLBACK_BASE = 'https://router.project-osrm.org';
 
-/** 무한 대기 방지 — 초과 시 Abort 후 폴백 또는 502 */
-const OSRM_PRIMARY_TIMEOUT_MS = 20000;
-const OSRM_FALLBACK_TIMEOUT_MS = 20000;
+/** 무한 대기 방지 — 초과 시 Abort 후 폴백 또는 502 (클라이언트 osrmRoute.ts 와 동일) */
+const OSRM_PRIMARY_TIMEOUT_MS = 10000;
+const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).
