@@ -1,7 +1,9 @@
 /**
  * Open-Elevation API — Google Elevation API 대체용.
  * 경로를 따라 샘플링한 좌표로 POST 한 번에 고도 조회.
- * 웹: /api/elevation 프록시. Capacitor: api.open-elevation.com 직접 POST.
+ * 웹·네이티브(WebView) 공통: 가능하면 같은 출처의 /api/elevation 프록시(Vite·Vercel)를 쓴다.
+ * Android WebView에서 Origin이 https://localhost 일 때 외부 표고 API는 CORS로 자주 막히므로 프록시 우선.
+ * 프록시가 없으면(패키지 번들만 로드 등) 네이티브에서만 외부 직접 호출로 폴백.
  * @see https://api.open-elevation.com/
  */
 
@@ -9,7 +11,15 @@ import { Capacitor } from '@capacitor/core';
 
 const OPEN_ELEVATION_DIRECT = 'https://api.open-elevation.com/api/v1/lookup';
 const OPENTOPODATA_DIRECT = 'https://api.opentopodata.org/v1/srtm90m';
-const OPEN_ELEVATION_URL = Capacitor.isNativePlatform() ? OPEN_ELEVATION_DIRECT : '/api/elevation';
+
+/** http(s) 페이지에서만 동작; capacitor:// 등이면 null */
+function elevationProxyPostUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const { protocol, hostname } = window.location;
+  if (protocol !== 'http:' && protocol !== 'https:') return null;
+  if (!hostname) return null;
+  return `${window.location.origin}/api/elevation`;
+}
 
 export interface OpenElevationResultItem {
   latitude: number;
@@ -149,30 +159,47 @@ export async function getElevationAlongPath(
   if (cached) return { results: cached, usedProvider: provider };
 
   const locations = samplePath(path, samples);
-  // Web: /api/elevation 서버 핸들러(공급자 자동 폴백 내장) 사용
-  if (!Capacitor.isNativePlatform()) {
-    const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = { locations };
+
+  const tryProxy = async (): Promise<OpenElevationResponse | null> => {
+    const proxyUrl = elevationProxyPostUrl();
+    if (!proxyUrl) return null;
+    const body: { locations: Array<{ latitude: number; longitude: number }>; provider?: ElevationProvider } = {
+      locations,
+    };
     if (provider) body.provider = provider;
-    const res = await fetch(OPEN_ELEVATION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Elevation ${res.status}`);
-    const usedProviderHeader = res.headers.get('X-Elevation-Provider');
-    if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader);
-    const data = (await res.json()) as OpenElevationResponse;
-    if (!data.results || !Array.isArray(data.results)) throw new Error('Elevation invalid response');
-    if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
-      data.usedProvider = usedProviderHeader;
-    } else if (provider) {
-      data.usedProvider = provider;
+    try {
+      const res = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      const usedProviderHeader = res.headers.get('X-Elevation-Provider');
+      if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader);
+      const data = (await res.json()) as OpenElevationResponse;
+      if (!data.results || !Array.isArray(data.results)) return null;
+      if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
+        data.usedProvider = usedProviderHeader;
+      } else if (provider) {
+        data.usedProvider = provider;
+      }
+      return data;
+    } catch {
+      return null;
     }
-    elevationCache.set(key, data.results);
-    return data;
+  };
+
+  const proxied = await tryProxy();
+  if (proxied) {
+    elevationCache.set(key, proxied.results);
+    return proxied;
   }
 
-  // Native: 외부 공급자를 직접 호출하므로 여기서도 자동 폴백을 수행한다.
+  if (!Capacitor.isNativePlatform()) {
+    throw new Error('Elevation proxy unavailable or failed (browser requires /api/elevation)');
+  }
+
+  // Native, 프록시 없음 또는 실패: 외부 공급자 직접 호출(CORS 허용 환경에서만 성공)
   let data: OpenElevationResponse;
   let usedProvider: ElevationProvider;
   if (provider === 'open-elevation') {
