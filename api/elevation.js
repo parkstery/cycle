@@ -1,6 +1,8 @@
 const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
 const OPENTOPODATA_URL = 'https://api.opentopodata.org/v1/srtm90m';
-const OPEN_ELEVATION_TIMEOUT_MS = 8000;
+/** Open-Elevation 무응답·장애 시 빠르게 폴백 (공개 서비스 SLA 없음) */
+const OPEN_ELEVATION_TIMEOUT_MS = 4000;
+const OPENTOPODATA_TIMEOUT_MS = 15000;
 
 /** 응답 직전에 항상 호출 — DevTools에서 사용된 공급자 확인 가능 */
 function setProviderHeaders(res, usedProvider) {
@@ -14,8 +16,8 @@ function send(res, status, body, provider) {
   res.status(status).json(body);
 }
 
-/**이유가 뭐였을까 이 파일이 사라졌던 이유
- * Open-Elevation 1차, 실패 시 OpenTopoData 2차 호출.
+/**
+ * 자동 모드: OpenTopoData(SRTM) 1차 — Open-Elevation은 무응답·다운이 잦아 2차로 두고 짧은 타임아웃.
  * POST body: { locations: [{ latitude, longitude }], provider?: 'open-elevation' | 'opentopodata' }
  * provider 지정 시 해당 공급자만 사용(이중화 테스트용).
  * 응답(항상 동일 형식): { results: [{ latitude, longitude, elevation }] }
@@ -65,18 +67,18 @@ export default async function handler(req, res) {
       return;
     }
 
-    let data = await tryOpenElevation(locations);
+    let data = await tryOpenTopoData(locations);
     if (data) {
-      usedProvider = 'open-elevation';
-      console.log('Elevation provider (used): open-elevation');
+      usedProvider = 'opentopodata';
+      console.log('Elevation provider (used): opentopodata');
       send(res, 200, data, usedProvider);
       return;
     }
 
-    data = await tryOpenTopoData(locations);
+    data = await tryOpenElevation(locations);
     if (data) {
-      usedProvider = 'opentopodata';
-      console.log('Elevation provider (used): opentopodata');
+      usedProvider = 'open-elevation';
+      console.log('Elevation provider (used): open-elevation');
       send(res, 200, data, usedProvider);
       return;
     }
@@ -118,8 +120,11 @@ async function tryOpenElevation(locations) {
 async function tryOpenTopoData(locations) {
   const locationsStr = locations.map((l) => `${l.latitude},${l.longitude}`).join('|');
   const url = `${OPENTOPODATA_URL}?locations=${encodeURIComponent(locationsStr)}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OPENTOPODATA_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { method: 'GET' });
+    const response = await fetch(url, { method: 'GET', signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const data = await response.json();
     if (data.status !== 'OK' || !data.results || !Array.isArray(data.results)) return null;
@@ -133,6 +138,7 @@ async function tryOpenTopoData(locations) {
     });
     return { results };
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }

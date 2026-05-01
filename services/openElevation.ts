@@ -69,11 +69,28 @@ const elevationCache = new Map<string, OpenElevationResultItem[]>();
 
 export type ElevationProvider = 'open-elevation' | 'opentopodata';
 
-async function fetchOpenElevation(locations: Array<{ latitude: number; longitude: number }>): Promise<OpenElevationResponse> {
+const NATIVE_OE_TIMEOUT_MS = 4000;
+const NATIVE_OT_TIMEOUT_MS = 15000;
+
+async function withAbortTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const c = new AbortController();
+  const id = setTimeout(() => c.abort(), ms);
+  try {
+    return await run(c.signal);
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function fetchOpenElevation(
+  locations: Array<{ latitude: number; longitude: number }>,
+  signal?: AbortSignal
+): Promise<OpenElevationResponse> {
   const res = await fetch(OPEN_ELEVATION_DIRECT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locations }),
+    signal,
   });
   if (!res.ok) throw new Error(`Open-Elevation ${res.status}`);
   const data = (await res.json()) as OpenElevationResponse;
@@ -81,10 +98,13 @@ async function fetchOpenElevation(locations: Array<{ latitude: number; longitude
   return data;
 }
 
-async function fetchOpenTopoData(locations: Array<{ latitude: number; longitude: number }>): Promise<OpenElevationResponse> {
+async function fetchOpenTopoData(
+  locations: Array<{ latitude: number; longitude: number }>,
+  signal?: AbortSignal
+): Promise<OpenElevationResponse> {
   const locationsStr = locations.map((l) => `${l.latitude},${l.longitude}`).join('|');
   const url = `${OPENTOPODATA_DIRECT}?locations=${encodeURIComponent(locationsStr)}`;
-  const res = await fetch(url, { method: 'GET' });
+  const res = await fetch(url, { method: 'GET', signal });
   if (!res.ok) throw new Error(`OpenTopoData ${res.status}`);
   const data = (await res.json()) as { status?: string; results?: Array<{ elevation?: number }> };
   if (data.status !== 'OK' || !Array.isArray(data.results)) throw new Error('OpenTopoData invalid response');
@@ -210,14 +230,14 @@ export async function getElevationAlongPath(
     usedProvider = 'opentopodata';
   } else {
     try {
-      data = await fetchOpenElevation(locations);
-      usedProvider = 'open-elevation';
-      console.log('[Elevation] provider used (native): open-elevation');
-    } catch (primaryErr) {
-      console.warn('[Elevation] open-elevation failed, fallback to opentopodata', primaryErr);
-      data = await fetchOpenTopoData(locations);
+      data = await withAbortTimeout(NATIVE_OT_TIMEOUT_MS, (sig) => fetchOpenTopoData(locations, sig));
       usedProvider = 'opentopodata';
       console.log('[Elevation] provider used (native): opentopodata');
+    } catch (primaryErr) {
+      console.warn('[Elevation] opentopodata failed, fallback to open-elevation', primaryErr);
+      data = await withAbortTimeout(NATIVE_OE_TIMEOUT_MS, (sig) => fetchOpenElevation(locations, sig));
+      usedProvider = 'open-elevation';
+      console.log('[Elevation] provider used (native): open-elevation');
     }
   }
   data.usedProvider = usedProvider;
