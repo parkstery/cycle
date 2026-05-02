@@ -110,8 +110,12 @@ export type ElevationProvider = 'open-elevation' | 'opentopodata';
 /** 동일 출처·원격 /api/elevation POST — 서버리스 지연 시 무한 대기 방지 */
 const ELEVATION_PROXY_FETCH_MS = 45000;
 
-const NATIVE_OE_TIMEOUT_MS = 4000;
-const NATIVE_OT_TIMEOUT_MS = 15000;
+/**
+ * WebView 교차 출처: OPTIONS(preflight)만 수 초 걸리는 경우가 있어 4초면 POST가 취소됨(DevTools "4.00 s 취소됨").
+ * 직접 호출은 프록시 실패 시에만 쓰이므로 여유 있게 둔다.
+ */
+const NATIVE_OE_TIMEOUT_MS = 25000;
+const NATIVE_OT_TIMEOUT_MS = 25000;
 
 async function withAbortTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const c = new AbortController();
