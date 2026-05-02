@@ -426,6 +426,8 @@ const App: React.FC = () => {
   const svErrorCount = useRef(0);
   const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
   const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
+  /** 갭 구간에서 커버리지는 있는데 프리페치만 늦을 때 저빈도로 라이브 getPanorama 시도 */
+  const lastLiveSvFallbackAtMsRef = useRef(0);
   /** Street View 표시용 path index: 시뮬 속도와 분리해 최대 60 km/h로만 진행해 고속에서도 거리뷰가 부드럽게 전환되도록 함 */
   const svDisplayPathIndexRef = useRef(0);
   const lastSvDisplayUpdateRef = useRef(0);
@@ -1460,6 +1462,7 @@ const App: React.FC = () => {
           resolve();
           return;
         }
+        setShowSvWarning(false);
         setIsUserPano(usedFallback);
         if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
           const currentPano = panorama1.current;
@@ -2710,23 +2713,41 @@ const App: React.FC = () => {
       const svDisplayIdx = svDisplayPathIndexRef.current;
       const svDisplayIdxForPano = svDisplayIdx;
 
-      // ---- STREET VIEW: 캐시만 사용 (주행 중 API 0). 없으면 끄기/안내. [Phase 1] ----
+      // ---- STREET VIEW: 캐시 우선 + 갭 시 저빈도 라이브 조회. panoData만 갱신돼도 동기화되도록 route?.panoData 의존성 유지. ----
       if (isSvActive) {
         if (routeData.panoData?.length) {
-          const panoItem = getPanoDataForIndex(routeData.panoData, svDisplayIdxForPano);
-          const lastPano = routeData.panoData[routeData.panoData.length - 1];
-          const inGap = lastPano && svDisplayIdxForPano > lastPano.pathIndex + 30;
+          const panos = routeData.panoData;
+          const panoItem = getPanoDataForIndex(panos, svDisplayIdxForPano);
+          let maxPanoPathIdx = -1;
+          for (const p of panos) {
+            if (p.pathIndex > maxPanoPathIdx) maxPanoPathIdx = p.pathIndex;
+          }
+          const GAP_SLACK_POINTS = 30;
+          const inGap = maxPanoPathIdx >= 0 && svDisplayIdxForPano > maxPanoPathIdx + GAP_SLACK_POINTS;
+
           if (inGap) {
             setShowSvWarning(true);
-          } else if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
-            lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
-            setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+            const nowMs = Date.now();
+            const LIVE_SV_FALLBACK_MS = 4500;
+            if (nowMs - lastLiveSvFallbackAtMsRef.current >= LIVE_SV_FALLBACK_MS) {
+              lastLiveSvFallbackAtMsRef.current = nowMs;
+              const h =
+                lookAheadIdx > adjustedIdx && targetPosForHeading
+                  ? computeHeading(currentPos, targetPosForHeading)
+                  : 0;
+              void setPanoramaView(currentPos, h);
+            }
+          } else {
             setShowSvWarning(false);
+            if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
+              lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+              void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+            }
           }
-          // 슬라이딩 prefetch: 캐시 끝 근처 또는 현재 위치 기준으로 다음 구간 prefetch (갭 구간 지난 뒤에도 재개되도록)
+          // 슬라이딩 prefetch: 캐시 끝(max pathIndex) 근처에서 다음 구간 수집
           if (
-            lastPano &&
-            currentIdx >= lastPano.pathIndex - 150 &&
+            maxPanoPathIdx >= 0 &&
+            currentIdx >= maxPanoPathIdx - 150 &&
             !isSegmentFetchingRef.current &&
             svServiceRef.current
           ) {
@@ -2737,9 +2758,8 @@ const App: React.FC = () => {
               cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
             }
             const totalM = cumDist[path.length - 1];
-            const distAtLast = cumDist[Math.min(lastPano.pathIndex, path.length - 1)];
+            const distAtLast = cumDist[Math.min(maxPanoPathIdx, path.length - 1)];
             const distAtCurrent = cumDist[Math.min(currentIdx, path.length - 1)];
-            // 마지막 pano 기준과 현재 주행 위치 중 더 앞선 쪽부터 prefetch → 갭 이후 구간도 수집
             const fromM = Math.max(distAtLast + 10, distAtCurrent);
             const toM = Math.min(fromM + 400, totalM);
             if (fromM < toM) {
@@ -2878,7 +2898,7 @@ const App: React.FC = () => {
       }
       // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, isSvFullScreen, isSvActive]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, route?.panoData, isSvFullScreen, isSvActive, setPanoramaView, setPanoramaViewByPanoId, getPanoDataForIndex, preFetchStreetViewData]);
 
   // Simulation progression driver: runs continuously while simulation is active,
   // accumulates distance from live speed, and advances currentIndex by path segments.
