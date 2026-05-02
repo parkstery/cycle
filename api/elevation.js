@@ -4,6 +4,20 @@ const OPENTOPODATA_URL = 'https://api.opentopodata.org/v1/srtm90m';
 const OPEN_ELEVATION_TIMEOUT_MS = 4000;
 const OPENTOPODATA_TIMEOUT_MS = 15000;
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 업스트림 일시 오류·콜드스타트 흡수 */
+async function withUpstreamRetry(fn, attempts = 2, gapMs = 400) {
+  for (let i = 0; i < attempts; i++) {
+    if (i > 0) await sleep(gapMs);
+    const out = await fn();
+    if (out) return out;
+  }
+  return null;
+}
+
 /** 응답 직전에 항상 호출 — DevTools에서 사용된 공급자 확인 가능 */
 function setProviderHeaders(res, usedProvider) {
   res.setHeader('X-Elevation-Provider', usedProvider);
@@ -44,7 +58,7 @@ export default async function handler(req, res) {
     console.log('Elevation provider (requested):', provider ?? 'auto');
 
     if (provider === 'opentopodata') {
-      const data = await tryOpenTopoData(locations);
+      const data = await withUpstreamRetry(() => tryOpenTopoData(locations));
       if (data) {
         usedProvider = 'opentopodata';
         console.log('Elevation provider (used): opentopodata');
@@ -56,7 +70,7 @@ export default async function handler(req, res) {
     }
 
     if (provider === 'open-elevation') {
-      const data = await tryOpenElevation(locations);
+      const data = await withUpstreamRetry(() => tryOpenElevation(locations));
       if (data) {
         usedProvider = 'open-elevation';
         console.log('Elevation provider (used): open-elevation');
@@ -67,7 +81,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    let data = await tryOpenTopoData(locations);
+    let data = await withUpstreamRetry(() => tryOpenTopoData(locations));
     if (data) {
       usedProvider = 'opentopodata';
       console.log('Elevation provider (used): opentopodata');
@@ -75,7 +89,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    data = await tryOpenElevation(locations);
+    data = await withUpstreamRetry(() => tryOpenElevation(locations));
     if (data) {
       usedProvider = 'open-elevation';
       console.log('Elevation provider (used): open-elevation');

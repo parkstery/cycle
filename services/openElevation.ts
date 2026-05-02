@@ -109,6 +109,9 @@ export type ElevationProvider = 'open-elevation' | 'opentopodata';
 
 /** 동일 출처·원격 /api/elevation POST — 서버리스 지연 시 무한 대기 방지 */
 const ELEVATION_PROXY_FETCH_MS = 45000;
+/** 콜드스타트·일시 502 흡수: 후보 전부 실패 시 한 번 더 전 라운드 */
+const ELEVATION_PROXY_ROUNDS = 2;
+const ELEVATION_PROXY_ROUND_DELAY_MS = 500;
 
 /**
  * WebView 교차 출처: OPTIONS(preflight)만 수 초 걸리는 경우가 있어 4초면 POST가 취소됨(DevTools "4.00 s 취소됨").
@@ -116,6 +119,19 @@ const ELEVATION_PROXY_FETCH_MS = 45000;
  */
 const NATIVE_OE_TIMEOUT_MS = 25000;
 const NATIVE_OT_TIMEOUT_MS = 25000;
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withOneRetry<T>(fn: () => Promise<T>, gapMs: number): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    await sleepMs(gapMs);
+    return await fn();
+  }
+}
 
 async function withAbortTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const c = new AbortController();
@@ -236,35 +252,39 @@ export async function getElevationAlongPath(
     };
     if (provider) body.provider = provider;
     const bodyJson = JSON.stringify(body);
+    const candidates = elevationProxyPostUrlCandidates();
 
-    for (const proxyUrl of elevationProxyPostUrlCandidates()) {
-      try {
-        const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), ELEVATION_PROXY_FETCH_MS);
-        let res: Response;
+    for (let round = 0; round < ELEVATION_PROXY_ROUNDS; round++) {
+      if (round > 0) await sleepMs(ELEVATION_PROXY_ROUND_DELAY_MS);
+      for (const proxyUrl of candidates) {
         try {
-          res = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: bodyJson,
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(tid);
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), ELEVATION_PROXY_FETCH_MS);
+          let res: Response;
+          try {
+            res = await fetch(proxyUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: bodyJson,
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(tid);
+          }
+          if (!res.ok) continue;
+          const usedProviderHeader = res.headers.get('X-Elevation-Provider');
+          if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader, proxyUrl);
+          const data = (await res.json()) as OpenElevationResponse;
+          if (!data.results || !Array.isArray(data.results)) continue;
+          if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
+            data.usedProvider = usedProviderHeader;
+          } else if (provider) {
+            data.usedProvider = provider;
+          }
+          return data;
+        } catch {
+          /* try next candidate */
         }
-        if (!res.ok) continue;
-        const usedProviderHeader = res.headers.get('X-Elevation-Provider');
-        if (usedProviderHeader) console.log('[Elevation] X-Elevation-Provider:', usedProviderHeader, proxyUrl);
-        const data = (await res.json()) as OpenElevationResponse;
-        if (!data.results || !Array.isArray(data.results)) continue;
-        if (usedProviderHeader === 'open-elevation' || usedProviderHeader === 'opentopodata') {
-          data.usedProvider = usedProviderHeader;
-        } else if (provider) {
-          data.usedProvider = provider;
-        }
-        return data;
-      } catch {
-        /* try next candidate */
       }
     }
     return null;
@@ -294,12 +314,18 @@ export async function getElevationAlongPath(
     usedProvider = 'opentopodata';
   } else {
     try {
-      data = await withAbortTimeout(NATIVE_OT_TIMEOUT_MS, (sig) => fetchOpenTopoData(locations, sig));
+      data = await withOneRetry(
+        () => withAbortTimeout(NATIVE_OT_TIMEOUT_MS, (sig) => fetchOpenTopoData(locations, sig)),
+        450
+      );
       usedProvider = 'opentopodata';
       console.log('[Elevation] provider used (native): opentopodata');
     } catch (primaryErr) {
       console.warn('[Elevation] opentopodata failed, fallback to open-elevation', primaryErr);
-      data = await withAbortTimeout(NATIVE_OE_TIMEOUT_MS, (sig) => fetchOpenElevation(locations, sig));
+      data = await withOneRetry(
+        () => withAbortTimeout(NATIVE_OE_TIMEOUT_MS, (sig) => fetchOpenElevation(locations, sig)),
+        450
+      );
       usedProvider = 'open-elevation';
       console.log('[Elevation] provider used (native): open-elevation');
     }

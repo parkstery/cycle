@@ -8,8 +8,8 @@
 const OSM_DE_BASE = 'https://routing.openstreetmap.de';
 const FALLBACK_BASE = 'https://router.project-osrm.org';
 
-const OSRM_PRIMARY_TIMEOUT_MS = 20000;
-const OSRM_FALLBACK_TIMEOUT_MS = 20000;
+const OSRM_PRIMARY_TIMEOUT_MS = 10000;
+const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
@@ -37,6 +37,31 @@ async function fetchRouteHttp(url: string, timeoutMs: number): Promise<{ r: Resp
   }
 }
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 일시 장애·콜드스타트 흡수: 502/503/504/429 또는 fetch 예외 시 최대 2회 */
+async function fetchRouteHttpWithRetry(
+  url: string,
+  timeoutMs: number,
+  maxAttempts = 2
+): Promise<{ r: Response; body: string }> {
+  let last: { r: Response; body: string } | undefined;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await sleepMs(450);
+    try {
+      last = await fetchRouteHttp(url, timeoutMs);
+      if (last.r.ok) return last;
+      const retryable = [502, 503, 504, 429].includes(last.r.status);
+      if (!retryable) return last;
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+    }
+  }
+  return last!;
+}
+
 export type OsrmRouteResponse = {
   code?: string;
   routes?: Array<{ geometry: string; distance: number; duration: number }>;
@@ -60,7 +85,7 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
 
   let primaryResult: { r: Response; body: string } | null = null;
   try {
-    primaryResult = await fetchRouteHttp(primaryUrl, OSRM_PRIMARY_TIMEOUT_MS);
+    primaryResult = await fetchRouteHttpWithRetry(primaryUrl, OSRM_PRIMARY_TIMEOUT_MS);
   } catch {
     primaryResult = null;
   }
@@ -75,7 +100,7 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
     routingSource = 'osm-de';
   } else {
     try {
-      ({ r, body } = await fetchRouteHttp(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
+      ({ r, body } = await fetchRouteHttpWithRetry(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
       if (r.ok) routingSource = 'project-osrm';
     } catch (e) {
       throw new Error(`OSRM fallback failed: ${String(e)}`);

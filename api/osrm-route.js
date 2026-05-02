@@ -39,6 +39,27 @@ async function fetchRouteHttp(url, timeoutMs) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 일시 장애·콜드스타트 흡수: 502/503/504/429 또는 fetch 예외 시 최대 2회 */
+async function fetchRouteHttpWithRetry(url, timeoutMs, maxAttempts = 2) {
+  let last;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) await sleep(450);
+    try {
+      last = await fetchRouteHttp(url, timeoutMs);
+      if (last.r.ok) return last;
+      const retryable = [502, 503, 504, 429].includes(last.r.status);
+      if (!retryable) return last;
+    } catch (e) {
+      if (attempt === maxAttempts - 1) throw e;
+    }
+  }
+  return last;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -70,7 +91,10 @@ export default async function handler(req, res) {
     let routingSource;
 
     try {
-      ({ r, body } = await fetchRouteHttp(primaryBuilder(routeCoords), OSRM_PRIMARY_TIMEOUT_MS));
+      ({ r, body } = await fetchRouteHttpWithRetry(
+        primaryBuilder(routeCoords),
+        OSRM_PRIMARY_TIMEOUT_MS
+      ));
       if (r.ok) routingSource = 'osm-de';
     } catch {
       r = { ok: false };
@@ -79,7 +103,10 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       try {
-        ({ r, body } = await fetchRouteHttp(fallbackBuilder(routeCoords), OSRM_FALLBACK_TIMEOUT_MS));
+        ({ r, body } = await fetchRouteHttpWithRetry(
+          fallbackBuilder(routeCoords),
+          OSRM_FALLBACK_TIMEOUT_MS
+        ));
         if (r.ok) routingSource = 'project-osrm';
       } catch (e) {
         res.status(502).json({ error: String(e?.message ?? e) });
