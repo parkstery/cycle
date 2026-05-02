@@ -97,7 +97,13 @@ function pathCacheKey(path: LatLngLike[], samples: number): string {
   return pts.map(p => `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`).join('|');
 }
 
-const elevationCache = new Map<string, OpenElevationResultItem[]>();
+type ElevationCacheEntry = {
+  results: OpenElevationResultItem[];
+  /** 자동 모드에서도 배지(topo/open)와 일치하도록 최초 성공 시 저장 */
+  usedProvider?: ElevationProvider;
+};
+
+const elevationCache = new Map<string, ElevationCacheEntry>();
 
 export type ElevationProvider = 'open-elevation' | 'opentopodata';
 
@@ -211,7 +217,12 @@ export async function getElevationAlongPath(
   const provider = options?.provider;
   const key = pathCacheKey(path, samples) + (provider ? `:${provider}` : '');
   const cached = elevationCache.get(key);
-  if (cached) return { results: cached, usedProvider: provider };
+  if (cached) {
+    return {
+      results: cached.results,
+      usedProvider: cached.usedProvider ?? provider,
+    };
+  }
 
   const locations = samplePath(path, samples);
 
@@ -257,8 +268,11 @@ export async function getElevationAlongPath(
 
   const proxied = await tryProxy();
   if (proxied) {
-    elevationCache.set(key, proxied.results);
-    return proxied;
+    const used =
+      proxied.usedProvider ??
+      (provider === 'open-elevation' || provider === 'opentopodata' ? provider : undefined);
+    elevationCache.set(key, { results: proxied.results, usedProvider: used });
+    return { ...proxied, usedProvider: used };
   }
 
   if (!Capacitor.isNativePlatform()) {
@@ -287,6 +301,6 @@ export async function getElevationAlongPath(
     }
   }
   data.usedProvider = usedProvider;
-  elevationCache.set(key, data.results);
+  elevationCache.set(key, { results: data.results, usedProvider });
   return data;
 }
