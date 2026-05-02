@@ -7,7 +7,7 @@ const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
 /** 경유지별 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 */
-const OSRM_SNAP_RADIUS_M = 50;
+const OSRM_SNAP_RADIUS_M = 100;
 
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).

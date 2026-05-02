@@ -12,7 +12,7 @@ const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
 /** 경유지마다 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 (밖이면 NoSegment 등) */
-export const OSRM_SNAP_RADIUS_M = 50;
+export const OSRM_SNAP_RADIUS_M = 100;
 
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
