@@ -3967,6 +3967,14 @@ const App: React.FC = () => {
         const data = Capacitor.isNativePlatform()
           ? await fetchOsrmRouteJson(profile, coords)
           : await (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`)).json();
+        if (data.code !== 'Ok') {
+          const snapMsg =
+            '선택한 위치에서 50m 이내 도로를 찾지 못했습니다. 도로 가까이에서 출발/도착을 다시 지정해 주세요.';
+          const errText = typeof (data as { error?: string }).error === 'string' ? (data as { error?: string }).error : '';
+          alert(data.code === 'NoSegment' ? snapMsg : errText || `경로를 찾을 수 없습니다. (${data.code ?? '오류'})`);
+          setLoading(false);
+          return;
+        }
         if (data.code === 'Ok') {
           const decoded = decodePath(data.routes[0].geometry);
           lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);

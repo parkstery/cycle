@@ -6,6 +6,9 @@ const FALLBACK_BASE = 'https://router.project-osrm.org';
 const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
+/** 경유지별 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 */
+const OSRM_SNAP_RADIUS_M = 50;
+
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).
  * car / bike / foot 경로가 각각 최적화된 서버로 분리되어 도심 골목길 등이 반영됨.
@@ -80,7 +83,8 @@ export default async function handler(req, res) {
 
     const base = getRouteBase(profile);
     const apiProfile = getOsrmApiProfile(profile);
-    const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
+    const radiuses = coordList.map(() => OSRM_SNAP_RADIUS_M).join(';');
+    const baseParams = `overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${encodeURIComponent(radiuses)}`;
     const routeCoords = coordList.join(';');
 
     const primaryBuilder = (c) => `${base}/route/v1/${apiProfile}/${c}?${baseParams}`;

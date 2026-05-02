@@ -1,7 +1,7 @@
 /**
  * OSRM 경로 조회 — Capacitor/Android 등 정적 호스트에서는 /api/osrm-route 프록시가 없으므로
  * 브라우저/WebView에서 routing.openstreetmap.de 로 직접 요청합니다.
- * nearest는 호출하지 않으며 스냅은 OSRM route 단계에 위임합니다.
+ * 도로 스냅은 OSRM route 의 `radiuses`(m)로 제한 — 클릭 지점에서 너무 먼 도로로 붙는 것을 막음.
  * (로직은 api/osrm-route.js 와 동일)
  */
 
@@ -10,6 +10,9 @@ const FALLBACK_BASE = 'https://router.project-osrm.org';
 
 const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
+
+/** 경유지마다 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 (밖이면 NoSegment 등) */
+export const OSRM_SNAP_RADIUS_M = 50;
 
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
@@ -77,7 +80,8 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
 
   const base = getRouteBase(profile);
   const apiProfile = getOsrmApiProfile(profile);
-  const baseParams = 'overview=full&geometries=polyline&alternatives=false&steps=false';
+  const radiuses = coordList.map(() => OSRM_SNAP_RADIUS_M).join(';');
+  const baseParams = `overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${encodeURIComponent(radiuses)}`;
   const routeCoords = coordList.join(';');
 
   const primaryUrl = `${base}/route/v1/${apiProfile}/${routeCoords}?${baseParams}`;
@@ -107,10 +111,19 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
     }
   }
 
+  let data: OsrmRouteResponse;
+  try {
+    data = JSON.parse(body) as OsrmRouteResponse;
+  } catch {
+    if (!r.ok) throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
+    throw new Error('OSRM invalid JSON');
+  }
+  if (data.code && data.code !== 'Ok') {
+    return data;
+  }
   if (!r.ok) {
     throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
   }
-  const data = JSON.parse(body) as OsrmRouteResponse;
   if (routingSource) {
     data._meta = { ...(data._meta || {}), routingSource };
   }
