@@ -404,9 +404,19 @@ const SV_ADAPTIVE_TURN_SUM_DEG = 40;
 const MIN_MS_BETWEEN_PANO_SWAPS = 880;
 /** 프리패치 커버 대비 주행 위치 갭 판정 여유(m) */
 const SV_GAP_SLACK_ROUTE_M = 42;
+/** 슬라이딩 프리패치 한 구간 길이(m). 과대 시 한 번 실패로 긴 공백(시골 구간 등) 발생 */
+const SV_SLIDING_PREFETCH_CHUNK_M = 190;
+/** 직전 캐시 끝 거리에서 약간 되돌려 겹쳐 수집 — 세그먼트 경계 누락·주행 선행 시 구멍 완화 */
+const SV_PREFETCH_OVERLAP_ROUTE_M = 45;
+/** 마지막 파노 누적거리 대비 이 path index 만큼 앞서면 다음 슬라이딩 수집 시도 */
+const SV_SLIDING_TRIGGER_PATH_POINTS_BACK = 240;
 /** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
 const SV_PASS2_MAX_ANGLE_DEG = 100;
+/** Pass3 이후에도 후보가 없을 때만(시골·좁은 도로). 각도·횡거리 완화 */
+const SV_PASS4_RADIUS_M = 145;
+const SV_PASS4_MAX_ANGLE_DEG = 118;
+const SV_PASS4_CORRIDOR_MULT = 2.55;
 /** 경로 폴리라인 대 파노 위치 횡거리 상한(미터). 초과 시 후보 제외 */
 const SV_CORRIDOR_MAX_M = 48;
 /** 사용자 기여 파노만 더 엄격한 횡거리(미터) */
@@ -1786,6 +1796,27 @@ const App: React.FC = () => {
         }
       }
 
+      if (candidates.length === 0) {
+        const pass4 = await findStreetViewInDirection(
+          svServiceRef.current,
+          pathPoint,
+          pathNextForSv,
+          geomIdx,
+          path,
+          cumDist,
+          SV_PASS4_RADIUS_M,
+          SV_PASS4_MAX_ANGLE_DEG,
+          SV_PASS4_CORRIDOR_MULT,
+          clampedDist
+        );
+        if (pass4?.panoId) {
+          const desc = pass4.description ?? '';
+          if (!SV_INDOOR_KEYWORDS.test(desc)) {
+            candidates.push({ item: pass4, maxD: SV_PASS4_RADIUS_M });
+          }
+        }
+      }
+
       const filtered = candidates.filter(c => !c.item.description || !SV_INDOOR_KEYWORDS.test(c.item.description));
       let best: PanoDataItem | null = null;
       let bestScore = -1;
@@ -2914,7 +2945,7 @@ const App: React.FC = () => {
           // 슬라이딩 prefetch: 누적 거리 기준 캐시 끝에 근접 시 다음 구간 수집
           if (
             maxPanoPathIdx >= 0 &&
-            currentIdx >= maxPanoPathIdx - 150 &&
+            currentIdx >= maxPanoPathIdx - SV_SLIDING_TRIGGER_PATH_POINTS_BACK &&
             !isSegmentFetchingRef.current &&
             svServiceRef.current
           ) {
@@ -2925,9 +2956,9 @@ const App: React.FC = () => {
               cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
             }
             const totalM = cumDist[path.length - 1];
-            const distAtCurrent = cumDist[Math.min(currentIdx, path.length - 1)];
-            const fromM = Math.max(maxDistAlong + 8, distAtCurrent);
-            const toM = Math.min(fromM + 400, totalM);
+            // 주행 인덱스가 캐시보다 앞서도 fromM 을 당겨오지 않음 → 구간 건너뛰기 공백 방지
+            const fromM = Math.max(0, maxDistAlong - SV_PREFETCH_OVERLAP_ROUTE_M);
+            const toM = Math.min(fromM + SV_SLIDING_PREFETCH_CHUNK_M, totalM);
             if (fromM < toM) {
               const prevPanos = route.panoData || [];
               const tail = prevPanos.length ? prevPanos[prevPanos.length - 1] : null;
