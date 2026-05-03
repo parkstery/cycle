@@ -318,6 +318,17 @@ function normalizeAngleDiff(deg: number): number {
   return deg;
 }
 
+/** 누적 거리 distM 가 놓인 경로 포인트 인덱스(프리패치 playback pathIndex 정렬용) */
+function pathIndexAtCumulativeM(cumDist: number[], distM: number, pathLen: number): number {
+  if (!cumDist.length || pathLen < 1) return 0;
+  const total = cumDist[cumDist.length - 1] ?? 0;
+  const d = Math.max(0, Math.min(distM, total));
+  let i = 0;
+  const maxI = Math.min(pathLen - 1, cumDist.length - 1);
+  while (i < maxI && cumDist[i + 1] < d) i++;
+  return Math.min(i, pathLen - 1);
+}
+
 /**
  * 주행 방향 각도 범위 내 거리뷰만 채택.
  * GOOGLE 먼저 시도, 없으면 DEFAULT(사용자 파노라마 포함) 폴백.
@@ -1850,7 +1861,7 @@ const App: React.FC = () => {
           lastChainMeta.isOfficial &&
           clampedDist - lastChainMeta.sampleDistM < SV_SHORT_GAP_SKIP_USER_M;
         if (!skipUserShortGap) {
-          let playbackIdx = geomIdx;
+          let playbackIdx = pathIndexAtCumulativeM(cumDist, clampedDist, path.length);
           if (panoData.length > 0) {
             const prevPi = panoData[panoData.length - 1].pathIndex;
             if (playbackIdx <= prevPi) playbackIdx = prevPi + 1;
@@ -1870,15 +1881,37 @@ const App: React.FC = () => {
     return { panoData, sampleCount: n };
   }, []);
 
-  // Find panoData item with largest pathIndex <= current path index
-  const getPanoDataForIndex = useCallback((panoData: PanoDataItem[], pathIndex: number): PanoDataItem | null => {
-    if (!panoData.length) return null;
-    let best: PanoDataItem | null = null;
-    for (const p of panoData) {
-      if (p.pathIndex <= pathIndex && (best === null || p.pathIndex > best.pathIndex)) best = p;
-    }
-    return best ?? panoData[0];
-  }, []);
+  /**
+   * 주행 위치에 맞는 pano 한 건.
+   * distAlongRouteM 가 있으면 누적 거리 기준(예전 연속성 원칙) — pathIndex 만 쓰면 Arc 등에서 panoData[0]에 고착.
+   */
+  const getPanoDataForRidePosition = useCallback(
+    (panoData: PanoDataItem[], cumDistArr: number[], pathIdx: number): PanoDataItem | null => {
+      if (!panoData.length) return null;
+      const pi = Math.min(Math.max(0, pathIdx), cumDistArr.length - 1);
+      const distM = cumDistArr[pi] ?? 0;
+      const hasDistMeta = panoData.some((p) => typeof p.distAlongRouteM === 'number');
+      if (hasDistMeta) {
+        let best: PanoDataItem | null = null;
+        let bestDm = -1;
+        for (const p of panoData) {
+          const dm = p.distAlongRouteM;
+          if (typeof dm !== 'number') continue;
+          if (dm <= distM + 0.02 && dm > bestDm) {
+            bestDm = dm;
+            best = p;
+          }
+        }
+        if (best) return best;
+      }
+      let bestI: PanoDataItem | null = null;
+      for (const p of panoData) {
+        if (p.pathIndex <= pathIdx && (bestI === null || p.pathIndex > bestI.pathIndex)) bestI = p;
+      }
+      return bestI ?? panoData[0];
+    },
+    []
+  );
 
   // 사용자 현재 위치 조회 (Geolocation API) — 지도 노출 전에 요청해 초기 중심에 반영
   useEffect(() => {
@@ -2860,7 +2893,12 @@ const App: React.FC = () => {
       lastDisplayedPanoPathIndexRef.current = currentIdx - 1;
       lastSvDisplayUpdateRef.current = Date.now();
       if (isSvActive && routeData.panoData?.length) {
-        const panoItem = getPanoDataForIndex(routeData.panoData, currentIdx);
+        const pausePath = route.path;
+        const cumPause: number[] = [0];
+        for (let i = 1; i < pausePath.length; i++) {
+          cumPause[i] = cumPause[i - 1] + computeDistanceBetween(pausePath[i - 1], pausePath[i]);
+        }
+        const panoItem = getPanoDataForRidePosition(routeData.panoData, cumPause, currentIdx);
         if (panoItem) {
           lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
           lastDisplayedPanoIdRef.current = panoItem.panoId;
@@ -2914,17 +2952,17 @@ const App: React.FC = () => {
       if (isSvActive) {
         if (routeData.panoData?.length) {
           const panos = routeData.panoData;
-          const panoItem = getPanoDataForIndex(panos, svDisplayIdxForPano);
+          const pathForSv = route.path;
+          const cumDistSv: number[] = [0];
+          for (let i = 1; i < pathForSv.length; i++) {
+            cumDistSv[i] = cumDistSv[i - 1] + computeDistanceBetween(pathForSv[i - 1], pathForSv[i]);
+          }
+          const panoItem = getPanoDataForRidePosition(panos, cumDistSv, svDisplayIdxForPano);
           let maxPanoPathIdx = -1;
           let maxDistAlong = -1;
           for (const p of panos) {
             if (p.pathIndex > maxPanoPathIdx) maxPanoPathIdx = p.pathIndex;
             if (typeof p.distAlongRouteM === 'number') maxDistAlong = Math.max(maxDistAlong, p.distAlongRouteM);
-          }
-          const pathForSv = route.path;
-          const cumDistSv: number[] = [0];
-          for (let i = 1; i < pathForSv.length; i++) {
-            cumDistSv[i] = cumDistSv[i - 1] + computeDistanceBetween(pathForSv[i - 1], pathForSv[i]);
           }
           if (maxDistAlong < 0) {
             maxDistAlong = cumDistSv[Math.min(Math.max(0, maxPanoPathIdx), pathForSv.length - 1)];
@@ -3152,7 +3190,7 @@ const App: React.FC = () => {
       }
       // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, route?.panoData, isSvFullScreen, isSvActive, setPanoramaView, setPanoramaViewByPanoId, getPanoDataForIndex, preFetchStreetViewData]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, route?.panoData, isSvFullScreen, isSvActive, setPanoramaView, setPanoramaViewByPanoId, getPanoDataForRidePosition, preFetchStreetViewData]);
 
   // Simulation progression driver: runs continuously while simulation is active,
   // accumulates distance from live speed, and advances currentIndex by path segments.
@@ -4103,7 +4141,12 @@ const App: React.FC = () => {
 
     const syncCurrentStreetView = async () => {
       if (route.panoData?.length) {
-        const panoItem = getPanoDataForIndex(route.panoData, currentIdx);
+        const syncPath = route.path;
+        const cumSync: number[] = [0];
+        for (let i = 1; i < syncPath.length; i++) {
+          cumSync[i] = cumSync[i - 1] + computeDistanceBetween(syncPath[i - 1], syncPath[i]);
+        }
+        const panoItem = getPanoDataForRidePosition(route.panoData, cumSync, currentIdx);
         if (panoItem) {
           svDisplayPathIndexRef.current = currentIdx;
           lastSvDisplayUpdateRef.current = Date.now();
@@ -4121,7 +4164,7 @@ const App: React.FC = () => {
 
     void syncCurrentStreetView();
   }, [
-    getPanoDataForIndex,
+    getPanoDataForRidePosition,
     isSvActive,
     route,
     setPanoramaView,
