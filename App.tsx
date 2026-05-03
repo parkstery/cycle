@@ -525,24 +525,6 @@ function inputsMatch(
   return waypoints.every((w, i) => (w.name || '').trim() === (last.waypointNames[i] || '').trim());
 }
 
-function exploreAssetBase(): string {
-  return (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
-}
-
-function resolveExploreThumbnailPath(src: string | undefined): string {
-  if (!src?.trim()) return '';
-  if (src.startsWith('http://') || src.startsWith('https://')) return src;
-  const path = src.startsWith('/') ? src.slice(1) : src;
-  return `${exploreAssetBase()}${path}`;
-}
-
-function exploreDifficultyPillClass(difficulty: string): string {
-  const d = String(difficulty || '').toLowerCase();
-  if (d === 'easy') return 'bg-emerald-100 text-emerald-900 border border-emerald-200';
-  if (d === 'hard') return 'bg-rose-100 text-rose-900 border border-rose-200';
-  return 'bg-amber-50 text-amber-950 border border-amber-200';
-}
-
 function fallbackExploreDisplay(route: SavedRoute): ExploreRouteDisplay {
   const tm = route.routePayload?.totalDistanceMeters;
   return {
@@ -552,7 +534,6 @@ function fallbackExploreDisplay(route: SavedRoute): ExploreRouteDisplay {
     distanceKm: tm != null ? Math.round((tm / 1000) * 10) / 10 : 0,
     elevationGain: 0,
     difficulty: 'moderate',
-    thumbnail: '/cycle_road.png',
     tags: []
   };
 }
@@ -571,65 +552,29 @@ function ExploreRouteRow({
   onPick: (r: SavedRoute) => void;
   compact?: boolean;
 }) {
-  const [imgBroken, setImgBroken] = useState(false);
   const d = getExploreRouteDisplay(route);
-  const thumbUrl = resolveExploreThumbnailPath(d.thumbnail);
   const ready = !!route.routePayload?.fullGeometry?.length;
-  const pad = compact ? 'py-2.5 px-2 gap-2.5' : 'py-4 px-3 gap-3.5';
-  const imgCls = compact ? 'h-14 w-14 shrink-0 rounded-lg' : 'h-[4.5rem] w-[4.5rem] shrink-0 rounded-xl';
+  const loc = [d.city, d.country].filter((x) => x && String(x).trim() && x !== '—').join(', ');
+  const line2Parts: string[] = [];
+  if (loc) line2Parts.push(loc);
+  line2Parts.push(`${d.distanceKm} km`, `${d.elevationGain} m↑`, String(d.difficulty || '').toLowerCase());
+  if (d.tags?.length) line2Parts.push(...d.tags);
+  const line2 = line2Parts.join(' · ');
+  const titleCls = compact ? 'text-[12px]' : 'text-[13px]';
+  const subCls = compact ? 'text-[10px]' : 'text-[11px]';
   return (
     <button
       type="button"
       onClick={() => onPick(route)}
-      className={`flex w-full items-stretch rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100 ${pad}`}
+      className={`w-full rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100 ${compact ? 'py-2 px-2.5' : 'py-2.5 px-3'}`}
     >
-      <div className={`relative overflow-hidden bg-slate-200 ${imgCls}`}>
-        {thumbUrl && !imgBroken ? (
-          <img
-            src={thumbUrl}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            onError={() => setImgBroken(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-500">
-            <MapPin size={compact ? 20 : 24} className="opacity-55" />
-          </div>
-        )}
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className={`min-w-0 truncate font-extrabold leading-tight text-slate-900 ${titleCls}`}>{d.title}</span>
+        <span className={`shrink-0 font-black uppercase tracking-wide ${ready ? 'text-emerald-600' : 'text-amber-600'} ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+          {ready ? 'READY' : 'SYNC'}
+        </span>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <div className="flex items-start justify-between gap-2">
-          <span className={`font-extrabold leading-snug text-slate-900 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>{d.title}</span>
-          <span className={`shrink-0 font-black uppercase tracking-wide ${ready ? 'text-emerald-600' : 'text-amber-600'} ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
-            {ready ? 'READY' : 'SYNC'}
-          </span>
-        </div>
-        <div className={`font-medium text-slate-500 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
-          {d.city}
-          {d.city && d.country ? ', ' : ''}
-          {d.country}
-        </div>
-        <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-600 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
-          <span>
-            <span className="font-semibold text-slate-800">{d.distanceKm}</span> km
-          </span>
-          <span className="text-slate-300">·</span>
-          <span>
-            <span className="font-semibold text-slate-800">{d.elevationGain}</span> m ↑
-          </span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${exploreDifficultyPillClass(d.difficulty)}`}>{d.difficulty}</span>
-        </div>
-        {d.tags.length > 0 && (
-          <div className="mt-0.5 flex flex-wrap gap-1">
-            {d.tags.map((t) => (
-              <span key={t} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className={`mt-0.5 min-w-0 leading-snug text-slate-600 ${subCls} line-clamp-2`}>{line2}</div>
     </button>
   );
 }

@@ -108,7 +108,7 @@ export interface ExploreRouteDisplay {
   distanceKm: number;
   elevationGain: number;
   difficulty: string;
-  /** Optional image URL or app-relative path (e.g. /cycle_road.png). */
+  /** Reserved; not shown in UI. */
   thumbnail?: string;
   tags: string[];
 }
