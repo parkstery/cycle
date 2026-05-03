@@ -3988,14 +3988,25 @@ const App: React.FC = () => {
           ? await fetchOsrmRouteJson(profile, coords)
           : await (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`)).json();
         if (data.code !== 'Ok') {
-          const snapMsg =
-            '선택한 위치에서 100m 이내 도로를 찾지 못했습니다. 도로 가까이에서 출발/도착을 다시 지정해 주세요.';
           const errText = typeof (data as { error?: string }).error === 'string' ? (data as { error?: string }).error : '';
-          alert(data.code === 'NoSegment' ? snapMsg : errText || `경로를 찾을 수 없습니다. (${data.code ?? '오류'})`);
+          if (data.code === 'NoSegment') {
+            alert(
+              errText ||
+                'Could not find a routable road near your selected points (within 300 m). Try moving the start, end, or waypoints closer to a mapped road.'
+            );
+          } else {
+            alert(errText || `Route could not be computed. (${data.code ?? 'Error'})`);
+          }
           setLoading(false);
           return;
         }
         if (data.code === 'Ok') {
+          const osrmMeta = (data as { _meta?: { osrmSnapRelaxed?: boolean } })._meta;
+          if (osrmMeta?.osrmSnapRelaxed) {
+            alert(
+              'No routable road within 100 m of a point. The search radius was widened to 300 m and a route was found. The path may start slightly farther from where you tapped.'
+            );
+          }
           const decoded = decodePath(data.routes[0].geometry);
           lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);
           path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
@@ -4220,7 +4231,7 @@ const App: React.FC = () => {
         destination: finalDestination.substring(0, 50),
         error: err instanceof Error ? err.message : String(err)
       });
-      alert("경로를 찾을 수 없습니다.");
+      alert('Could not compute the route. Please try again.');
     }
     finally { setLoading(false); }
   }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);

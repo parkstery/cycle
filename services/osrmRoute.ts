@@ -1,7 +1,7 @@
 /**
  * OSRM 경로 조회 — Capacitor/Android 등 정적 호스트에서는 /api/osrm-route 프록시가 없으므로
  * 브라우저/WebView에서 routing.openstreetmap.de 로 직접 요청합니다.
- * 도로 스냅은 OSRM route 의 `radiuses`(m)로 제한 — 클릭 지점에서 너무 먼 도로로 붙는 것을 막음.
+ * 도로 스냅: 먼저 `radiuses` 엄격(100m), NoSegment 시 한 번만 완화(300m) 재시도.
  * (로직은 api/osrm-route.js 와 동일)
  */
 
@@ -11,8 +11,13 @@ const FALLBACK_BASE = 'https://router.project-osrm.org';
 const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
-/** 경유지마다 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 (밖이면 NoSegment 등) */
-export const OSRM_SNAP_RADIUS_M = 100;
+/** 1차 스냅 반경(m) — 각 경유지에 동일 적용 */
+export const OSRM_SNAP_RADIUS_STRICT_M = 100;
+/** 1차 실패(NoSegment) 시에만 사용하는 2차 스냅 반경(m) */
+export const OSRM_SNAP_RADIUS_RELAXED_M = 300;
+
+/** @deprecated OSRM_SNAP_RADIUS_STRICT_M 사용 */
+export const OSRM_SNAP_RADIUS_M = OSRM_SNAP_RADIUS_STRICT_M;
 
 function getRouteBase(profile: string): string {
   const p = String(profile || 'driving').toLowerCase();
@@ -68,21 +73,28 @@ async function fetchRouteHttpWithRetry(
 export type OsrmRouteResponse = {
   code?: string;
   routes?: Array<{ geometry: string; distance: number; duration: number }>;
-  _meta?: { routingSource?: 'osm-de' | 'project-osrm' };
+  _meta?: {
+    routingSource?: 'osm-de' | 'project-osrm';
+    osrmSnapRadiusM?: number;
+    /** true when 100m failed with NoSegment and 300m succeeded */
+    osrmSnapRelaxed?: boolean;
+  };
 };
 
-/**
- * OSRM JSON 응답 (api/osrm-route 프록시와 동일 형식)
- */
-export async function fetchOsrmRouteJson(profile: string, coords: string): Promise<OsrmRouteResponse> {
-  const coordList = coords.split(';').map((c) => c.trim()).filter(Boolean);
-  if (coordList.length === 0) throw new Error('Empty coords');
+type SingleRadiusResult =
+  | { success: true; data: OsrmRouteResponse; routingSource?: 'osm-de' | 'project-osrm' }
+  | { success: false; data: OsrmRouteResponse | null };
 
+async function fetchOsrmSingleRadius(
+  profile: string,
+  coordList: string[],
+  snapM: number
+): Promise<SingleRadiusResult> {
+  const routeCoords = coordList.join(';');
   const base = getRouteBase(profile);
   const apiProfile = getOsrmApiProfile(profile);
-  const radiuses = coordList.map(() => OSRM_SNAP_RADIUS_M).join(';');
+  const radiuses = coordList.map(() => snapM).join(';');
   const baseParams = `overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${encodeURIComponent(radiuses)}`;
-  const routeCoords = coordList.join(';');
 
   const primaryUrl = `${base}/route/v1/${apiProfile}/${routeCoords}?${baseParams}`;
   const fallbackUrl = `${FALLBACK_BASE}/route/v1/${apiProfile}/${routeCoords}?${baseParams}`;
@@ -103,12 +115,8 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
     body = primaryResult.body;
     routingSource = 'osm-de';
   } else {
-    try {
-      ({ r, body } = await fetchRouteHttpWithRetry(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
-      if (r.ok) routingSource = 'project-osrm';
-    } catch (e) {
-      throw new Error(`OSRM fallback failed: ${String(e)}`);
-    }
+    ({ r, body } = await fetchRouteHttpWithRetry(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
+    if (r.ok) routingSource = 'project-osrm';
   }
 
   let data: OsrmRouteResponse;
@@ -118,8 +126,9 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
     if (!r.ok) throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
     throw new Error('OSRM invalid JSON');
   }
+
   if (data.code && data.code !== 'Ok') {
-    return data;
+    return { success: false, data };
   }
   if (!r.ok) {
     throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
@@ -127,5 +136,44 @@ export async function fetchOsrmRouteJson(profile: string, coords: string): Promi
   if (routingSource) {
     data._meta = { ...(data._meta || {}), routingSource };
   }
-  return data;
+  return { success: true, data, routingSource };
+}
+
+/**
+ * OSRM JSON 응답 (api/osrm-route 프록시와 동일 형식)
+ * 100m 스냅 → NoSegment 시 300m 한 번 재시도.
+ */
+export async function fetchOsrmRouteJson(profile: string, coords: string): Promise<OsrmRouteResponse> {
+  const coordList = coords.split(';').map((c) => c.trim()).filter(Boolean);
+  if (coordList.length === 0) throw new Error('Empty coords');
+
+  const strict = await fetchOsrmSingleRadius(profile, coordList, OSRM_SNAP_RADIUS_STRICT_M);
+  if (strict.success) {
+    const d = strict.data;
+    d._meta = {
+      ...(d._meta || {}),
+      routingSource: strict.routingSource,
+      osrmSnapRadiusM: OSRM_SNAP_RADIUS_STRICT_M,
+      osrmSnapRelaxed: false,
+    };
+    return d;
+  }
+
+  if (strict.data?.code === 'NoSegment') {
+    const relaxed = await fetchOsrmSingleRadius(profile, coordList, OSRM_SNAP_RADIUS_RELAXED_M);
+    if (relaxed.success) {
+      const d = relaxed.data;
+      d._meta = {
+        ...(d._meta || {}),
+        routingSource: relaxed.routingSource,
+        osrmSnapRadiusM: OSRM_SNAP_RADIUS_RELAXED_M,
+        osrmSnapRelaxed: true,
+      };
+      return d;
+    }
+    return relaxed.data ?? strict.data ?? { code: 'NoSegment' };
+  }
+
+  if (strict.data) return strict.data;
+  throw new Error('OSRM route failed');
 }

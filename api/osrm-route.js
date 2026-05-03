@@ -6,8 +6,8 @@ const FALLBACK_BASE = 'https://router.project-osrm.org';
 const OSRM_PRIMARY_TIMEOUT_MS = 10000;
 const OSRM_FALLBACK_TIMEOUT_MS = 10000;
 
-/** 경유지별 동일 — 각 좌표는 이 거리(m) 안의 도로에만 스냅 */
-const OSRM_SNAP_RADIUS_M = 100;
+const OSRM_SNAP_RADIUS_STRICT_M = 100;
+const OSRM_SNAP_RADIUS_RELAXED_M = 300;
 
 /**
  * 모드별 전용 라우팅 서버 base URL (OSM DE).
@@ -63,6 +63,60 @@ async function fetchRouteHttpWithRetry(url, timeoutMs, maxAttempts = 2) {
   return last;
 }
 
+/**
+ * 단일 snap 반경으로 primary → fallback OSRM route 호출.
+ * @returns {{ ok: true, data: object, routingSource?: string }} | {{ ok: false, data: object|null }}
+ */
+async function fetchOsrmSingleRadius(profile, coordList, snapM) {
+  const routeCoords = coordList.join(';');
+  const base = getRouteBase(profile);
+  const apiProfile = getOsrmApiProfile(profile);
+  const radiuses = coordList.map(() => snapM).join(';');
+  const baseParams = `overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${encodeURIComponent(radiuses)}`;
+
+  const primaryUrl = `${base}/route/v1/${apiProfile}/${routeCoords}?${baseParams}`;
+  const fallbackUrl = `${FALLBACK_BASE}/route/v1/${apiProfile}/${routeCoords}?${baseParams}`;
+
+  let primaryResult = null;
+  try {
+    primaryResult = await fetchRouteHttpWithRetry(primaryUrl, OSRM_PRIMARY_TIMEOUT_MS);
+  } catch {
+    primaryResult = null;
+  }
+
+  let r;
+  let body;
+  let routingSource;
+
+  if (primaryResult?.r.ok) {
+    r = primaryResult.r;
+    body = primaryResult.body;
+    routingSource = 'osm-de';
+  } else {
+    ({ r, body } = await fetchRouteHttpWithRetry(fallbackUrl, OSRM_FALLBACK_TIMEOUT_MS));
+    if (r.ok) routingSource = 'project-osrm';
+  }
+
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    if (!r.ok) throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
+    throw new Error('OSRM invalid JSON');
+  }
+
+  if (data.code && data.code !== 'Ok') {
+    return { ok: false, data };
+  }
+  if (!r.ok) {
+    throw new Error(`OSRM ${r.status}: ${body.slice(0, 240)}`);
+  }
+  if (routingSource) {
+    data._meta = { ...(data._meta || {}), routingSource };
+  }
+  return { ok: true, data, routingSource };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -81,57 +135,55 @@ export default async function handler(req, res) {
       return;
     }
 
-    const base = getRouteBase(profile);
-    const apiProfile = getOsrmApiProfile(profile);
-    const radiuses = coordList.map(() => OSRM_SNAP_RADIUS_M).join(';');
-    const baseParams = `overview=full&geometries=polyline&alternatives=false&steps=false&radiuses=${encodeURIComponent(radiuses)}`;
-    const routeCoords = coordList.join(';');
-
-    const primaryBuilder = (c) => `${base}/route/v1/${apiProfile}/${c}?${baseParams}`;
-    const fallbackBuilder = (c) => `${FALLBACK_BASE}/route/v1/${apiProfile}/${c}?${baseParams}`;
-
-    let r;
-    let body;
-    let routingSource;
-
+    let out;
     try {
-      ({ r, body } = await fetchRouteHttpWithRetry(
-        primaryBuilder(routeCoords),
-        OSRM_PRIMARY_TIMEOUT_MS
-      ));
-      if (r.ok) routingSource = 'osm-de';
-    } catch {
-      r = { ok: false };
-      body = '';
+      out = await fetchOsrmSingleRadius(profile, coordList, OSRM_SNAP_RADIUS_STRICT_M);
+    } catch (e) {
+      res.status(502).json({ error: String(e?.message ?? e) });
+      return;
     }
 
-    if (!r.ok) {
+    if (out.ok) {
+      out.data._meta = {
+        ...(out.data._meta || {}),
+        osrmSnapRadiusM: OSRM_SNAP_RADIUS_STRICT_M,
+        osrmSnapRelaxed: false,
+      };
+      res.status(200).json(out.data);
+      return;
+    }
+
+    if (out.data?.code === 'NoSegment') {
+      let relaxed;
       try {
-        ({ r, body } = await fetchRouteHttpWithRetry(
-          fallbackBuilder(routeCoords),
-          OSRM_FALLBACK_TIMEOUT_MS
-        ));
-        if (r.ok) routingSource = 'project-osrm';
+        relaxed = await fetchOsrmSingleRadius(profile, coordList, OSRM_SNAP_RADIUS_RELAXED_M);
       } catch (e) {
         res.status(502).json({ error: String(e?.message ?? e) });
         return;
       }
-    }
-
-    if (!r.ok) {
-      try {
-        const errJson = JSON.parse(body);
-        res.status(r.status).json({ error: errJson.message || body, code: errJson.code });
-      } catch {
-        res.status(r.status).json({ error: body });
+      if (relaxed.ok) {
+        relaxed.data._meta = {
+          ...(relaxed.data._meta || {}),
+          osrmSnapRadiusM: OSRM_SNAP_RADIUS_RELAXED_M,
+          osrmSnapRelaxed: true,
+        };
+        res.status(200).json(relaxed.data);
+        return;
       }
+      const fail = relaxed.data ?? out.data;
+      res.status(400).json({
+        error: fail?.message || 'Could not find a routable road near the selected points.',
+        code: fail?.code || 'NoSegment',
+      });
       return;
     }
-    const data = JSON.parse(body);
-    if (routingSource) {
-      data._meta = { ...(data._meta || {}), routingSource };
-    }
-    res.status(200).json(data);
+
+    const err = out.data;
+    res.status(400).json({
+      error: err?.message || 'Route request failed',
+      code: err?.code,
+    });
+    return;
   } catch (e) {
     res.status(502).json({ error: String(e?.message ?? e) });
   }
