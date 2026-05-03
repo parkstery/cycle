@@ -35,7 +35,7 @@ export function decodePath(encoded: string): [number, number][] {
 }
 
 /** Google LatLng 호환: .lat/.lng 숫자 또는 .lat()/.lng() 메서드 */
-type LatLngLike = { lat?: number; lng?: number } | { lat: () => number; lng: () => number };
+export type LatLngLike = { lat?: number; lng?: number } | { lat: () => number; lng: () => number };
 
 function getLatLng(p: LatLngLike): { lat: number; lng: number } {
   const lat = typeof (p as { lat?: () => number }).lat === 'function' ? (p as { lat: () => number }).lat() : (p as { lat?: number }).lat;
@@ -132,4 +132,69 @@ export function minDistanceFromPointToPolylinePath(
     if (d < minD) minD = d;
   }
   return minD;
+}
+
+function normalizeAngleDiffDeg(deg: number): number {
+  while (deg > 180) deg -= 360;
+  while (deg < -180) deg += 360;
+  return deg;
+}
+
+/**
+ * 누적 경로 거리 기준으로 pathIndex 주변 [d0-backwardM, d0+forwardM] 구간에 걸친 꼭짓점들의
+ * 방향 변화 합(도). 교차로·급회전 탐지용.
+ */
+export function headingChangeSumAlongPath(
+  path: LatLngLike[],
+  cumDist: number[],
+  pathIndex: number,
+  backwardM: number,
+  forwardM: number
+): number {
+  if (path.length < 3 || cumDist.length !== path.length) return 0;
+  const d0 = cumDist[Math.min(pathIndex, cumDist.length - 1)] ?? 0;
+  const dLo = Math.max(0, d0 - backwardM);
+  const dHi = Math.min(cumDist[cumDist.length - 1], d0 + forwardM);
+  let sum = 0;
+  for (let i = 1; i <= path.length - 2; i++) {
+    const di = cumDist[i];
+    if (di < dLo || di > dHi) continue;
+    const h1 = computeHeading(path[i - 1], path[i]);
+    const h2 = computeHeading(path[i], path[i + 1]);
+    sum += Math.abs(normalizeAngleDiffDeg(h2 - h1));
+  }
+  return sum;
+}
+
+/**
+ * 경로 시작부터 distanceM 지점의 보간 좌표(폴리라인 누적 거리 기준).
+ */
+export function getLatLngAtDistanceAlongPath(
+  path: LatLngLike[],
+  cumDist: number[],
+  distanceM: number
+): { lat: number; lng: number; segmentIndex: number } {
+  if (!path.length || !cumDist.length) return { lat: 0, lng: 0, segmentIndex: 0 };
+  const total = cumDist[cumDist.length - 1];
+  const d = Math.max(0, Math.min(distanceM, total));
+  if (path.length === 1) {
+    const p = getLatLng(path[0]);
+    return { lat: p.lat, lng: p.lng, segmentIndex: 0 };
+  }
+  let i = 0;
+  while (i < path.length - 1 && cumDist[i + 1] < d) i++;
+  if (i >= path.length - 1) {
+    const p = getLatLng(path[path.length - 1]);
+    return { lat: p.lat, lng: p.lng, segmentIndex: Math.max(0, path.length - 2) };
+  }
+  const d0 = cumDist[i];
+  const d1 = cumDist[i + 1];
+  const t = d1 > d0 ? (d - d0) / (d1 - d0) : 0;
+  const a = getLatLng(path[i]);
+  const b = getLatLng(path[i + 1]);
+  return {
+    lat: a.lat + t * (b.lat - a.lat),
+    lng: a.lng + t * (b.lng - a.lng),
+    segmentIndex: i
+  };
 }

@@ -18,7 +18,15 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { decodePath, computeDistanceBetween, computeHeading, computeOffset, minDistanceFromPointToPolylinePath } from './services/geoUtils';
+import {
+  decodePath,
+  computeDistanceBetween,
+  computeHeading,
+  computeOffset,
+  minDistanceFromPointToPolylinePath,
+  getLatLngAtDistanceAlongPath,
+  headingChangeSumAlongPath
+} from './services/geoUtils';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -320,6 +328,7 @@ const findStreetViewInDirection = (
   pathNext: any,
   pathIndex: number,
   path: any[],
+  cumDist: number[] | null,
   radius: number,
   maxAngleDeg: number = 110
 ): Promise<PanoDataItem | null> => {
@@ -339,8 +348,17 @@ const findStreetViewInDirection = (
       if (lateralM > SV_CORRIDOR_MAX_M) return null;
       if (usedFallback && lateralM > SV_CORRIDOR_USER_MAX_M) return null;
     }
-    const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-    const heading = computeHeading(pathPoint, path[nextIdx]);
+    let heading: number;
+    if (cumDist && cumDist.length === path.length) {
+      const dHere = cumDist[pathIndex];
+      const totalLen = cumDist[cumDist.length - 1];
+      const povD = Math.min(dHere + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
+      const pov = getLatLngAtDistanceAlongPath(path, cumDist, povD);
+      heading = computeHeading(pathPoint, { lat: pov.lat, lng: pov.lng });
+    } else {
+      const nextIdx = Math.min(pathIndex + 10, path.length - 1);
+      heading = computeHeading(pathPoint, path[nextIdx]);
+    }
     return {
       pathIndex,
       panoId: data.location.pano,
@@ -357,6 +375,21 @@ const SV_PASS1_RADIUS_M = 50;
 const SV_PASS1_MAX_ANGLE_DEG = 40;
 /** Pass1 실패 시 재시도 각도(°). 차로 전환 등으로 40° 밖에 파노가 있을 때 멈춤 방지, 실내 파노는 이후 필터로 제외 */
 const SV_PASS1_RELAXED_ANGLE_DEG = 90;
+/** 교차로·급회전 구간(인접 구간 방향 변화 합 ≥ 이 값°)에서 Pass 각도 강화 */
+const SV_TURN_SHARP_SUM_DEG = 32;
+const SV_PASS1_MAX_ANGLE_STRICT = 30;
+const SV_PASS1_RELAXED_ANGLE_STRICT = 68;
+const SV_PASS2_MAX_ANGLE_STRICT = 82;
+/** 방향 필터 기준점: 현재 샘플에서 경로를 따라 이 거리(m) 앞 좌표로 진행 방향 계산(교차 도로 오인 완화) */
+const SV_HEADING_LOOKAHEAD_M = 52;
+/** POV 시선 방위: 경로상 전방 이 거리(m) 지점까지의 방위 */
+const SV_POV_HEADING_LOOKAHEAD_M = 44;
+/** 적응형 샘플: 직선 구간 간격(m) — 거리뷰 과밀·전환 부담 완화 */
+const SV_SAMPLE_INTERVAL_STRAIGHT_M = 18;
+/** 적응형 샘플: 회전·교차 구간 간격(m) — 잘못된 교차 도로 파노가 길게 유지되는 것 완화 */
+const SV_SAMPLE_INTERVAL_TURN_M = 6;
+/** 이 값 이상이면 회전 구간으로 간주하고 SV_SAMPLE_INTERVAL_TURN_M 사용 */
+const SV_ADAPTIVE_TURN_SUM_DEG = 26;
 /** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
 const SV_PASS2_MAX_ANGLE_DEG = 100;
@@ -1589,7 +1622,10 @@ const App: React.FC = () => {
     options?: {
       fromDistanceM?: number;
       maxDistanceM?: number;
+      /** 고정 간격(m). adaptiveSampling이 false일 때만 사용 */
       intervalM?: number;
+      /** 직선은 넓게·회전·교차는 촘촘히 (기본 true). false면 intervalM(기본 10m) 고정 */
+      adaptiveSampling?: boolean;
       /** 슬라이딩 프리패치 시 직전 배치 끝이 공식 파노면 짧은 구간 사용자 파노 삽입 억제 */
       chainTailMeta?: { sampleDistM: number; wasOfficial: boolean };
     }
@@ -1600,14 +1636,35 @@ const App: React.FC = () => {
       cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
     }
     const totalM = cumDist[path.length - 1];
-    const intervalM = options?.intervalM ?? 10;
     const fromDistanceM = options?.fromDistanceM ?? 0;
     const maxDistanceM = options?.maxDistanceM ?? totalM;
-    const samples: number[] = [];
-    for (let d = fromDistanceM; d <= Math.min(totalM, maxDistanceM); d += intervalM) {
-      let i = 0;
-      while (i < path.length - 1 && cumDist[i + 1] < d) i++;
-      samples.push(Math.min(i, path.length - 1));
+    const capDist = Math.min(totalM, maxDistanceM);
+    const useAdaptive = options?.adaptiveSampling !== false;
+    const samples: { pathIndex: number; distAlongPath: number }[] = [];
+    if (useAdaptive) {
+      let d = fromDistanceM;
+      while (d <= capDist + 1e-6) {
+        let i = 0;
+        while (i < path.length - 1 && cumDist[i + 1] < d) i++;
+        const pathIndex = Math.min(i, path.length - 1);
+        samples.push({ pathIndex, distAlongPath: Math.min(d, capDist) });
+        const turnSumAt = headingChangeSumAlongPath(path, cumDist, pathIndex, 24, 28);
+        const step =
+          turnSumAt >= SV_ADAPTIVE_TURN_SUM_DEG ? SV_SAMPLE_INTERVAL_TURN_M : SV_SAMPLE_INTERVAL_STRAIGHT_M;
+        d += step;
+      }
+      if (samples.length === 0 && fromDistanceM <= capDist) {
+        let i = 0;
+        while (i < path.length - 1 && cumDist[i + 1] < fromDistanceM) i++;
+        samples.push({ pathIndex: Math.min(i, path.length - 1), distAlongPath: fromDistanceM });
+      }
+    } else {
+      const intervalM = options?.intervalM ?? 10;
+      for (let d = fromDistanceM; d <= capDist; d += intervalM) {
+        let i = 0;
+        while (i < path.length - 1 && cumDist[i + 1] < d) i++;
+        samples.push({ pathIndex: Math.min(i, path.length - 1), distAlongPath: d });
+      }
     }
     const panoData: PanoDataItem[] = [];
     const n = samples.length;
@@ -1616,21 +1673,35 @@ const App: React.FC = () => {
         ? { sampleDistM: options.chainTailMeta.sampleDistM, isOfficial: true }
         : null;
     for (let k = 0; k < n; k++) {
-      const pathIndex = samples[k];
+      const { pathIndex, distAlongPath: sampleDistM } = samples[k];
       const pathPoint = path[pathIndex];
-      const pathNext = path[Math.min(pathIndex + 10, path.length - 1)];
-      const driveHeading = computeHeading(pathPoint, pathNext);
+      const dHere = cumDist[pathIndex];
+      const totalLen = cumDist[path.length - 1];
+      let pathNextForSv: any;
+      if (totalLen - dHere < 8) {
+        pathNextForSv = path[Math.min(pathIndex + 1, path.length - 1)];
+      } else {
+        const lookDist = Math.min(dHere + SV_HEADING_LOOKAHEAD_M, totalLen);
+        const ahead = getLatLngAtDistanceAlongPath(path, cumDist, lookDist);
+        pathNextForSv = { lat: ahead.lat, lng: ahead.lng };
+      }
+      const driveHeading = computeHeading(pathPoint, pathNextForSv);
+      const turnSumHere = headingChangeSumAlongPath(path, cumDist, pathIndex, 22, 30);
+      const sharpTurn = turnSumHere >= SV_TURN_SHARP_SUM_DEG;
+      const pass1Angle = sharpTurn ? SV_PASS1_MAX_ANGLE_STRICT : SV_PASS1_MAX_ANGLE_DEG;
+      const pass1RelaxedAngle = sharpTurn ? SV_PASS1_RELAXED_ANGLE_STRICT : SV_PASS1_RELAXED_ANGLE_DEG;
+      const pass2Angle = sharpTurn ? SV_PASS2_MAX_ANGLE_STRICT : SV_PASS2_MAX_ANGLE_DEG;
       const candidates: { item: PanoDataItem; maxD: number }[] = [];
-      const sampleDistM = fromDistanceM + k * intervalM;
 
       const pass1 = await findStreetViewInDirection(
         svServiceRef.current,
         pathPoint,
-        pathNext,
+        pathNextForSv,
         pathIndex,
         path,
+        cumDist,
         SV_PASS1_RADIUS_M,
-        SV_PASS1_MAX_ANGLE_DEG
+        pass1Angle
       );
       if (pass1) candidates.push({ item: pass1, maxD: SV_PASS1_RADIUS_M });
 
@@ -1638,11 +1709,12 @@ const App: React.FC = () => {
         const pass1Relaxed = await findStreetViewInDirection(
           svServiceRef.current,
           pathPoint,
-          pathNext,
+          pathNextForSv,
           pathIndex,
           path,
+          cumDist,
           SV_PASS1_RADIUS_M,
-          SV_PASS1_RELAXED_ANGLE_DEG
+          pass1RelaxedAngle
         );
         if (pass1Relaxed) candidates.push({ item: pass1Relaxed, maxD: SV_PASS1_RADIUS_M });
       }
@@ -1651,11 +1723,12 @@ const App: React.FC = () => {
         const pass2 = await findStreetViewInDirection(
           svServiceRef.current,
           pathPoint,
-          pathNext,
+          pathNextForSv,
           pathIndex,
           path,
+          cumDist,
           SV_PASS2_RADIUS_M,
-          SV_PASS2_MAX_ANGLE_DEG
+          pass2Angle
         );
         if (pass2?.panoId) {
           const desc = pass2.description ?? '';
@@ -2795,7 +2868,6 @@ const App: React.FC = () => {
               preFetchStreetViewData(path, () => { }, {
                 fromDistanceM: fromM,
                 maxDistanceM: toM,
-                intervalM: 10,
                 ...(chainTailMeta ? { chainTailMeta } : {})
               })
                 .then(({ panoData: nextPanos }) => {
@@ -3661,7 +3733,7 @@ const App: React.FC = () => {
           const { panoData, sampleCount } = await preFetchStreetViewData(
             path,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: initialPrefetchM, intervalM: 10 }
+            { maxDistanceM: initialPrefetchM }
           );
           setPreparingProgress(null);
           const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
@@ -3714,7 +3786,6 @@ const App: React.FC = () => {
     preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), {
       fromDistanceM: currentDistanceM,
       maxDistanceM: currentDistanceM + INITIAL_PREFETCH_HIGH_M,
-      intervalM: 10,
       ...(chainTailMetaSpeed ? { chainTailMeta: chainTailMetaSpeed } : {})
     }).then(({ panoData: newPanoData }) => {
       const kept = keptBefore;
@@ -4252,7 +4323,7 @@ const App: React.FC = () => {
           const { panoData, sampleCount } = await preFetchStreetViewData(
             densifiedPath,
             (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: initialPrefetchM, intervalM: 10 }
+            { maxDistanceM: initialPrefetchM }
           );
           setPreparingProgress(null);
           const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
