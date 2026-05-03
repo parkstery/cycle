@@ -16,6 +16,7 @@
         "distanceKm": 4.5,
         "elevationGain": 380,
         "difficulty": "moderate",
+        "scene": "mountain",
         "tags": ["mountain", "forest", "car"]
       }
     },
@@ -36,6 +37,7 @@
         "distanceKm": 5,
         "elevationGain": 220,
         "difficulty": "moderate",
+        "scene": "desert",
         "tags": ["desert", "heritage", "foot"]
       }
     },
@@ -54,6 +56,7 @@
         "distanceKm": 11.4,
         "elevationGain": 520,
         "difficulty": "hard",
+        "scene": "sea",
         "tags": ["coastal", "urban", "foot"]
       }
     },
@@ -72,6 +75,7 @@
         "distanceKm": 11.6,
         "elevationGain": 180,
         "difficulty": "easy",
+        "scene": "sea",
         "tags": ["coastal", "river", "car"]
       }
     },
@@ -82,14 +86,17 @@
       "profile": "driving",
       "origin": "Gamle Strynefjellsvegen, Stryn, Vestland, Norway",
       "destination": "Strynsfjellvegen, Skjåk, Innlandet, 2695, Norway",
+      "originCoord": [61.94914, 7.31655],
+      "destCoord": [62.00664, 7.6303],
       "waypoints": [],
       "exploreDisplay": {
         "title": "Stryn Mountain Pass",
         "country": "NO",
         "city": "Stryn",
-        "distanceKm": 15.2,
+        "distanceKm": 22,
         "elevationGain": 640,
         "difficulty": "hard",
+        "scene": "mountain",
         "tags": ["alpine", "snow", "car"]
       }
     },
@@ -108,6 +115,7 @@
         "distanceKm": 15.4,
         "elevationGain": 480,
         "difficulty": "moderate",
+        "scene": "mountain",
         "tags": ["glacier", "rockies", "car"]
       }
     },
@@ -126,6 +134,7 @@
         "distanceKm": 17.8,
         "elevationGain": 210,
         "difficulty": "easy",
+        "scene": "sea",
         "tags": ["sea", "islands", "bike"]
       }
     },
@@ -144,6 +153,7 @@
         "distanceKm": 21.2,
         "elevationGain": 720,
         "difficulty": "hard",
+        "scene": "sea",
         "tags": ["cliff", "coastal", "car"]
       }
     },
@@ -162,6 +172,7 @@
         "distanceKm": 23.5,
         "elevationGain": 890,
         "difficulty": "hard",
+        "scene": "mountain",
         "tags": ["alps", "valley", "car"]
       }
     },
@@ -180,6 +191,7 @@
         "distanceKm": 25,
         "elevationGain": 410,
         "difficulty": "moderate",
+        "scene": "lake",
         "tags": ["lake", "scenic", "car"]
       }
     },
@@ -198,6 +210,7 @@
         "distanceKm": 30.4,
         "elevationGain": 120,
         "difficulty": "easy",
+        "scene": "river",
         "tags": ["river", "flat", "car"]
       }
     },
@@ -206,16 +219,19 @@
       "bundledId": "explore-slot-12",
       "source": "EXPLORE",
       "profile": "driving",
-      "origin": "Apollo Bay, Victoria, Australia",
-      "destination": "Anglesea, Victoria, Australia",
+      "origin": "Great Ocean Road, Lorne, Surf Coast Shire, Victoria, 3232, Australia",
+      "destination": "Wye River, Victoria, Australia",
+      "originCoord": [-38.539, 143.982],
+      "destCoord": [-38.5635, 143.9435],
       "waypoints": [],
       "exploreDisplay": {
-        "title": "Great Ocean Road",
+        "title": "Great Ocean Road — Lorne to Wye",
         "country": "AU",
-        "city": "Victoria",
-        "distanceKm": 42,
-        "elevationGain": 560,
-        "difficulty": "moderate",
+        "city": "Lorne",
+        "distanceKm": 5,
+        "elevationGain": 160,
+        "difficulty": "easy",
+        "scene": "sea",
         "tags": ["ocean", "coastal", "car"]
       }
     }

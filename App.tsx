@@ -5,7 +5,20 @@ import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, 
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
-import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem, SavedRoutePayload, ExploreRouteDisplay } from './types';
+import {
+  RouteInfo,
+  TravelMode,
+  SimulationState,
+  CoachingData,
+  SavedRoute,
+  PanoDataItem,
+  AppPhase,
+  CachedCoachingItem,
+  SavedRoutePayload,
+  ExploreRouteDisplay,
+  EXPLORE_SCENE_CATEGORIES,
+  type ExploreSceneCategory
+} from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement, pickFreshTipForResistance, parseResistanceBand } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
@@ -234,6 +247,17 @@ const loadBundledExploreRoutes = async (): Promise<SavedRoute[]> => {
 // 자동배포문제....
 // 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
 const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle_road.png`;
+
+function inferExploreScene(d: ExploreRouteDisplay): ExploreSceneCategory {
+  if (d.scene && (EXPLORE_SCENE_CATEGORIES as readonly string[]).includes(d.scene)) return d.scene;
+  const tags = (d.tags || []).map((t) => String(t).toLowerCase());
+  if (tags.some((t) => /desert|heritage|sand|wadi/.test(t))) return 'desert';
+  if (tags.some((t) => /river|한강/.test(t))) return 'river';
+  if (tags.some((t) => /\blake\b|lucerne|lac/.test(t))) return 'lake';
+  if (tags.some((t) => /ocean|sea|coastal|islands|surf|gor|beach|cliff/.test(t))) return 'sea';
+  if (tags.some((t) => /urban|city/.test(t))) return 'urban';
+  return 'mountain';
+}
 
 // AdMob Units (Ride the World)..
 const ADMOB_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-2386721030013396/3841473087';
@@ -552,7 +576,10 @@ function ExploreRouteRow({
   onPick: (r: SavedRoute) => void;
   compact?: boolean;
 }) {
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
   const d = getExploreRouteDisplay(route);
+  const scene = inferExploreScene(d);
+  const sceneUrl = `${base}explore-scene/${scene}.svg`;
   const ready = !!route.routePayload?.fullGeometry?.length;
   const loc = [d.city, d.country].filter((x) => x && String(x).trim() && x !== '—').join(', ');
   const line2Parts: string[] = [];
@@ -562,19 +589,27 @@ function ExploreRouteRow({
   const line2 = line2Parts.join(' · ');
   const titleCls = compact ? 'text-[12px]' : 'text-[13px]';
   const subCls = compact ? 'text-[10px]' : 'text-[11px]';
+  const thumbCls = compact ? 'h-10 w-10 shrink-0 rounded-lg' : 'h-11 w-11 shrink-0 rounded-lg';
   return (
     <button
       type="button"
       onClick={() => onPick(route)}
       className={`w-full rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100 ${compact ? 'py-2 px-2.5' : 'py-2.5 px-3'}`}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className={`min-w-0 truncate font-extrabold leading-tight text-slate-900 ${titleCls}`}>{d.title}</span>
-        <span className={`shrink-0 font-black uppercase tracking-wide ${ready ? 'text-emerald-600' : 'text-amber-600'} ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
-          {ready ? 'READY' : 'SYNC'}
-        </span>
+      <div className="flex min-w-0 gap-2.5">
+        <div className={`${thumbCls} overflow-hidden border border-slate-200 bg-slate-100`}>
+          <img src={sceneUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <span className={`min-w-0 truncate font-extrabold leading-tight text-slate-900 ${titleCls}`}>{d.title}</span>
+            <span className={`shrink-0 font-black uppercase tracking-wide ${ready ? 'text-emerald-600' : 'text-amber-600'} ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+              {ready ? 'READY' : 'SYNC'}
+            </span>
+          </div>
+          <div className={`mt-0.5 min-w-0 leading-snug text-slate-600 ${subCls} line-clamp-2`}>{line2}</div>
+        </div>
       </div>
-      <div className={`mt-0.5 min-w-0 leading-snug text-slate-600 ${subCls} line-clamp-2`}>{line2}</div>
     </button>
   );
 }

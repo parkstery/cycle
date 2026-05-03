@@ -12,7 +12,8 @@
  * 외부 API:
  *   - Nominatim (주소 → 좌표): https://nominatim.openstreetmap.org
  *   - OSRM (routing.openstreetmap.de): /routed-bike | /routed-foot | /routed-car
- *   - Open-Elevation: https://api.open-elevation.com/api/v1/lookup
+ *   - Open-Elevation: https://api.open-elevation.com/api/v1/lookup (폴백; SRTM 한계 위도는 0m 다수)
+ *   - OpenTopoData mapzen: https://api.opentopodata.org/v1/mapzen (글로벌 DEM, 빌드 시 고도 우선)
  *
  * 정책:
  *   - 각 슬롯은 origin/destination 에 "lat,lng" 직접 지정도 허용(Nominatim 생략).
@@ -38,6 +39,7 @@ const USER_AGENT = 'FitnessProCycleSimulator/1.0 (build-default-routes)';
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const OSRM_BASE = 'https://routing.openstreetmap.de';
 const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
+const OPENTOPODATA_MAPZEN = 'https://api.opentopodata.org/v1/mapzen';
 const DENSIFY_INTERVAL_M = 10;
 const SCHEMA_VERSION = 2;
 const SNAP_RADIUS_M = 50;
@@ -204,6 +206,32 @@ async function osrmRoute(profile, coords) {
   return { geometry: data.routes[0].geometry, distance: data.routes[0].distance, duration: data.routes[0].duration };
 }
 
+async function sampleElevationOpenTopoMapzen(locations) {
+  const locationsStr = locations.map((l) => `${l.latitude},${l.longitude}`).join('|');
+  const url = `${OPENTOPODATA_MAPZEN}?locations=${encodeURIComponent(locationsStr)}`;
+  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  if (!res.ok) throw new Error(`OpenTopoData mapzen ${res.status}`);
+  const data = await res.json();
+  if (data.status !== 'OK' || !Array.isArray(data.results)) throw new Error('OpenTopoData mapzen invalid response');
+  return locations.map((loc, i) => {
+    const el = data.results[i]?.elevation;
+    const elev = el == null || Number.isNaN(Number(el)) ? 0 : Number(el);
+    return [fix8(loc.latitude), fix8(loc.longitude), Number(elev.toFixed(3))];
+  });
+}
+
+async function sampleElevationOpenElevation(locations) {
+  const res = await fetch(OPEN_ELEVATION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
+    body: JSON.stringify({ locations })
+  });
+  if (!res.ok) throw new Error(`Open-Elevation ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data.results)) throw new Error('Open-Elevation invalid response');
+  return data.results.map((r) => [fix8(r.latitude), fix8(r.longitude), Number((Number(r.elevation) || 0).toFixed(3))]);
+}
+
 async function sampleElevation(path, samples = 100) {
   const take = Math.min(samples, path.length);
   const step = path.length <= 1 ? 1 : (path.length - 1) / (take - 1);
@@ -212,25 +240,28 @@ async function sampleElevation(path, samples = 100) {
     const idx = Math.min(Math.round(i * step), path.length - 1);
     locations.push({ latitude: path[idx][0], longitude: path[idx][1] });
   }
-  // Open-Elevation 은 부하 시 502/504 반환이 잦다. 지수 backoff 로 6회까지 재시도.
+  const maxAttemptsTopo = 4;
+  let lastTopoErr;
+  for (let attempt = 1; attempt <= maxAttemptsTopo; attempt++) {
+    const backoffMs = attempt === 1 ? 1100 : Math.min(2000 * Math.pow(2, attempt - 2), 20000);
+    await sleep(backoffMs);
+    try {
+      return await sampleElevationOpenTopoMapzen(locations);
+    } catch (e) {
+      lastTopoErr = e;
+      console.warn(`  elevation mapzen attempt ${attempt}/${maxAttemptsTopo} failed: ${e.message}`);
+    }
+  }
   const maxAttempts = 6;
-  let lastErr;
+  let lastErr = lastTopoErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const backoffMs = attempt === 1 ? 1100 : Math.min(2000 * Math.pow(2, attempt - 2), 30000);
     await sleep(backoffMs);
     try {
-      const res = await fetch(OPEN_ELEVATION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
-        body: JSON.stringify({ locations })
-      });
-      if (!res.ok) throw new Error(`Elevation ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data.results)) throw new Error('Elevation invalid response');
-      return data.results.map((r) => [fix8(r.latitude), fix8(r.longitude), Number((Number(r.elevation) || 0).toFixed(3))]);
+      return await sampleElevationOpenElevation(locations);
     } catch (e) {
       lastErr = e;
-      console.warn(`  elevation attempt ${attempt}/${maxAttempts} failed: ${e.message}`);
+      console.warn(`  elevation open-elevation attempt ${attempt}/${maxAttempts} failed: ${e.message}`);
     }
   }
   throw lastErr ?? new Error('Elevation failed');

@@ -99,6 +99,10 @@ export interface SavedRoutePayload {
   createdAt?: number;
 }
 
+/** Explore list 썸네일: 코스별 이미지가 아니라 산·바다 등 범주별 공용 에셋(`public/explore-scene/*.svg`). */
+export const EXPLORE_SCENE_CATEGORIES = ['mountain', 'sea', 'river', 'lake', 'desert', 'urban'] as const;
+export type ExploreSceneCategory = (typeof EXPLORE_SCENE_CATEGORIES)[number];
+
 /** Curated Explore Routes list / picker (bundled from explore-routes.config.json). */
 export interface ExploreRouteDisplay {
   title: string;
@@ -108,7 +112,8 @@ export interface ExploreRouteDisplay {
   distanceKm: number;
   elevationGain: number;
   difficulty: string;
-  /** Reserved; not shown in UI. */
+  scene?: ExploreSceneCategory;
+  /** Legacy; UI uses `scene` + public SVGs. */
   thumbnail?: string;
   tags: string[];
 }
