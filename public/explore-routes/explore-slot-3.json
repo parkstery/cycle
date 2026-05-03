@@ -10147,5 +10147,19 @@
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Urca to Corcovado",
+    "country": "BR",
+    "city": "Rio de Janeiro",
+    "distanceKm": 11.4,
+    "elevationGain": 520,
+    "difficulty": "hard",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "coastal",
+      "urban",
+      "foot"
+    ]
   }
 }

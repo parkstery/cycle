@@ -27282,5 +27282,19 @@
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Amalfi Coast Drive",
+    "country": "IT",
+    "city": "Amalfi",
+    "distanceKm": 21.2,
+    "elevationGain": 720,
+    "difficulty": "hard",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "cliff",
+      "coastal",
+      "car"
+    ]
   }
 }

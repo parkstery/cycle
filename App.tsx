@@ -5,7 +5,7 @@ import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, 
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
-import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem, SavedRoutePayload } from './types';
+import { RouteInfo, TravelMode, SimulationState, CoachingData, SavedRoute, PanoDataItem, AppPhase, CachedCoachingItem, SavedRoutePayload, ExploreRouteDisplay } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement, pickFreshTipForResistance, parseResistanceBand } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
 import type { SearchSuggestionItem } from './services/nominatim';
@@ -525,6 +525,115 @@ function inputsMatch(
   return waypoints.every((w, i) => (w.name || '').trim() === (last.waypointNames[i] || '').trim());
 }
 
+function exploreAssetBase(): string {
+  return (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+}
+
+function resolveExploreThumbnailPath(src: string | undefined): string {
+  if (!src?.trim()) return '';
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  const path = src.startsWith('/') ? src.slice(1) : src;
+  return `${exploreAssetBase()}${path}`;
+}
+
+function exploreDifficultyPillClass(difficulty: string): string {
+  const d = String(difficulty || '').toLowerCase();
+  if (d === 'easy') return 'bg-emerald-100 text-emerald-900 border border-emerald-200';
+  if (d === 'hard') return 'bg-rose-100 text-rose-900 border border-rose-200';
+  return 'bg-amber-50 text-amber-950 border border-amber-200';
+}
+
+function fallbackExploreDisplay(route: SavedRoute): ExploreRouteDisplay {
+  const tm = route.routePayload?.totalDistanceMeters;
+  return {
+    title: (route.origin || '').split(',')[0]?.trim() || route.id,
+    country: '—',
+    city: '—',
+    distanceKm: tm != null ? Math.round((tm / 1000) * 10) / 10 : 0,
+    elevationGain: 0,
+    difficulty: 'moderate',
+    thumbnail: '/cycle_road.png',
+    tags: []
+  };
+}
+
+function getExploreRouteDisplay(route: SavedRoute): ExploreRouteDisplay {
+  if (route.exploreDisplay?.title) return route.exploreDisplay;
+  return fallbackExploreDisplay(route);
+}
+
+function ExploreRouteRow({
+  route,
+  onPick,
+  compact
+}: {
+  route: SavedRoute;
+  onPick: (r: SavedRoute) => void;
+  compact?: boolean;
+}) {
+  const [imgBroken, setImgBroken] = useState(false);
+  const d = getExploreRouteDisplay(route);
+  const thumbUrl = resolveExploreThumbnailPath(d.thumbnail);
+  const ready = !!route.routePayload?.fullGeometry?.length;
+  const pad = compact ? 'py-2.5 px-2 gap-2.5' : 'py-4 px-3 gap-3.5';
+  const imgCls = compact ? 'h-14 w-14 shrink-0 rounded-lg' : 'h-[4.5rem] w-[4.5rem] shrink-0 rounded-xl';
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(route)}
+      className={`flex w-full items-stretch rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100 ${pad}`}
+    >
+      <div className={`relative overflow-hidden bg-slate-200 ${imgCls}`}>
+        {thumbUrl && !imgBroken ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={() => setImgBroken(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-500">
+            <MapPin size={compact ? 20 : 24} className="opacity-55" />
+          </div>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        <div className="flex items-start justify-between gap-2">
+          <span className={`font-extrabold leading-snug text-slate-900 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>{d.title}</span>
+          <span className={`shrink-0 font-black uppercase tracking-wide ${ready ? 'text-emerald-600' : 'text-amber-600'} ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+            {ready ? 'READY' : 'SYNC'}
+          </span>
+        </div>
+        <div className={`font-medium text-slate-500 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+          {d.city}
+          {d.city && d.country ? ', ' : ''}
+          {d.country}
+        </div>
+        <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-600 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+          <span>
+            <span className="font-semibold text-slate-800">{d.distanceKm}</span> km
+          </span>
+          <span className="text-slate-300">·</span>
+          <span>
+            <span className="font-semibold text-slate-800">{d.elevationGain}</span> m ↑
+          </span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${exploreDifficultyPillClass(d.difficulty)}`}>{d.difficulty}</span>
+        </div>
+        {d.tags.length > 0 && (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {d.tags.map((t) => (
+              <span key={t} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -678,6 +787,7 @@ const App: React.FC = () => {
   const routeSlowModalTimer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeSlowModalTimer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routeSlowModalOpen, setRouteSlowModalOpen] = useState(false);
+  const [explorePickerOpen, setExplorePickerOpen] = useState(false);
   const slowModalVisibleSinceRef = useRef<number | null>(null);
   const accumulatedSlowModalMsRef = useRef(0);
   const [routeTimingDebug, setRouteTimingDebug] = useState<{
@@ -760,8 +870,7 @@ const App: React.FC = () => {
   const handleRouteSlowModalRideExplore = useCallback(() => {
     absorbRouteSlowModalVisibleTime();
     setRouteSlowModalOpen(false);
-    setHistoryExpanded(true);
-    setHistoryPanelTab('explore');
+    setExplorePickerOpen(true);
   }, [absorbRouteSlowModalVisibleTime]);
   useEffect(() => {
     if (!loading) return undefined;
@@ -893,6 +1002,8 @@ const App: React.FC = () => {
     streetViewFullScreen: false,
     sensorsModalOpen: false,
     bikeProfileModalOpen: false,
+    explorePickerOpen: false,
+    routeSlowModalOpen: false,
   });
 
   // start/end 둘 다 선택된 경우 car·bike·foot 버튼 1초간 순차 20% 확대 유도 (3회 반복)
@@ -987,6 +1098,8 @@ const App: React.FC = () => {
       streetViewFullScreen: isSvActive && isSvFullScreen,
       sensorsModalOpen,
       bikeProfileModalOpen,
+      explorePickerOpen,
+      routeSlowModalOpen,
     };
   }, [
     rewardOfferModalStage,
@@ -1009,6 +1122,8 @@ const App: React.FC = () => {
     isSvFullScreen,
     sensorsModalOpen,
     bikeProfileModalOpen,
+    explorePickerOpen,
+    routeSlowModalOpen,
   ]);
 
   useEffect(() => {
@@ -2581,6 +2696,8 @@ const App: React.FC = () => {
       !s.showDestinationSuggestions &&
       !s.showPlaceSearchSuggestions &&
       !s.countdownActive &&
+      !s.explorePickerOpen &&
+      !s.routeSlowModalOpen &&
       !s.historyExpanded &&
       s.routeSettingsPanelExpanded &&
       s.routeInputExpanded &&
@@ -2605,6 +2722,16 @@ const App: React.FC = () => {
       if (s.rideLimitMessage != null) {
         lastAndroidExitPressRef.current = 0;
         setRideLimitMessage(null);
+        return;
+      }
+      if (s.explorePickerOpen) {
+        lastAndroidExitPressRef.current = 0;
+        setExplorePickerOpen(false);
+        return;
+      }
+      if (s.routeSlowModalOpen) {
+        lastAndroidExitPressRef.current = 0;
+        setRouteSlowModalOpen(false);
         return;
       }
       if (s.showAbout) {
@@ -5408,6 +5535,44 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {explorePickerOpen && (
+        <div className="absolute inset-0 z-[2005] flex items-center justify-center bg-black/55 backdrop-blur-sm p-3">
+          <div className="relative flex max-h-[min(85vh,540px)] w-[92%] max-w-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 py-2 pl-4 pr-1">
+              <div className="text-[16px] font-extrabold text-slate-900">Explore Routes</div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setExplorePickerOpen(false)}
+                className="rounded-full p-2.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+              {exploreRoutes.length > 0 ? (
+                <div className="flex flex-col gap-3 pb-2">
+                  {exploreRoutes.map((route) => (
+                    <ExploreRouteRow
+                      key={route.id}
+                      route={route}
+                      onPick={(r) => {
+                        setExplorePickerOpen(false);
+                        void handleLoadFavorite(r);
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="px-2 py-6 text-center text-[13px] leading-snug text-slate-500">
+                  No explore routes loaded. Run <span className="font-mono text-[12px] text-slate-700">npm run build:default-routes</span> to build catalog assets.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
       <div
         ref={svContainerRef}
@@ -6102,24 +6267,16 @@ const App: React.FC = () => {
                   )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)
                 ) : (
                   exploreRoutes.length > 0 ? (
-                    <div className="flex flex-col gap-0 min-h-0 overflow-y-auto max-h-[40vh]">
+                    <div className="flex min-h-0 max-h-[40vh] flex-col gap-2.5 overflow-y-auto overscroll-contain py-1 pr-0.5">
                       {exploreRoutes.map((route) => (
-                        <div key={route.id} className="flex items-center w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
-                          <button
-                            type="button"
-                            onClick={() => handleLoadFavorite(route)}
-                            title={`${route.origin} → ${route.destination}`}
-                            className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none"
-                          >
-                            <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
-                            </span>
-                            <span className="font-bold mr-1">{route.origin}</span>
-                            <span className="text-slate-400">to</span>
-                            <span className="font-bold ml-1">{route.destination}</span>
-                            {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
-                          </button>
-                        </div>
+                        <ExploreRouteRow
+                          key={route.id}
+                          route={route}
+                          compact
+                          onPick={(r) => {
+                            void handleLoadFavorite(r);
+                          }}
+                        />
                       ))}
                     </div>
                   ) : (

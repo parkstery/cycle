@@ -3756,5 +3756,19 @@
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Petra Siq to Monastery",
+    "country": "JO",
+    "city": "Wadi Musa",
+    "distanceKm": 5,
+    "elevationGain": 220,
+    "difficulty": "moderate",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "desert",
+      "heritage",
+      "foot"
+    ]
   }
 }

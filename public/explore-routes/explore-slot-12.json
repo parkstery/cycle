@@ -56571,5 +56571,19 @@
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Great Ocean Road",
+    "country": "AU",
+    "city": "Victoria",
+    "distanceKm": 42,
+    "elevationGain": 560,
+    "difficulty": "moderate",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "ocean",
+      "coastal",
+      "car"
+    ]
   }
 }

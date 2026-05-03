@@ -8,7 +8,17 @@
       "profile": "driving",
       "origin": "태종로, 부곡리, 강림면, 횡성군, 강원특별자치도, 25273, 대한민국",
       "destination": "치악산 등산로, 소초면, 원주시, 강원특별자치도, 26304, 대한민국",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Chiaksan Mountain Trail",
+        "country": "KR",
+        "city": "Hoengseong",
+        "distanceKm": 4.5,
+        "elevationGain": 380,
+        "difficulty": "moderate",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["mountain", "forest", "car"]
+      }
     },
     {
       "id": "explore-slot-2",
@@ -19,7 +29,17 @@
       "destination": "Ad Deir Monastery, Petra, Jordan",
       "originCoord": [30.3223, 35.4516],
       "destCoord": [30.3368, 35.4314],
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Petra Siq to Monastery",
+        "country": "JO",
+        "city": "Wadi Musa",
+        "distanceKm": 5,
+        "elevationGain": 220,
+        "difficulty": "moderate",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["desert", "heritage", "foot"]
+      }
     },
     {
       "id": "explore-slot-3",
@@ -28,7 +48,17 @@
       "profile": "foot",
       "origin": "Pista Cláudio Coutinho, Urca, Rio de Janeiro, Região Sudeste, 22290-270, Brasil",
       "destination": "Cristo del Corcovado, Alto da Boa Vista, Rio de Janeiro, Região Sudeste, 22470-180, Brasil",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Urca to Corcovado",
+        "country": "BR",
+        "city": "Rio de Janeiro",
+        "distanceKm": 11.4,
+        "elevationGain": 520,
+        "difficulty": "hard",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["coastal", "urban", "foot"]
+      }
     },
     {
       "id": "explore-slot-4",
@@ -37,7 +67,17 @@
       "profile": "driving",
       "origin": "Avenida Marginal, Quinta da Terrugem, Lagoal, Oeiras e São Julião da Barra, Paço de Arcos e Caxias, Oeiras, Lisboa, 2760, Portugal",
       "destination": "Avenida de Brasília, Santos-o-Velho, Prazeres, Estrela, Lisboa, 1399-036, Portugal",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Lisbon Marginal to Estrela",
+        "country": "PT",
+        "city": "Lisbon",
+        "distanceKm": 11.6,
+        "elevationGain": 180,
+        "difficulty": "easy",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["coastal", "river", "car"]
+      }
     },
     {
       "id": "explore-slot-5",
@@ -46,7 +86,17 @@
       "profile": "driving",
       "origin": "Gamle Strynefjellsvegen, Stryn, Vestland, Norway",
       "destination": "Strynsfjellvegen, Skjåk, Innlandet, 2695, Norway",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Stryn Mountain Pass",
+        "country": "NO",
+        "city": "Stryn",
+        "distanceKm": 15.2,
+        "elevationGain": 640,
+        "difficulty": "hard",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["alpine", "snow", "car"]
+      }
     },
     {
       "id": "explore-slot-6",
@@ -55,7 +105,17 @@
       "profile": "driving",
       "origin": "Plain of Six Glaciers Trail, Improvement District No. 9, Alberta, Canada",
       "destination": "Mount Richardson Route, Improvement District No. 9, Alberta, Canada",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Lake Louise Alpine Loop",
+        "country": "CA",
+        "city": "Lake Louise",
+        "distanceKm": 15.4,
+        "elevationGain": 480,
+        "difficulty": "moderate",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["glacier", "rockies", "car"]
+      }
     },
     {
       "id": "explore-slot-7",
@@ -64,7 +124,17 @@
       "profile": "cycling",
       "origin": "尾道市, 広島県, 日本",
       "destination": "生口島循環線, 瀬戸田町沢, 寺本, 尾道市, 広島県, 722-2413, 日本",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Onomichi Shimanami Sea Route",
+        "country": "JP",
+        "city": "Onomichi",
+        "distanceKm": 17.8,
+        "elevationGain": 210,
+        "difficulty": "easy",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["sea", "islands", "bike"]
+      }
     },
     {
       "id": "explore-slot-8",
@@ -73,7 +143,17 @@
       "profile": "driving",
       "origin": "Via Pantaleone Comite, Pogerola, Amalfi, Campania, 84011, Italy",
       "destination": "Strada Statale Amalfitana, Arola, Vico Equense, Naples, Campania, 84017, Italy",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Amalfi Coast Drive",
+        "country": "IT",
+        "city": "Amalfi",
+        "distanceKm": 21.2,
+        "elevationGain": 720,
+        "difficulty": "hard",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["cliff", "coastal", "car"]
+      }
     },
     {
       "id": "explore-slot-9",
@@ -82,7 +162,17 @@
       "profile": "driving",
       "origin": "36, Dorfstrasse, Därligen, Verwaltungskreis Interlaken-Oberhasli, Verwaltungsregion Oberland, Bern, 3707, Switzerland",
       "destination": "6, Guggengasse, Grindelwald, Verwaltungskreis Interlaken-Oberhasli, Verwaltungsregion Oberland, Bern, 3818, Switzerland",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Interlaken to Grindelwald",
+        "country": "CH",
+        "city": "Interlaken",
+        "distanceKm": 23.5,
+        "elevationGain": 890,
+        "difficulty": "hard",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["alps", "valley", "car"]
+      }
     },
     {
       "id": "explore-slot-10",
@@ -91,7 +181,17 @@
       "profile": "driving",
       "origin": "Seestrasse, Gersau, Schwyz, 6442, Switzerland",
       "destination": "66, Axenstrasse, Gruonen, Flüelen, Uri, 6454, Switzerland",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Lake Lucerne Lakeside",
+        "country": "CH",
+        "city": "Lucerne",
+        "distanceKm": 25,
+        "elevationGain": 410,
+        "difficulty": "moderate",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["lake", "scenic", "car"]
+      }
     },
     {
       "id": "explore-slot-11",
@@ -100,7 +200,17 @@
       "profile": "driving",
       "origin": "강변북로, 한남동, 금호4가동, 용산구, 서울특별시, 04420, 대한민국",
       "destination": "한강 자전거길, 수석3통, 다산2동, 남양주시, 경기도, 12268, 대한민국",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Seoul River Ride",
+        "country": "KR",
+        "city": "Seoul",
+        "distanceKm": 30.4,
+        "elevationGain": 120,
+        "difficulty": "easy",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["river", "flat", "car"]
+      }
     },
     {
       "id": "explore-slot-12",
@@ -109,7 +219,17 @@
       "profile": "driving",
       "origin": "Apollo Bay, Victoria, Australia",
       "destination": "Anglesea, Victoria, Australia",
-      "waypoints": []
+      "waypoints": [],
+      "exploreDisplay": {
+        "title": "Great Ocean Road",
+        "country": "AU",
+        "city": "Victoria",
+        "distanceKm": 42,
+        "elevationGain": 560,
+        "difficulty": "moderate",
+        "thumbnail": "/cycle_road.png",
+        "tags": ["ocean", "coastal", "car"]
+      }
     }
   ]
 }

@@ -10638,5 +10638,19 @@
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Onomichi Shimanami Sea Route",
+    "country": "JP",
+    "city": "Onomichi",
+    "distanceKm": 17.8,
+    "elevationGain": 210,
+    "difficulty": "easy",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "sea",
+      "islands",
+      "bike"
+    ]
   }
 }

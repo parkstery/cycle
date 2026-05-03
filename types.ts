@@ -99,12 +99,28 @@ export interface SavedRoutePayload {
   createdAt?: number;
 }
 
+/** Curated Explore Routes list / picker (bundled from explore-routes.config.json). */
+export interface ExploreRouteDisplay {
+  title: string;
+  country: string;
+  city: string;
+  /** Planned catalog distance (km); may differ slightly from OSRM-built route. */
+  distanceKm: number;
+  elevationGain: number;
+  difficulty: string;
+  /** Optional image URL or app-relative path (e.g. /cycle_road.png). */
+  thumbnail?: string;
+  tags: string[];
+}
+
 export interface SavedRoute {
   id: string;
   origin: string;
   destination: string;
   /** DEFAULT: 앱 기본 My Routes 코스, USER: 사용자 저장, EXPLORE: Explore Routes 번들 */
   source?: 'DEFAULT' | 'USER' | 'EXPLORE';
+  /** Explore tab / picker metadata (optional). */
+  exploreDisplay?: ExploreRouteDisplay;
   /** 기본 코스 자산 식별자 (앱 포함 기본 코스 추적용) */
   bundledId?: string;
   waypoints: {

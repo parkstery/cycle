@@ -20256,10 +20256,24 @@
       7.8099903
     ],
     "destLatLng": [
-      46.6247932,
+      46.6247933,
       8.0427266
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Interlaken to Grindelwald",
+    "country": "CH",
+    "city": "Interlaken",
+    "distanceKm": 23.5,
+    "elevationGain": 890,
+    "difficulty": "hard",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "alps",
+      "valley",
+      "car"
+    ]
   }
 }

@@ -9063,10 +9063,24 @@
       -116.257409
     ],
     "destLatLng": [
-      51.4841795,
-      -116.0972411
+      51.4913972,
+      -116.11959
     ],
     "waypointLatLngs": [],
     "createdAt": 0
+  },
+  "exploreDisplay": {
+    "title": "Lake Louise Alpine Loop",
+    "country": "CA",
+    "city": "Lake Louise",
+    "distanceKm": 15.4,
+    "elevationGain": 480,
+    "difficulty": "moderate",
+    "thumbnail": "/cycle_road.png",
+    "tags": [
+      "glacier",
+      "rockies",
+      "car"
+    ]
   }
 }

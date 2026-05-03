@@ -239,7 +239,7 @@ async function sampleElevation(path, samples = 100) {
 /* ---------- main ---------- */
 
 async function buildSlot(slot) {
-  const { id, bundledId, origin, destination, waypoints = [], profile = 'cycling', originCoord, destCoord, waypointCoords, source: sourceFromSlot } = slot;
+  const { id, bundledId, origin, destination, waypoints = [], profile = 'cycling', originCoord, destCoord, waypointCoords, source: sourceFromSlot, exploreDisplay } = slot;
   console.log(`\n[${id}] profile=${profile} origin="${origin.slice(0, 60)}..." → destination="${destination.slice(0, 60)}..."`);
 
   const originLL = originCoord
@@ -310,6 +310,9 @@ async function buildSlot(slot) {
       createdAt: 0
     }
   };
+  if (exploreDisplay && typeof exploreDisplay === 'object') {
+    json.exploreDisplay = exploreDisplay;
+  }
   return json;
 }
 
