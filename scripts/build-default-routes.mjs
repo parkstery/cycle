@@ -6,8 +6,8 @@
  * 실행: node scripts/build-default-routes.mjs
  *      (package.json 에 "build:default-routes" 스크립트 등록)
  *
- * 입력: scripts/default-routes.config.json (각 슬롯 origin/destination/waypoints/profile 정의)
- * 출력: public/my-routes/default-slot-{1..5}.json
+ * 입력: scripts/default-routes.config.json, scripts/explore-routes.config.json
+ * 출력: public/my-routes/default-slot-*.json, public/explore-routes/explore-slot-*.json
  *
  * 외부 API:
  *   - Nominatim (주소 → 좌표): https://nominatim.openstreetmap.org
@@ -29,8 +29,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
-const CONFIG_PATH = path.join(__dirname, 'default-routes.config.json');
-const OUTPUT_DIR = path.join(REPO_ROOT, 'public', 'my-routes');
+const BUILD_CONFIGS = [
+  { configPath: path.join(__dirname, 'default-routes.config.json'), outputDir: path.join(REPO_ROOT, 'public', 'my-routes') },
+  { configPath: path.join(__dirname, 'explore-routes.config.json'), outputDir: path.join(REPO_ROOT, 'public', 'explore-routes') }
+];
 
 const USER_AGENT = 'FitnessProCycleSimulator/1.0 (build-default-routes)';
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
@@ -237,7 +239,7 @@ async function sampleElevation(path, samples = 100) {
 /* ---------- main ---------- */
 
 async function buildSlot(slot) {
-  const { id, bundledId, origin, destination, waypoints = [], profile = 'cycling', originCoord, destCoord, waypointCoords } = slot;
+  const { id, bundledId, origin, destination, waypoints = [], profile = 'cycling', originCoord, destCoord, waypointCoords, source: sourceFromSlot } = slot;
   console.log(`\n[${id}] profile=${profile} origin="${origin.slice(0, 60)}..." → destination="${destination.slice(0, 60)}..."`);
 
   const originLL = originCoord
@@ -276,9 +278,12 @@ async function buildSlot(slot) {
     console.warn(`  elevation fetch failed (slot will load without baseline elevation): ${e.message}`);
   }
 
+  const routeSource =
+    sourceFromSlot ||
+    (String(id || '').startsWith('explore-') ? 'EXPLORE' : 'DEFAULT');
   const json = {
     id,
-    source: 'DEFAULT',
+    source: routeSource,
     bundledId: bundledId || id,
     origin,
     destination,
@@ -308,26 +313,25 @@ async function buildSlot(slot) {
   return json;
 }
 
-async function main() {
+async function runOneConfig(configPath, outputDir) {
   let config;
   try {
-    config = JSON.parse(await fs.readFile(CONFIG_PATH, 'utf8'));
+    config = JSON.parse(await fs.readFile(configPath, 'utf8'));
   } catch (e) {
-    console.error(`Failed to read config at ${CONFIG_PATH}: ${e.message}`);
-    console.error('Create scripts/default-routes.config.json first. See comments at top of this file.');
+    console.error(`Failed to read config at ${configPath}: ${e.message}`);
     process.exit(1);
   }
   if (!Array.isArray(config.slots) || config.slots.length === 0) {
-    console.error('config.slots must be a non-empty array');
+    console.error(`config.slots must be a non-empty array (${configPath})`);
     process.exit(1);
   }
 
-  await fs.mkdir(OUTPUT_DIR, { recursive: true });
+  await fs.mkdir(outputDir, { recursive: true });
   const summary = [];
   for (const slot of config.slots) {
     try {
       const json = await buildSlot(slot);
-      const out = path.join(OUTPUT_DIR, `${slot.id}.json`);
+      const out = path.join(outputDir, `${slot.id}.json`);
       await fs.writeFile(out, JSON.stringify(json, null, 2) + '\n', 'utf8');
       const bytes = (await fs.stat(out)).size;
       summary.push({ id: slot.id, ok: true, bytes });
@@ -337,12 +341,20 @@ async function main() {
       console.error(`  ✗ ${slot.id} failed: ${e.message}`);
     }
   }
-  console.log('\n=== Summary ===');
+  console.log(`\n=== Summary (${path.basename(configPath)}) ===`);
   for (const s of summary) {
     console.log(s.ok ? `✓ ${s.id}  ${(s.bytes / 1024).toFixed(1)} KB` : `✗ ${s.id}  ${s.error}`);
   }
-  const failed = summary.filter((s) => !s.ok).length;
-  if (failed > 0) process.exit(2);
+  return summary.filter((s) => !s.ok).length;
+}
+
+async function main() {
+  let totalFailed = 0;
+  for (const { configPath, outputDir } of BUILD_CONFIGS) {
+    console.log(`\n--- Building ${path.relative(REPO_ROOT, configPath)} → ${path.relative(REPO_ROOT, outputDir)} ---`);
+    totalFailed += await runOneConfig(configPath, outputDir);
+  }
+  if (totalFailed > 0) process.exit(2);
 }
 
 main().catch((e) => {

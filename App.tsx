@@ -76,6 +76,21 @@ const DEFAULT_ROUTE_ASSET_PATHS = [
   'my-routes/default-slot-5.json'
 ] as const;
 
+const EXPLORE_ROUTE_ASSET_PATHS = [
+  'explore-routes/explore-slot-1.json',
+  'explore-routes/explore-slot-2.json',
+  'explore-routes/explore-slot-3.json',
+  'explore-routes/explore-slot-4.json',
+  'explore-routes/explore-slot-5.json',
+  'explore-routes/explore-slot-6.json',
+  'explore-routes/explore-slot-7.json',
+  'explore-routes/explore-slot-8.json',
+  'explore-routes/explore-slot-9.json',
+  'explore-routes/explore-slot-10.json',
+  'explore-routes/explore-slot-11.json',
+  'explore-routes/explore-slot-12.json'
+] as const;
+
 const parseSavedRoutes = (raw: string | null): SavedRoute[] => {
   if (!raw) return [];
   try {
@@ -175,6 +190,14 @@ const hydrateBundledRoute = (route: SavedRoute, idx: number, now: number): Saved
   timestamp: now - idx
 });
 
+const hydrateExploreRoute = (route: SavedRoute, idx: number, now: number): SavedRoute => ({
+  ...route,
+  id: route.id || `explore-slot-${idx + 1}`,
+  source: 'EXPLORE',
+  bundledId: route.bundledId || `explore-slot-${idx + 1}`,
+  timestamp: now - idx
+});
+
 const loadBundledDefaultRoutes = async (): Promise<SavedRoute[]> => {
   const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
   const now = Date.now();
@@ -186,6 +209,25 @@ const loadBundledDefaultRoutes = async (): Promise<SavedRoute[]> => {
       return hydrateBundledRoute(json as SavedRoute, idx, now);
     })
   );
+  return loaded;
+};
+
+const loadBundledExploreRoutes = async (): Promise<SavedRoute[]> => {
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+  const now = Date.now();
+  const settled = await Promise.allSettled(
+    EXPLORE_ROUTE_ASSET_PATHS.map(async (assetPath, idx) => {
+      const response = await fetch(`${base}${assetPath}`);
+      if (!response.ok) throw new Error(`Failed to load ${assetPath}`);
+      const json = await response.json();
+      return hydrateExploreRoute(json as SavedRoute, idx, now);
+    })
+  );
+  const loaded: SavedRoute[] = [];
+  settled.forEach((r, idx) => {
+    if (r.status === 'fulfilled') loaded.push(r.value);
+    else console.warn('[EXPLORE_ROUTES] skip', EXPLORE_ROUTE_ASSET_PATHS[idx], r.reason);
+  });
   return loaded;
 };
 
@@ -866,6 +908,7 @@ const App: React.FC = () => {
     const saved = parseSavedRoutes(localStorage.getItem(FAVORITE_ROUTES_STORAGE_KEY));
     return saved;
   });
+  const [exploreRoutes, setExploreRoutes] = useState<SavedRoute[]>([]);
   const [lockedRouteProfile, setLockedRouteProfile] = useState<'cycling' | 'driving' | 'foot' | null>(null);
 
   // Recent Place Searches (SearchBar)
@@ -910,6 +953,18 @@ const App: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, [favoriteRoutes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadBundledExploreRoutes()
+      .then((routes) => {
+        if (!cancelled && routes.length > 0) setExploreRoutes(routes);
+      })
+      .catch((e) => {
+        console.warn('[EXPLORE_ROUTES] failed to load bundled explore catalog', e);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     androidBackStateRef.current = {
@@ -1443,6 +1498,7 @@ const App: React.FC = () => {
 
   const updateFavoriteRoutePayload = useCallback((favoriteId: string, payload: SavedRoutePayload) => {
     setFavoriteRoutes((prev) => {
+      if (!prev.some((item) => item.id === favoriteId)) return prev;
       const next = prev.map((item) => (
         item.id === favoriteId
           ? {
@@ -1514,7 +1570,8 @@ const App: React.FC = () => {
     const lockedProfile = profileFromMode(fallbackMode);
     setMode(fallbackMode);
     setLockedRouteProfile(lockedProfile);
-    await calculateRoute(fallbackMode, false, saved.origin, saved.destination, restoredWaypoints, saved.id);
+    const hydrateFavoriteId = saved.source === 'EXPLORE' ? undefined : saved.id;
+    await calculateRoute(fallbackMode, false, saved.origin, saved.destination, restoredWaypoints, hydrateFavoriteId);
   };
 
   const handleDeleteFavorite = (id: string, e: React.MouseEvent) => {
@@ -6044,7 +6101,32 @@ const App: React.FC = () => {
                     </div>
                   )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)
                 ) : (
-                  <div className="text-[10px] text-slate-400 text-center italic mt-2 px-1 leading-tight">Explore catalog: cloud sync + local cache. If route search fails: Pick from Explore.</div>
+                  exploreRoutes.length > 0 ? (
+                    <div className="flex flex-col gap-0 min-h-0 overflow-y-auto max-h-[40vh]">
+                      {exploreRoutes.map((route) => (
+                        <div key={route.id} className="flex items-center w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadFavorite(route)}
+                            title={`${route.origin} → ${route.destination}`}
+                            className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none"
+                          >
+                            <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
+                            </span>
+                            <span className="font-bold mr-1">{route.origin}</span>
+                            <span className="text-slate-400">to</span>
+                            <span className="font-bold ml-1">{route.destination}</span>
+                            {route.waypoints.length > 0 && <span className="ml-1 text-[8px] text-amber-500 font-bold">+{route.waypoints.length}</span>}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 text-center italic mt-2 px-1 leading-tight">
+                      No bundled explore routes. Run <span className="font-mono not-italic">npm run build:default-routes</span> to generate <span className="font-mono not-italic">public/explore-routes/</span>. Cloud sync later.
+                    </div>
+                  )
                 )}
               </div>
             </div>

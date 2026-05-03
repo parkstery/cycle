@@ -1,0 +1,115 @@
+{
+  "$comment": "Explore Routes (curated). Build: npm run build:default-routes → public/explore-routes/explore-slot-*.json",
+  "slots": [
+    {
+      "id": "explore-slot-1",
+      "bundledId": "explore-slot-1",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "태종로, 부곡리, 강림면, 횡성군, 강원특별자치도, 25273, 대한민국",
+      "destination": "치악산 등산로, 소초면, 원주시, 강원특별자치도, 26304, 대한민국",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-2",
+      "bundledId": "explore-slot-2",
+      "source": "EXPLORE",
+      "profile": "foot",
+      "origin": "Al-Siq entrance, Petra, Wadi Musa, Jordan",
+      "destination": "Ad Deir Monastery, Petra, Jordan",
+      "originCoord": [30.3223, 35.4516],
+      "destCoord": [30.3368, 35.4314],
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-3",
+      "bundledId": "explore-slot-3",
+      "source": "EXPLORE",
+      "profile": "foot",
+      "origin": "Pista Cláudio Coutinho, Urca, Rio de Janeiro, Região Sudeste, 22290-270, Brasil",
+      "destination": "Cristo del Corcovado, Alto da Boa Vista, Rio de Janeiro, Região Sudeste, 22470-180, Brasil",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-4",
+      "bundledId": "explore-slot-4",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Avenida Marginal, Quinta da Terrugem, Lagoal, Oeiras e São Julião da Barra, Paço de Arcos e Caxias, Oeiras, Lisboa, 2760, Portugal",
+      "destination": "Avenida de Brasília, Santos-o-Velho, Prazeres, Estrela, Lisboa, 1399-036, Portugal",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-5",
+      "bundledId": "explore-slot-5",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Gamle Strynefjellsvegen, Stryn, Vestland, Norway",
+      "destination": "Strynsfjellvegen, Skjåk, Innlandet, 2695, Norway",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-6",
+      "bundledId": "explore-slot-6",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Plain of Six Glaciers Trail, Improvement District No. 9, Alberta, Canada",
+      "destination": "Mount Richardson Route, Improvement District No. 9, Alberta, Canada",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-7",
+      "bundledId": "explore-slot-7",
+      "source": "EXPLORE",
+      "profile": "cycling",
+      "origin": "尾道市, 広島県, 日本",
+      "destination": "生口島循環線, 瀬戸田町沢, 寺本, 尾道市, 広島県, 722-2413, 日本",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-8",
+      "bundledId": "explore-slot-8",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Via Pantaleone Comite, Pogerola, Amalfi, Campania, 84011, Italy",
+      "destination": "Strada Statale Amalfitana, Arola, Vico Equense, Naples, Campania, 84017, Italy",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-9",
+      "bundledId": "explore-slot-9",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "36, Dorfstrasse, Därligen, Verwaltungskreis Interlaken-Oberhasli, Verwaltungsregion Oberland, Bern, 3707, Switzerland",
+      "destination": "6, Guggengasse, Grindelwald, Verwaltungskreis Interlaken-Oberhasli, Verwaltungsregion Oberland, Bern, 3818, Switzerland",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-10",
+      "bundledId": "explore-slot-10",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Seestrasse, Gersau, Schwyz, 6442, Switzerland",
+      "destination": "66, Axenstrasse, Gruonen, Flüelen, Uri, 6454, Switzerland",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-11",
+      "bundledId": "explore-slot-11",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "강변북로, 한남동, 금호4가동, 용산구, 서울특별시, 04420, 대한민국",
+      "destination": "한강 자전거길, 수석3통, 다산2동, 남양주시, 경기도, 12268, 대한민국",
+      "waypoints": []
+    },
+    {
+      "id": "explore-slot-12",
+      "bundledId": "explore-slot-12",
+      "source": "EXPLORE",
+      "profile": "driving",
+      "origin": "Apollo Bay, Victoria, Australia",
+      "destination": "Anglesea, Victoria, Australia",
+      "waypoints": []
+    }
+  ]
+}
