@@ -679,8 +679,8 @@ const App: React.FC = () => {
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
-  /** 우측 경로 목록: 저장 경로 vs 추천(파이어베이스 연동 예정) */
-  const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'recommended'>('my_routes');
+  /** Right route list: user My Routes vs curated Explore Routes (cloud + local cache). */
+  const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'explore'>('my_routes');
   const [coachingOn, setCoachingOn] = useState(true);
   const [coachingMentVisible, setCoachingMentVisible] = useState(true); // 화면 상단 코칭 멘트 텍스트 표시 여부
   const [musicOn, setMusicOn] = useState(true);
@@ -5827,10 +5827,10 @@ const App: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setHistoryPanelTab('recommended')}
-                      className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'recommended' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
+                      onClick={() => setHistoryPanelTab('explore')}
+                      className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'explore' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
                     >
-                      Recommanded
+                      Explore Routes
                     </button>
                   </div>
                   {historyPanelTab === 'my_routes' && (
@@ -5853,7 +5853,7 @@ const App: React.FC = () => {
                     </div>
                   )) : (<div className="text-[10px] text-slate-400 text-center italic mt-2">No saved routes</div>)
                 ) : (
-                  <div className="text-[10px] text-slate-400 text-center italic mt-2 px-1">Recommended routes will load here (Firebase).</div>
+                  <div className="text-[10px] text-slate-400 text-center italic mt-2 px-1 leading-tight">Explore catalog: cloud sync + local cache. If route search fails: Pick from Explore.</div>
                 )}
               </div>
             </div>

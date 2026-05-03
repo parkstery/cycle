@@ -197,6 +197,11 @@ function UserGuideContent() {
         <li><strong>Load:</strong> Tap a route in My Routes to apply its start, end, and waypoints; the route is restored if available.</li>
         <li><strong>Delete:</strong> Tap the <strong>X</strong> next to a route (visible on hover) to remove it from favorites.</li>
       </ul>
+      <h4 className={docSubtitle}>9.3 Explore Routes</h4>
+      <ul className={docList}>
+        <li>With the route panel widened, use the <strong>Explore Routes</strong> tab next to <strong>My Routes</strong> for the curated catalog (cloud sync + local cache).</li>
+        <li>When route search fails, use <strong>Pick from Explore</strong> to load a curated route instead.</li>
+      </ul>
 
       <h3 className={docTitle}>10. Menu and Information</h3>
       <ul className={docList}>
