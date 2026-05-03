@@ -59,8 +59,10 @@ const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
 const ROUTE_DENSIFY_INTERVAL_M = 10;
-/** After this many ms of route calculation (geocode + OSRM + elevation), show slow-route dialog; calculation keeps running. */
-const ROUTE_SEARCH_SLOW_MODAL_MS = 20000;
+/** Slow-route dialog if geocode+OSRM not finished by this time (per-phase; calculation keeps running). */
+const ROUTE_PHASE_SLOW_MODAL_MS = 500;
+/** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
+const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 /** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
 const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
 
@@ -629,7 +631,10 @@ const App: React.FC = () => {
   const routeCalcWallStartRef = useRef(0);
   const routeCalcSessionRef = useRef(0);
   const routeCalcActiveRef = useRef(false);
-  const routeSlowModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const routePhaseDoneRef = useRef(false);
+  const elevationPhaseDoneRef = useRef(false);
+  const routeSlowModalTimer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const routeSlowModalTimer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routeSlowModalOpen, setRouteSlowModalOpen] = useState(false);
   const slowModalVisibleSinceRef = useRef<number | null>(null);
   const accumulatedSlowModalMsRef = useRef(0);
@@ -4280,18 +4285,27 @@ const App: React.FC = () => {
     routeCalcSessionRef.current += 1;
     const calcSession = routeCalcSessionRef.current;
     routeCalcActiveRef.current = true;
+    routePhaseDoneRef.current = false;
+    elevationPhaseDoneRef.current = false;
     accumulatedSlowModalMsRef.current = 0;
     slowModalVisibleSinceRef.current = null;
     setRouteSlowModalOpen(false);
-    if (routeSlowModalTimerRef.current) {
-      clearTimeout(routeSlowModalTimerRef.current);
-      routeSlowModalTimerRef.current = null;
+    if (routeSlowModalTimer1Ref.current) {
+      clearTimeout(routeSlowModalTimer1Ref.current);
+      routeSlowModalTimer1Ref.current = null;
     }
-    routeSlowModalTimerRef.current = window.setTimeout(() => {
+    if (routeSlowModalTimer2Ref.current) {
+      clearTimeout(routeSlowModalTimer2Ref.current);
+      routeSlowModalTimer2Ref.current = null;
+    }
+    routeSlowModalTimer1Ref.current = window.setTimeout(() => {
       if (routeCalcSessionRef.current !== calcSession || !routeCalcActiveRef.current) return;
-      slowModalVisibleSinceRef.current = performance.now();
+      if (routePhaseDoneRef.current) return;
+      if (slowModalVisibleSinceRef.current == null) {
+        slowModalVisibleSinceRef.current = performance.now();
+      }
       setRouteSlowModalOpen(true);
-    }, ROUTE_SEARCH_SLOW_MODAL_MS);
+    }, ROUTE_PHASE_SLOW_MODAL_MS);
     routeCalcWallStartRef.current = Date.now();
 
     setLoading(true);
@@ -4398,8 +4412,29 @@ const App: React.FC = () => {
         return;
       } finally {
         searchMsVal = performance.now() - perfStart;
+        routePhaseDoneRef.current = true;
+        if (routeSlowModalTimer1Ref.current) {
+          clearTimeout(routeSlowModalTimer1Ref.current);
+          routeSlowModalTimer1Ref.current = null;
+        }
+        if (path.length === 0) {
+          elevationPhaseDoneRef.current = true;
+        }
       }
       if (path.length > 0) {
+        if (routeSlowModalTimer2Ref.current) {
+          clearTimeout(routeSlowModalTimer2Ref.current);
+          routeSlowModalTimer2Ref.current = null;
+        }
+        routeSlowModalTimer2Ref.current = window.setTimeout(() => {
+          if (routeCalcSessionRef.current !== calcSession || !routeCalcActiveRef.current) return;
+          if (elevationPhaseDoneRef.current) return;
+          if (slowModalVisibleSinceRef.current == null) {
+            slowModalVisibleSinceRef.current = performance.now();
+          }
+          setRouteSlowModalOpen(true);
+        }, ELEVATION_PHASE_SLOW_MODAL_MS);
+
         // Log Elevation API call for debugging
         const elevationCallTime = new Date().toISOString();
         const elevationCallInfo = {
@@ -4444,6 +4479,11 @@ const App: React.FC = () => {
           };
         } finally {
           elevationMsVal = performance.now() - tElev0;
+          elevationPhaseDoneRef.current = true;
+          if (routeSlowModalTimer2Ref.current) {
+            clearTimeout(routeSlowModalTimer2Ref.current);
+            routeSlowModalTimer2Ref.current = null;
+          }
         }
 
         // Duration: Car, Bike, Foot 모두 선택 속도(speedKmH) + 경사 보정으로 동일 계산 (실내 사이클 사용자 경로 선택 일관성)
@@ -4616,9 +4656,13 @@ const App: React.FC = () => {
         slowModalVisibleSinceRef.current = null;
       }
       setRouteSlowModalOpen(false);
-      if (routeSlowModalTimerRef.current) {
-        clearTimeout(routeSlowModalTimerRef.current);
-        routeSlowModalTimerRef.current = null;
+      if (routeSlowModalTimer1Ref.current) {
+        clearTimeout(routeSlowModalTimer1Ref.current);
+        routeSlowModalTimer1Ref.current = null;
+      }
+      if (routeSlowModalTimer2Ref.current) {
+        clearTimeout(routeSlowModalTimer2Ref.current);
+        routeSlowModalTimer2Ref.current = null;
       }
       routeCalcActiveRef.current = false;
       const totalMs = performance.now() - perfStart;
@@ -5403,6 +5447,9 @@ const App: React.FC = () => {
           className="fixed z-[1006] pointer-events-none max-w-[min(92vw,280px)] rounded-md border border-white/15 bg-black/70 px-2 py-1.5 font-mono text-[10px] leading-tight text-white/95 shadow-lg"
           style={{ left: SAFE_LEFT_1REM, top: SAFE_TOP_4_25REM }}
         >
+          <div className="text-white/70 border-b border-white/10 pb-0.5 mb-0.5">
+            Slow modal: {ROUTE_PHASE_SLOW_MODAL_MS}ms (route phase) / {ELEVATION_PHASE_SLOW_MODAL_MS}ms (elevation phase)
+          </div>
           {loading && routeCalcLiveTick >= 0 && (
             <div className="text-amber-200/95">
               Running: {((Date.now() - routeCalcWallStartRef.current) / 1000).toFixed(1)}s (geocode + OSRM + elevation…)
