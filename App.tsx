@@ -59,6 +59,10 @@ const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
 const ROUTE_DENSIFY_INTERVAL_M = 10;
+/** After this many ms of route calculation (geocode + OSRM + elevation), show slow-route dialog; calculation keeps running. */
+const ROUTE_SEARCH_SLOW_MODAL_MS = 20000;
+/** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
+const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -620,6 +624,21 @@ const App: React.FC = () => {
   const SENSOR_HARD_ZERO_MS = 2500;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
+  /** While route calculation runs, bump periodically so debug overlay can show elapsed time */
+  const [routeCalcLiveTick, setRouteCalcLiveTick] = useState(0);
+  const routeCalcWallStartRef = useRef(0);
+  const routeCalcSessionRef = useRef(0);
+  const routeCalcActiveRef = useRef(false);
+  const routeSlowModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [routeSlowModalOpen, setRouteSlowModalOpen] = useState(false);
+  const slowModalVisibleSinceRef = useRef<number | null>(null);
+  const accumulatedSlowModalMsRef = useRef(0);
+  const [routeTimingDebug, setRouteTimingDebug] = useState<{
+    searchMs: number | null;
+    elevationMs: number | null;
+    totalMs: number | null;
+    slowModalMs: number | null;
+  } | null>(null);
   const [isSvActive, setIsSvActive] = useState(false);
   const [svMapLayoutMode, setSvMapLayoutMode] = useState<SvMapLayoutMode>('split');
   const isSvFullScreen = svMapLayoutMode !== 'split';
@@ -681,6 +700,29 @@ const App: React.FC = () => {
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   /** Right route list: user My Routes vs curated Explore Routes (cloud + local cache). */
   const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'explore'>('my_routes');
+  const absorbRouteSlowModalVisibleTime = useCallback(() => {
+    if (slowModalVisibleSinceRef.current != null) {
+      accumulatedSlowModalMsRef.current += performance.now() - slowModalVisibleSinceRef.current;
+      slowModalVisibleSinceRef.current = null;
+    }
+  }, []);
+  const handleRouteSlowModalKeepWaiting = useCallback(() => {
+    absorbRouteSlowModalVisibleTime();
+    setRouteSlowModalOpen(false);
+  }, [absorbRouteSlowModalVisibleTime]);
+  const handleRouteSlowModalRideExplore = useCallback(() => {
+    absorbRouteSlowModalVisibleTime();
+    setRouteSlowModalOpen(false);
+    setHistoryExpanded(true);
+    setHistoryPanelTab('explore');
+  }, [absorbRouteSlowModalVisibleTime]);
+  useEffect(() => {
+    if (!loading) return undefined;
+    const id = window.setInterval(() => {
+      setRouteCalcLiveTick((n) => n + 1);
+    }, 250);
+    return () => clearInterval(id);
+  }, [loading]);
   const [coachingOn, setCoachingOn] = useState(true);
   const [coachingMentVisible, setCoachingMentVisible] = useState(true); // 화면 상단 코칭 멘트 텍스트 표시 여부
   const [musicOn, setMusicOn] = useState(true);
@@ -3741,6 +3783,7 @@ const App: React.FC = () => {
       return;
     }
     setLoading(true);
+    routeCalcWallStartRef.current = Date.now();
     try {
       const canOffline = USE_OFFLINE_ROUTE_RESTORE && isOfflineRestorablePayload(payload);
 
@@ -4230,6 +4273,27 @@ const App: React.FC = () => {
     };
     console.log('[CALCULATE_ROUTE_CALL]', JSON.stringify(routeCallInfo, null, 2));
 
+    const perfStart = performance.now();
+    let searchMsVal: number | null = null;
+    let elevationMsVal: number | null = null;
+
+    routeCalcSessionRef.current += 1;
+    const calcSession = routeCalcSessionRef.current;
+    routeCalcActiveRef.current = true;
+    accumulatedSlowModalMsRef.current = 0;
+    slowModalVisibleSinceRef.current = null;
+    setRouteSlowModalOpen(false);
+    if (routeSlowModalTimerRef.current) {
+      clearTimeout(routeSlowModalTimerRef.current);
+      routeSlowModalTimerRef.current = null;
+    }
+    routeSlowModalTimerRef.current = window.setTimeout(() => {
+      if (routeCalcSessionRef.current !== calcSession || !routeCalcActiveRef.current) return;
+      slowModalVisibleSinceRef.current = performance.now();
+      setRouteSlowModalOpen(true);
+    }, ROUTE_SEARCH_SLOW_MODAL_MS);
+    routeCalcWallStartRef.current = Date.now();
+
     setLoading(true);
     setCoachData(null);
     setRouteSource(null);
@@ -4332,6 +4396,8 @@ const App: React.FC = () => {
         console.error('[OSRM_ERROR]', e);
         setLoading(false);
         return;
+      } finally {
+        searchMsVal = performance.now() - perfStart;
       }
       if (path.length > 0) {
         // Log Elevation API call for debugging
@@ -4347,6 +4413,7 @@ const App: React.FC = () => {
         console.log('[ELEVATION_API_CALL]', JSON.stringify(elevationCallInfo, null, 2));
 
         let elevationRes: { results: Array<{ location: any; elevation: number; resolution: number }> };
+        const tElev0 = performance.now();
         try {
           const samples = openElevation.elevationSamplesForPath(path.length);
           const openRes = await fetchElevationAlongOsrmPath(path, samples, activeMode);
@@ -4375,6 +4442,8 @@ const App: React.FC = () => {
               resolution: 0
             }))
           };
+        } finally {
+          elevationMsVal = performance.now() - tElev0;
         }
 
         // Duration: Car, Bike, Foot 모두 선택 속도(speedKmH) + 경사 보정으로 동일 계산 (실내 사이클 사용자 경로 선택 일관성)
@@ -4541,9 +4610,28 @@ const App: React.FC = () => {
         error: err instanceof Error ? err.message : String(err)
       });
       alert('Could not compute the route. Please try again.');
+    } finally {
+      if (slowModalVisibleSinceRef.current != null) {
+        accumulatedSlowModalMsRef.current += performance.now() - slowModalVisibleSinceRef.current;
+        slowModalVisibleSinceRef.current = null;
+      }
+      setRouteSlowModalOpen(false);
+      if (routeSlowModalTimerRef.current) {
+        clearTimeout(routeSlowModalTimerRef.current);
+        routeSlowModalTimerRef.current = null;
+      }
+      routeCalcActiveRef.current = false;
+      const totalMs = performance.now() - perfStart;
+      const slowMs = accumulatedSlowModalMsRef.current > 0 ? accumulatedSlowModalMsRef.current : null;
+      setRouteTimingDebug({
+        searchMs: searchMsVal,
+        elevationMs: elevationMsVal,
+        totalMs,
+        slowModalMs: slowMs,
+      });
+      setLoading(false);
     }
-    finally { setLoading(false); }
-  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload]);
+  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload, showElevationFlatToast]);
 
   /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
@@ -5192,6 +5280,33 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {routeSlowModalOpen && (
+        <div className="absolute inset-0 z-[1998] flex items-center justify-center bg-black/55 backdrop-blur-sm p-3">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl p-4 w-[92%] max-w-[420px]">
+            <div className="text-slate-900 font-extrabold text-[15px] leading-snug">Route search is taking longer than usual.</div>
+            <p className="text-slate-600 text-[12px] mt-2 leading-snug">
+              Search continues in the background. You can keep waiting or open Explore Routes to pick a curated ride.
+            </p>
+            <div className="flex flex-col gap-2 mt-4 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleRouteSlowModalKeepWaiting}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2.5"
+              >
+                Keep waiting
+              </button>
+              <button
+                type="button"
+                onClick={handleRouteSlowModalRideExplore}
+                className="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl py-2.5"
+              >
+                Ride Explore route
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
       <div
         ref={svContainerRef}
@@ -5283,6 +5398,35 @@ const App: React.FC = () => {
           triggerMapResize(map);
         }}
       />
+      {SHOW_ROUTE_TIMING_DEBUG_OVERLAY && mapRevealed && (
+        <div
+          className="fixed z-[1006] pointer-events-none max-w-[min(92vw,280px)] rounded-md border border-white/15 bg-black/70 px-2 py-1.5 font-mono text-[10px] leading-tight text-white/95 shadow-lg"
+          style={{ left: SAFE_LEFT_1REM, top: SAFE_TOP_4_25REM }}
+        >
+          {loading && routeCalcLiveTick >= 0 && (
+            <div className="text-amber-200/95">
+              Running: {((Date.now() - routeCalcWallStartRef.current) / 1000).toFixed(1)}s (geocode + OSRM + elevation…)
+            </div>
+          )}
+          {routeTimingDebug && (
+            <div className="mt-0.5 space-y-0.5 text-white/90">
+              <div>
+                Last route search:{' '}
+                {routeTimingDebug.searchMs != null ? `${routeTimingDebug.searchMs.toFixed(0)} ms` : '—'}
+              </div>
+              <div>
+                Last elevation fetch:{' '}
+                {routeTimingDebug.elevationMs != null ? `${routeTimingDebug.elevationMs.toFixed(0)} ms` : '—'}
+              </div>
+              <div>Last total: {routeTimingDebug.totalMs != null ? `${routeTimingDebug.totalMs.toFixed(0)} ms` : '—'}</div>
+              <div>
+                Slow-route dialog visible:{' '}
+                {routeTimingDebug.slowModalMs != null ? `${routeTimingDebug.slowModalMs.toFixed(0)} ms` : '—'}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {mapRevealed && (
         <a
           href="https://www.openstreetmap.org/copyright"
