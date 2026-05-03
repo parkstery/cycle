@@ -330,7 +330,10 @@ const findStreetViewInDirection = (
   path: any[],
   cumDist: number[] | null,
   radius: number,
-  maxAngleDeg: number = 110
+  maxAngleDeg: number = 110,
+  corridorMult: number = 1,
+  /** 있으면 POV·방위 기준 누적 거리로 사용(경로상 보간 샘플과 세그먼트 인덱스 불일치 보정) */
+  distanceAlongM: number | null = null
 ): Promise<PanoDataItem | null> => {
   return getPanoramaWithFallback(service, {
     location: pathPoint,
@@ -345,14 +348,19 @@ const findStreetViewInDirection = (
     if (angleDiff > maxAngleDeg) return null;
     if (path.length >= 2) {
       const lateralM = minDistanceFromPointToPolylinePath(panoLatLng, path, pathIndex, SV_POLYLINE_MATCH_HALFWIN);
-      if (lateralM > SV_CORRIDOR_MAX_M) return null;
-      if (usedFallback && lateralM > SV_CORRIDOR_USER_MAX_M) return null;
+      const maxLat = SV_CORRIDOR_MAX_M * corridorMult;
+      const maxUserLat = SV_CORRIDOR_USER_MAX_M * Math.min(corridorMult, 1.45);
+      if (lateralM > maxLat) return null;
+      if (usedFallback && lateralM > maxUserLat) return null;
     }
     let heading: number;
     if (cumDist && cumDist.length === path.length) {
-      const dHere = cumDist[pathIndex];
       const totalLen = cumDist[cumDist.length - 1];
-      const povD = Math.min(dHere + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
+      const baseAlong =
+        distanceAlongM != null
+          ? Math.max(0, Math.min(distanceAlongM, totalLen))
+          : cumDist[pathIndex];
+      const povD = Math.min(baseAlong + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
       const pov = getLatLngAtDistanceAlongPath(path, cumDist, povD);
       heading = computeHeading(pathPoint, { lat: pov.lat, lng: pov.lng });
     } else {
@@ -375,21 +383,27 @@ const SV_PASS1_RADIUS_M = 50;
 const SV_PASS1_MAX_ANGLE_DEG = 40;
 /** Pass1 실패 시 재시도 각도(°). 차로 전환 등으로 40° 밖에 파노가 있을 때 멈춤 방지, 실내 파노는 이후 필터로 제외 */
 const SV_PASS1_RELAXED_ANGLE_DEG = 90;
-/** 교차로·급회전 구간(인접 구간 방향 변화 합 ≥ 이 값°)에서 Pass 각도 강화 */
-const SV_TURN_SHARP_SUM_DEG = 32;
-const SV_PASS1_MAX_ANGLE_STRICT = 30;
-const SV_PASS1_RELAXED_ANGLE_STRICT = 68;
-const SV_PASS2_MAX_ANGLE_STRICT = 82;
-/** 방향 필터 기준점: 현재 샘플에서 경로를 따라 이 거리(m) 앞 좌표로 진행 방향 계산(교차 도로 오인 완화) */
+/** 교차로·급회전 구간(인접 구간 방향 변화 합 ≥ 이 값°)에서 Pass 각도 강화 — 너무 넓으면 완만한 곡선에서만reject 증가 */
+const SV_TURN_SHARP_SUM_DEG = 38;
+const SV_PASS1_MAX_ANGLE_STRICT = 32;
+const SV_PASS1_RELAXED_ANGLE_STRICT = 72;
+const SV_PASS2_MAX_ANGLE_STRICT = 88;
+/** 급곡선에서만 짧은 전방 헤딩(회전로·라운드어바웃 탄젠트 왜곡 완화) */
+const SV_HEADING_LOOKAHEAD_SHARP_SUM_DEG = 52;
 const SV_HEADING_LOOKAHEAD_M = 52;
+const SV_HEADING_LOOKAHEAD_SHORT_M = 32;
 /** POV 시선 방위: 경로상 전방 이 거리(m) 지점까지의 방위 */
 const SV_POV_HEADING_LOOKAHEAD_M = 44;
-/** 적응형 샘플: 직선 구간 간격(m) — 거리뷰 과밀·전환 부담 완화 */
-const SV_SAMPLE_INTERVAL_STRAIGHT_M = 18;
-/** 적응형 샘플: 회전·교차 구간 간격(m) — 잘못된 교차 도로 파노가 길게 유지되는 것 완화 */
-const SV_SAMPLE_INTERVAL_TURN_M = 6;
-/** 이 값 이상이면 회전 구간으로 간주하고 SV_SAMPLE_INTERVAL_TURN_M 사용 */
-const SV_ADAPTIVE_TURN_SUM_DEG = 26;
+/** 적응형 샘플: 직선 구간 간격(m) — 약 60km/h 거리뷰 진행 시 ~1초 전후 한 컷 */
+const SV_SAMPLE_INTERVAL_STRAIGHT_M = 12;
+/** 적응형 샘플: 회전·교차 구간 간격(m) */
+const SV_SAMPLE_INTERVAL_TURN_M = 7;
+/** 이 값 이상이면 회전 구간으로 간주(직선에서 6m 샘플 깜빡임 방지) */
+const SV_ADAPTIVE_TURN_SUM_DEG = 40;
+/** 연속 거리뷰 스왑 최소 간격(ms) — 짧은 구간 연속 컷 폭주 완화 */
+const MIN_MS_BETWEEN_PANO_SWAPS = 880;
+/** 프리패치 커버 대비 주행 위치 갭 판정 여유(m) */
+const SV_GAP_SLACK_ROUTE_M = 42;
 /** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
 const SV_PASS2_MAX_ANGLE_DEG = 100;
@@ -468,6 +482,8 @@ const App: React.FC = () => {
   const lastSvDisplayUpdateRef = useRef(0);
   /** 마지막으로 표시한 파노의 pathIndex — 더 작은 인덱스로 갱신해 후진처럼 보이는 현상 방지 */
   const lastDisplayedPanoPathIndexRef = useRef(-1);
+  /** 거리뷰 파노 스왑 시각(연속 컷 폭주 완화) */
+  const lastPanoSwapAtMsRef = useRef(0);
   const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
   const pendingSwapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Fallback swap if status_changed never OK (방안 A)
 
@@ -1673,20 +1689,24 @@ const App: React.FC = () => {
         ? { sampleDistM: options.chainTailMeta.sampleDistM, isOfficial: true }
         : null;
     for (let k = 0; k < n; k++) {
-      const { pathIndex, distAlongPath: sampleDistM } = samples[k];
-      const pathPoint = path[pathIndex];
-      const dHere = cumDist[pathIndex];
+      const { distAlongPath: sampleDistM } = samples[k];
       const totalLen = cumDist[path.length - 1];
+      const clampedDist = Math.min(sampleDistM, totalLen);
+      const onPath = getLatLngAtDistanceAlongPath(path, cumDist, clampedDist);
+      const pathPoint = { lat: onPath.lat, lng: onPath.lng };
+      const geomIdx = onPath.segmentIndex;
+      const turnSumHere = headingChangeSumAlongPath(path, cumDist, geomIdx, 22, 30);
+      const lookM =
+        turnSumHere >= SV_HEADING_LOOKAHEAD_SHARP_SUM_DEG ? SV_HEADING_LOOKAHEAD_SHORT_M : SV_HEADING_LOOKAHEAD_M;
       let pathNextForSv: any;
-      if (totalLen - dHere < 8) {
-        pathNextForSv = path[Math.min(pathIndex + 1, path.length - 1)];
+      if (totalLen - clampedDist < 8) {
+        pathNextForSv = path[Math.min(geomIdx + 1, path.length - 1)];
       } else {
-        const lookDist = Math.min(dHere + SV_HEADING_LOOKAHEAD_M, totalLen);
+        const lookDist = Math.min(clampedDist + lookM, totalLen);
         const ahead = getLatLngAtDistanceAlongPath(path, cumDist, lookDist);
         pathNextForSv = { lat: ahead.lat, lng: ahead.lng };
       }
       const driveHeading = computeHeading(pathPoint, pathNextForSv);
-      const turnSumHere = headingChangeSumAlongPath(path, cumDist, pathIndex, 22, 30);
       const sharpTurn = turnSumHere >= SV_TURN_SHARP_SUM_DEG;
       const pass1Angle = sharpTurn ? SV_PASS1_MAX_ANGLE_STRICT : SV_PASS1_MAX_ANGLE_DEG;
       const pass1RelaxedAngle = sharpTurn ? SV_PASS1_RELAXED_ANGLE_STRICT : SV_PASS1_RELAXED_ANGLE_DEG;
@@ -1697,11 +1717,13 @@ const App: React.FC = () => {
         svServiceRef.current,
         pathPoint,
         pathNextForSv,
-        pathIndex,
+        geomIdx,
         path,
         cumDist,
         SV_PASS1_RADIUS_M,
-        pass1Angle
+        pass1Angle,
+        1,
+        clampedDist
       );
       if (pass1) candidates.push({ item: pass1, maxD: SV_PASS1_RADIUS_M });
 
@@ -1710,11 +1732,13 @@ const App: React.FC = () => {
           svServiceRef.current,
           pathPoint,
           pathNextForSv,
-          pathIndex,
+          geomIdx,
           path,
           cumDist,
           SV_PASS1_RADIUS_M,
-          pass1RelaxedAngle
+          pass1RelaxedAngle,
+          1,
+          clampedDist
         );
         if (pass1Relaxed) candidates.push({ item: pass1Relaxed, maxD: SV_PASS1_RADIUS_M });
       }
@@ -1724,16 +1748,40 @@ const App: React.FC = () => {
           svServiceRef.current,
           pathPoint,
           pathNextForSv,
-          pathIndex,
+          geomIdx,
           path,
           cumDist,
           SV_PASS2_RADIUS_M,
-          pass2Angle
+          pass2Angle,
+          1,
+          clampedDist
         );
         if (pass2?.panoId) {
           const desc = pass2.description ?? '';
           if (!SV_INDOOR_KEYWORDS.test(desc)) {
             candidates.push({ item: pass2, maxD: SV_PASS2_RADIUS_M });
+          }
+        }
+      }
+
+      if (candidates.length === 0) {
+        const pass3Angle = Math.min(pass2Angle + 14, 112);
+        const pass3 = await findStreetViewInDirection(
+          svServiceRef.current,
+          pathPoint,
+          pathNextForSv,
+          geomIdx,
+          path,
+          cumDist,
+          SV_PASS2_RADIUS_M,
+          pass3Angle,
+          1.92,
+          clampedDist
+        );
+        if (pass3?.panoId) {
+          const desc = pass3.description ?? '';
+          if (!SV_INDOOR_KEYWORDS.test(desc)) {
+            candidates.push({ item: pass3, maxD: SV_PASS2_RADIUS_M });
           }
         }
       }
@@ -1758,10 +1806,20 @@ const App: React.FC = () => {
           !!best.isUserPhoto &&
           lastChainMeta !== null &&
           lastChainMeta.isOfficial &&
-          sampleDistM - lastChainMeta.sampleDistM < SV_SHORT_GAP_SKIP_USER_M;
+          clampedDist - lastChainMeta.sampleDistM < SV_SHORT_GAP_SKIP_USER_M;
         if (!skipUserShortGap) {
-          panoData.push(best);
-          lastChainMeta = { sampleDistM, isOfficial: !best.isUserPhoto };
+          let playbackIdx = geomIdx;
+          if (panoData.length > 0) {
+            const prevPi = panoData[panoData.length - 1].pathIndex;
+            if (playbackIdx <= prevPi) playbackIdx = prevPi + 1;
+          }
+          playbackIdx = Math.min(playbackIdx, path.length - 1);
+          panoData.push({
+            ...best,
+            pathIndex: playbackIdx,
+            distAlongRouteM: clampedDist
+          });
+          lastChainMeta = { sampleDistM: clampedDist, isOfficial: !best.isUserPhoto };
         }
       }
       onProgress(k + 1, n);
@@ -2794,6 +2852,7 @@ const App: React.FC = () => {
         svDisplayPathIndexRef.current = 0;
         lastSvDisplayUpdateRef.current = Date.now();
         lastDisplayedPanoPathIndexRef.current = -1;
+        lastPanoSwapAtMsRef.current = 0;
       } else if (svDisplayPathIndexRef.current < currentIdx) {
         const elapsed = Date.now() - lastSvDisplayUpdateRef.current;
         const maxPoints = (MAX_SV_SPEED_M_PER_SEC * (elapsed / 1000)) / METERS_PER_PATH_POINT;
@@ -2812,11 +2871,21 @@ const App: React.FC = () => {
           const panos = routeData.panoData;
           const panoItem = getPanoDataForIndex(panos, svDisplayIdxForPano);
           let maxPanoPathIdx = -1;
+          let maxDistAlong = -1;
           for (const p of panos) {
             if (p.pathIndex > maxPanoPathIdx) maxPanoPathIdx = p.pathIndex;
+            if (typeof p.distAlongRouteM === 'number') maxDistAlong = Math.max(maxDistAlong, p.distAlongRouteM);
           }
-          const GAP_SLACK_POINTS = 30;
-          const inGap = maxPanoPathIdx >= 0 && svDisplayIdxForPano > maxPanoPathIdx + GAP_SLACK_POINTS;
+          const pathForSv = route.path;
+          const cumDistSv: number[] = [0];
+          for (let i = 1; i < pathForSv.length; i++) {
+            cumDistSv[i] = cumDistSv[i - 1] + computeDistanceBetween(pathForSv[i - 1], pathForSv[i]);
+          }
+          if (maxDistAlong < 0) {
+            maxDistAlong = cumDistSv[Math.min(Math.max(0, maxPanoPathIdx), pathForSv.length - 1)];
+          }
+          const svDistAlong = cumDistSv[Math.min(svDisplayIdxForPano, pathForSv.length - 1)];
+          const inGap = maxDistAlong >= 0 && svDistAlong > maxDistAlong + SV_GAP_SLACK_ROUTE_M;
 
           if (inGap) {
             setShowSvWarning(true);
@@ -2833,11 +2902,16 @@ const App: React.FC = () => {
           } else {
             setShowSvWarning(false);
             if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
-              lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
-              void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+              const nowMs = Date.now();
+              const allowImmediate = lastDisplayedPanoPathIndexRef.current < 0;
+              if (allowImmediate || nowMs - lastPanoSwapAtMsRef.current >= MIN_MS_BETWEEN_PANO_SWAPS) {
+                lastPanoSwapAtMsRef.current = nowMs;
+                lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+                void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+              }
             }
           }
-          // 슬라이딩 prefetch: 캐시 끝(max pathIndex) 근처에서 다음 구간 수집
+          // 슬라이딩 prefetch: 누적 거리 기준 캐시 끝에 근접 시 다음 구간 수집
           if (
             maxPanoPathIdx >= 0 &&
             currentIdx >= maxPanoPathIdx - 150 &&
@@ -2851,17 +2925,21 @@ const App: React.FC = () => {
               cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
             }
             const totalM = cumDist[path.length - 1];
-            const distAtLast = cumDist[Math.min(maxPanoPathIdx, path.length - 1)];
             const distAtCurrent = cumDist[Math.min(currentIdx, path.length - 1)];
-            const fromM = Math.max(distAtLast + 10, distAtCurrent);
+            const fromM = Math.max(maxDistAlong + 8, distAtCurrent);
             const toM = Math.min(fromM + 400, totalM);
             if (fromM < toM) {
               const prevPanos = route.panoData || [];
               const tail = prevPanos.length ? prevPanos[prevPanos.length - 1] : null;
+              const tailDist =
+                tail &&
+                (typeof tail.distAlongRouteM === 'number'
+                  ? tail.distAlongRouteM
+                  : cumDist[Math.min(tail.pathIndex, path.length - 1)]);
               const chainTailMeta =
-                tail && !tail.isUserPhoto
+                tail && !tail.isUserPhoto && tailDist !== undefined
                   ? {
-                      sampleDistM: cumDist[Math.min(tail.pathIndex, path.length - 1)],
+                      sampleDistM: tailDist as number,
                       wasOfficial: true as const
                     }
                   : undefined;
@@ -3779,7 +3857,10 @@ const App: React.FC = () => {
     const chainTailMetaSpeed =
       tailKept && !tailKept.isUserPhoto
         ? {
-            sampleDistM: cumDist[Math.min(tailKept.pathIndex, path.length - 1)],
+            sampleDistM:
+              typeof tailKept.distAlongRouteM === 'number'
+                ? tailKept.distAlongRouteM
+                : cumDist[Math.min(tailKept.pathIndex, path.length - 1)],
             wasOfficial: true as const
           }
         : undefined;

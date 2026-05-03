@@ -8,6 +8,8 @@ export interface PanoDataItem {
   isUserPhoto?: boolean;
   /** [Phase 4] API 제공 시 실내/상가 필터용 (StreetViewLocation.description) */
   description?: string;
+  /** 프리패치 시점 경로 누적 거리(m). 슬라이딩 연속·갭 판정에 사용 */
+  distAlongRouteM?: number;
 }
 
 /** Coaching valid until this path index (predictive coaching) */

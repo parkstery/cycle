@@ -198,3 +198,4 @@ export function getLatLngAtDistanceAlongPath(
     segmentIndex: i
   };
 }
+
