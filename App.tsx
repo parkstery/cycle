@@ -410,6 +410,14 @@ const SV_SLIDING_PREFETCH_CHUNK_M = 190;
 const SV_PREFETCH_OVERLAP_ROUTE_M = 45;
 /** 마지막 파노 누적거리 대비 이 path index 만큼 앞서면 다음 슬라이딩 수집 시도 */
 const SV_SLIDING_TRIGGER_PATH_POINTS_BACK = 240;
+/** 누적 거리로 캐시보다 앞서면 인덱스 조건만으로는 늦을 때 슬라이딩 수집(시작·회전로 교착 완화) */
+const SV_SLIDING_AHEAD_FETCH_M = 58;
+/** 갭이 길 때 라이브 getPanorama 간격(ms) */
+const LIVE_SV_GAP_FAST_MS = 1300;
+/** 갭이 상대적으로 짧을 때 라이브 간격(ms) */
+const LIVE_SV_GAP_SLOW_MS = 3800;
+/** 같은 파노 키프레임일 때 주행 방향만 POV 갱신 최소 간격(ms) */
+const SV_POV_REFRESH_MIN_MS = 420;
 /** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
 const SV_PASS2_MAX_ANGLE_DEG = 100;
@@ -494,6 +502,9 @@ const App: React.FC = () => {
   const lastDisplayedPanoPathIndexRef = useRef(-1);
   /** 거리뷰 파노 스왑 시각(연속 컷 폭주 완화) */
   const lastPanoSwapAtMsRef = useRef(0);
+  /** 현재 화면에 올라간 파노 ID(동일 파노 구간 POV 보정용) */
+  const lastDisplayedPanoIdRef = useRef<string | null>(null);
+  const lastPovRefreshMsRef = useRef(0);
   const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
   const pendingSwapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Fallback swap if status_changed never OK (방안 A)
 
@@ -2852,6 +2863,7 @@ const App: React.FC = () => {
         const panoItem = getPanoDataForIndex(routeData.panoData, currentIdx);
         if (panoItem) {
           lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+          lastDisplayedPanoIdRef.current = panoItem.panoId;
           setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
           setShowSvWarning(false);
         }
@@ -2884,6 +2896,8 @@ const App: React.FC = () => {
         lastSvDisplayUpdateRef.current = Date.now();
         lastDisplayedPanoPathIndexRef.current = -1;
         lastPanoSwapAtMsRef.current = 0;
+        lastDisplayedPanoIdRef.current = null;
+        lastPovRefreshMsRef.current = 0;
       } else if (svDisplayPathIndexRef.current < currentIdx) {
         const elapsed = Date.now() - lastSvDisplayUpdateRef.current;
         const maxPoints = (MAX_SV_SPEED_M_PER_SEC * (elapsed / 1000)) / METERS_PER_PATH_POINT;
@@ -2916,13 +2930,14 @@ const App: React.FC = () => {
             maxDistAlong = cumDistSv[Math.min(Math.max(0, maxPanoPathIdx), pathForSv.length - 1)];
           }
           const svDistAlong = cumDistSv[Math.min(svDisplayIdxForPano, pathForSv.length - 1)];
-          const inGap = maxDistAlong >= 0 && svDistAlong > maxDistAlong + SV_GAP_SLACK_ROUTE_M;
+          const gapLenM = maxDistAlong >= 0 ? svDistAlong - maxDistAlong : 0;
+          const inGap = maxDistAlong >= 0 && gapLenM > SV_GAP_SLACK_ROUTE_M;
 
           if (inGap) {
             setShowSvWarning(true);
             const nowMs = Date.now();
-            const LIVE_SV_FALLBACK_MS = 4500;
-            if (nowMs - lastLiveSvFallbackAtMsRef.current >= LIVE_SV_FALLBACK_MS) {
+            const liveMs = gapLenM > 95 ? LIVE_SV_GAP_FAST_MS : LIVE_SV_GAP_SLOW_MS;
+            if (nowMs - lastLiveSvFallbackAtMsRef.current >= liveMs) {
               lastLiveSvFallbackAtMsRef.current = nowMs;
               const h =
                 lookAheadIdx > adjustedIdx && targetPosForHeading
@@ -2938,24 +2953,48 @@ const App: React.FC = () => {
               if (allowImmediate || nowMs - lastPanoSwapAtMsRef.current >= MIN_MS_BETWEEN_PANO_SWAPS) {
                 lastPanoSwapAtMsRef.current = nowMs;
                 lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
+                lastDisplayedPanoIdRef.current = panoItem.panoId;
                 void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+              }
+            } else if (
+              panoItem &&
+              lastDisplayedPanoPathIndexRef.current >= 0 &&
+              panoItem.pathIndex === lastDisplayedPanoPathIndexRef.current &&
+              panoItem.panoId === lastDisplayedPanoIdRef.current
+            ) {
+              const nowMs = Date.now();
+              if (nowMs - lastPovRefreshMsRef.current >= SV_POV_REFRESH_MIN_MS) {
+                lastPovRefreshMsRef.current = nowMs;
+                const h =
+                  lookAheadIdx > adjustedIdx && targetPosForHeading
+                    ? computeHeading(currentPos, targetPosForHeading)
+                    : panoItem.heading;
+                const curPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+                try {
+                  if (curPano?.setPov && (curPano.getStatus?.() === 'OK' || curPano.getStatus?.() === undefined)) {
+                    curPano.setPov({ heading: h, pitch: 0, zoom: 0 });
+                  }
+                } catch {
+                  /* noop */
+                }
               }
             }
           }
-          // 슬라이딩 prefetch: 누적 거리 기준 캐시 끝에 근접 시 다음 구간 수집
-          if (
-            maxPanoPathIdx >= 0 &&
-            currentIdx >= maxPanoPathIdx - SV_SLIDING_TRIGGER_PATH_POINTS_BACK &&
+          const distAtCurrentForFetch = cumDistSv[Math.min(currentIdx, pathForSv.length - 1)];
+          const aheadOfCacheM = maxDistAlong >= 0 ? distAtCurrentForFetch - maxDistAlong : -1;
+          const needFetchByIndex =
+            maxPanoPathIdx >= 0 && currentIdx >= maxPanoPathIdx - SV_SLIDING_TRIGGER_PATH_POINTS_BACK;
+          const needFetchByDist = maxDistAlong >= 0 && aheadOfCacheM > SV_SLIDING_AHEAD_FETCH_M;
+          const shouldSlidingFetch =
+            panos.length > 0 &&
+            (needFetchByIndex || needFetchByDist) &&
             !isSegmentFetchingRef.current &&
-            svServiceRef.current
-          ) {
+            svServiceRef.current;
+          // 슬라이딩 prefetch: 누적 거리 기준 캐시 끝에 근접 시 다음 구간 수집
+          if (shouldSlidingFetch) {
             isSegmentFetchingRef.current = true;
             const path = route.path;
-            const cumDist: number[] = [0];
-            for (let i = 1; i < path.length; i++) {
-              cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
-            }
-            const totalM = cumDist[path.length - 1];
+            const totalM = cumDistSv[path.length - 1];
             // 주행 인덱스가 캐시보다 앞서도 fromM 을 당겨오지 않음 → 구간 건너뛰기 공백 방지
             const fromM = Math.max(0, maxDistAlong - SV_PREFETCH_OVERLAP_ROUTE_M);
             const toM = Math.min(fromM + SV_SLIDING_PREFETCH_CHUNK_M, totalM);
@@ -2966,7 +3005,7 @@ const App: React.FC = () => {
                 tail &&
                 (typeof tail.distAlongRouteM === 'number'
                   ? tail.distAlongRouteM
-                  : cumDist[Math.min(tail.pathIndex, path.length - 1)]);
+                  : cumDistSv[Math.min(tail.pathIndex, path.length - 1)]);
               const chainTailMeta =
                 tail && !tail.isUserPhoto && tailDist !== undefined
                   ? {
