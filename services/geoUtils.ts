@@ -88,3 +88,48 @@ export function computeOffset(from: LatLngLike, distanceM: number, headingDeg: n
     );
   return { lat: (lat2 * 180) / Math.PI, lng: (lng2 * 180) / Math.PI };
 }
+
+const R_EARTH_M = 6371000;
+
+/**
+ * 점에서 선분까지의 최단 거리(미터). 짧은 구간용 등거투영 근사.
+ */
+export function distancePointToSegmentMeters(point: LatLngLike, segA: LatLngLike, segB: LatLngLike): number {
+  const p = getLatLng(point);
+  const a = getLatLng(segA);
+  const b = getLatLng(segB);
+  const latAvg = ((a.lat + b.lat) / 2) * (Math.PI / 180);
+  const kx = R_EARTH_M * Math.cos(latAvg) * (Math.PI / 180);
+  const ky = R_EARTH_M * (Math.PI / 180);
+  const bx = (b.lng - a.lng) * kx;
+  const by = (b.lat - a.lat) * ky;
+  const px = (p.lng - a.lng) * kx;
+  const py = (p.lat - a.lat) * ky;
+  const len2 = bx * bx + by * by;
+  const t = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, (px * bx + py * by) / len2));
+  const cx = t * bx;
+  const cy = t * by;
+  const dx = px - cx;
+  const dy = py - cy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * 경로 폴리라인까지의 최소 거리(미터). centerIndex 주변 halfWindow개 세그먼트만 검사.
+ */
+export function minDistanceFromPointToPolylinePath(
+  point: LatLngLike,
+  path: LatLngLike[],
+  centerIndex: number,
+  halfWindow: number
+): number {
+  if (!path?.length || path.length < 2) return Infinity;
+  const lo = Math.max(0, centerIndex - halfWindow);
+  const hi = Math.min(path.length - 2, centerIndex + halfWindow);
+  let minD = Infinity;
+  for (let i = lo; i <= hi; i++) {
+    const d = distancePointToSegmentMeters(point, path[i], path[i + 1]);
+    if (d < minD) minD = d;
+  }
+  return minD;
+}

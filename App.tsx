@@ -18,7 +18,7 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { decodePath, computeDistanceBetween, computeHeading, computeOffset } from './services/geoUtils';
+import { decodePath, computeDistanceBetween, computeHeading, computeOffset, minDistanceFromPointToPolylinePath } from './services/geoUtils';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -303,18 +303,6 @@ const getPanoramaWithFallback = (
   return Promise.race([apiPromise, timeoutPromise]);
 };
 
-// Helper to wrap getPanorama in a Promise (no direction filter); uses GOOGLE then DEFAULT fallback
-const findStreetView = (
-  service: any,
-  location: any,
-  radius: number
-): Promise<{ data: any; usedFallback: boolean } | null> => {
-  return getPanoramaWithFallback(service, { location, radius }).then(({ data, usedFallback }) => {
-    if (data) return { data, usedFallback };
-    return null;
-  });
-};
-
 /** Normalize angle difference to [-180, 180] */
 function normalizeAngleDiff(deg: number): number {
   while (deg > 180) deg -= 360;
@@ -346,6 +334,11 @@ const findStreetViewInDirection = (
     const bearingToPano = computeHeading(pathPoint, panoLatLng);
     const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
     if (angleDiff > maxAngleDeg) return null;
+    if (path.length >= 2) {
+      const lateralM = minDistanceFromPointToPolylinePath(panoLatLng, path, pathIndex, SV_POLYLINE_MATCH_HALFWIN);
+      if (lateralM > SV_CORRIDOR_MAX_M) return null;
+      if (usedFallback && lateralM > SV_CORRIDOR_USER_MAX_M) return null;
+    }
     const nextIdx = Math.min(pathIndex + 10, path.length - 1);
     const heading = computeHeading(pathPoint, path[nextIdx]);
     return {
@@ -364,8 +357,17 @@ const SV_PASS1_RADIUS_M = 50;
 const SV_PASS1_MAX_ANGLE_DEG = 40;
 /** Pass1 실패 시 재시도 각도(°). 차로 전환 등으로 40° 밖에 파노가 있을 때 멈춤 방지, 실내 파노는 이후 필터로 제외 */
 const SV_PASS1_RELAXED_ANGLE_DEG = 90;
-/** [Phase 2] Multi-pass 2단계: 반경(m), 방향 제한 없음. 시니어 권고 120m */
+/** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
+const SV_PASS2_MAX_ANGLE_DEG = 100;
+/** 경로 폴리라인 대 파노 위치 횡거리 상한(미터). 초과 시 후보 제외 */
+const SV_CORRIDOR_MAX_M = 48;
+/** 사용자 기여 파노만 더 엄격한 횡거리(미터) */
+const SV_CORRIDOR_USER_MAX_M = 22;
+/** pathIndex 기준으로 앞뒤 몇 개 세그먼트까지 횡거리 계산 */
+const SV_POLYLINE_MATCH_HALFWIN = 110;
+/** 공식 거리뷰 직후 짧은 구간(미터)에는 사용자 파노를 프리패치에 넣지 않음 */
+const SV_SHORT_GAP_SKIP_USER_M = 75;
 /** [Phase 2] 점수 가중치: 거리 60%, 방향 40%. score = 0.6*(1-d/maxD) + 0.4*(1-diff/90) */
 const SV_SCORE_DIST_WEIGHT = 0.6;
 const SV_SCORE_ANGLE_WEIGHT = 0.4;
@@ -1580,11 +1582,17 @@ const App: React.FC = () => {
     return Promise.race([inner, timeout]);
   }, [scheduleSwapAfterOk]);
 
-  /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 120m 제한없음) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
+  /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 완화각 → 120m+방향) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
   const preFetchStreetViewData = useCallback(async (
     path: any[],
     onProgress: (k: number, n: number) => void,
-    options?: { fromDistanceM?: number; maxDistanceM?: number; intervalM?: number }
+    options?: {
+      fromDistanceM?: number;
+      maxDistanceM?: number;
+      intervalM?: number;
+      /** 슬라이딩 프리패치 시 직전 배치 끝이 공식 파노면 짧은 구간 사용자 파노 삽입 억제 */
+      chainTailMeta?: { sampleDistM: number; wasOfficial: boolean };
+    }
   ): Promise<{ panoData: PanoDataItem[]; sampleCount: number }> => {
     if (!svServiceRef.current || !path.length) return { panoData: [], sampleCount: 0 };
     const cumDist: number[] = [0];
@@ -1603,12 +1611,17 @@ const App: React.FC = () => {
     }
     const panoData: PanoDataItem[] = [];
     const n = samples.length;
+    let lastChainMeta: { sampleDistM: number; isOfficial: boolean } | null =
+      options?.chainTailMeta?.wasOfficial === true
+        ? { sampleDistM: options.chainTailMeta.sampleDistM, isOfficial: true }
+        : null;
     for (let k = 0; k < n; k++) {
       const pathIndex = samples[k];
       const pathPoint = path[pathIndex];
       const pathNext = path[Math.min(pathIndex + 10, path.length - 1)];
       const driveHeading = computeHeading(pathPoint, pathNext);
       const candidates: { item: PanoDataItem; maxD: number }[] = [];
+      const sampleDistM = fromDistanceM + k * intervalM;
 
       const pass1 = await findStreetViewInDirection(
         svServiceRef.current,
@@ -1635,22 +1648,19 @@ const App: React.FC = () => {
       }
 
       if (candidates.length === 0) {
-        const pass2 = await findStreetView(svServiceRef.current, pathPoint, SV_PASS2_RADIUS_M);
-        if (pass2?.data?.location?.pano) {
-          const desc = pass2.data.location?.description ?? '';
+        const pass2 = await findStreetViewInDirection(
+          svServiceRef.current,
+          pathPoint,
+          pathNext,
+          pathIndex,
+          path,
+          SV_PASS2_RADIUS_M,
+          SV_PASS2_MAX_ANGLE_DEG
+        );
+        if (pass2?.panoId) {
+          const desc = pass2.description ?? '';
           if (!SV_INDOOR_KEYWORDS.test(desc)) {
-            const heading = computeHeading(pathPoint, pathNext);
-            candidates.push({
-              item: {
-                pathIndex,
-                panoId: pass2.data.location.pano,
-                location: pass2.data.location.latLng,
-                heading,
-                isUserPhoto: pass2.usedFallback,
-                description: desc || undefined
-              },
-              maxD: SV_PASS2_RADIUS_M
-            });
+            candidates.push({ item: pass2, maxD: SV_PASS2_RADIUS_M });
           }
         }
       }
@@ -1670,7 +1680,17 @@ const App: React.FC = () => {
           best = item;
         }
       }
-      if (best) panoData.push(best);
+      if (best) {
+        const skipUserShortGap =
+          !!best.isUserPhoto &&
+          lastChainMeta !== null &&
+          lastChainMeta.isOfficial &&
+          sampleDistM - lastChainMeta.sampleDistM < SV_SHORT_GAP_SKIP_USER_M;
+        if (!skipUserShortGap) {
+          panoData.push(best);
+          lastChainMeta = { sampleDistM, isOfficial: !best.isUserPhoto };
+        }
+      }
       onProgress(k + 1, n);
       if (k < n - 1) await new Promise(r => setTimeout(r, 80));
     }
@@ -2763,7 +2783,21 @@ const App: React.FC = () => {
             const fromM = Math.max(distAtLast + 10, distAtCurrent);
             const toM = Math.min(fromM + 400, totalM);
             if (fromM < toM) {
-              preFetchStreetViewData(path, () => { }, { fromDistanceM: fromM, maxDistanceM: toM, intervalM: 10 })
+              const prevPanos = route.panoData || [];
+              const tail = prevPanos.length ? prevPanos[prevPanos.length - 1] : null;
+              const chainTailMeta =
+                tail && !tail.isUserPhoto
+                  ? {
+                      sampleDistM: cumDist[Math.min(tail.pathIndex, path.length - 1)],
+                      wasOfficial: true as const
+                    }
+                  : undefined;
+              preFetchStreetViewData(path, () => { }, {
+                fromDistanceM: fromM,
+                maxDistanceM: toM,
+                intervalM: 10,
+                ...(chainTailMeta ? { chainTailMeta } : {})
+              })
                 .then(({ panoData: nextPanos }) => {
                   if (nextPanos.length) {
                     setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
@@ -3668,12 +3702,22 @@ const App: React.FC = () => {
     setSimulation((s) => ({ ...s, isActive: false }));
     setAppPhase('PREPARING');
     setPreparingProgress({ k: 0, n: 1 });
+    const keptBefore = (route.panoData || []).filter((p: PanoDataItem) => p.pathIndex < currentPathIndex);
+    const tailKept = keptBefore.length ? keptBefore[keptBefore.length - 1] : null;
+    const chainTailMetaSpeed =
+      tailKept && !tailKept.isUserPhoto
+        ? {
+            sampleDistM: cumDist[Math.min(tailKept.pathIndex, path.length - 1)],
+            wasOfficial: true as const
+          }
+        : undefined;
     preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), {
       fromDistanceM: currentDistanceM,
       maxDistanceM: currentDistanceM + INITIAL_PREFETCH_HIGH_M,
-      intervalM: 10
+      intervalM: 10,
+      ...(chainTailMetaSpeed ? { chainTailMeta: chainTailMetaSpeed } : {})
     }).then(({ panoData: newPanoData }) => {
-      const kept = (route.panoData || []).filter((p: PanoDataItem) => p.pathIndex < currentPathIndex);
+      const kept = keptBefore;
       const merged = [...kept, ...newPanoData];
       setRoute((prevRoute) => (prevRoute ? { ...prevRoute, panoData: merged } : null));
       setPreparingProgress(null);
