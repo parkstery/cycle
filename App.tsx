@@ -4594,8 +4594,10 @@ const App: React.FC = () => {
           const decoded = decodePath(data.routes[0].geometry);
           lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);
           path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
-          distText = `${(data.routes[0].distance / 1000).toFixed(1)} km`;
-          durText = formatDurationSimple(data.routes[0].duration);
+          const routeLengthM = data.routes[0].distance;
+          distText = `${(routeLengthM / 1000).toFixed(1)} km`;
+          // Route settings ETA: distance ÷ user average speed (speedKmH). Cycling-app assumption — not OSRM engine duration, not grade-adjusted simulation.
+          durText = formatDurationSimple(routeLengthM / (speedKmH * 1000 / 3600));
           setRouteSource('OSRM');
           if (googleMapRef.current && path.length) {
             const bounds = new google.maps.LatLngBounds();
@@ -4682,37 +4684,6 @@ const App: React.FC = () => {
             routeSlowModalTimer2Ref.current = null;
           }
         }
-
-        // Duration: Car, Bike, Foot 모두 선택 속도(speedKmH) + 경사 보정으로 동일 계산 (실내 사이클 사용자 경로 선택 일관성)
-        let calculatedSeconds = 0;
-        const points = elevationRes.results;
-
-        for (let i = 0; i < points.length - 1; i++) {
-          const p1 = points[i];
-          const p2 = points[i + 1];
-          const dist = computeDistanceBetween(p1.location, p2.location);
-
-          if (dist > 0) {
-            const elevationChange = p2.elevation - p1.elevation;
-            const grade = (elevationChange / dist) * 100;
-
-            // Grade adjustments recommended by Fitness Expert
-            let factor = 1.0;
-            if (grade <= -6) factor = 1.35; // Steep descent
-            else if (grade <= -3) factor = 1.25; // Descent
-            else if (grade <= -1) factor = 1.10; // Mild descent
-            else if (grade < 1) factor = 1.00; // Flat
-            else if (grade < 3) factor = 0.85; // Mild ascent
-            else if (grade < 6) factor = 0.70; // Ascent
-            else factor = 0.50; // Steep ascent (> 6%)
-
-            // V = V0 * factor
-            const adjustedSpeedMs = (speedKmH * 1000 / 3600) * factor;
-            calculatedSeconds += (dist / adjustedSpeedMs);
-          }
-        }
-
-        durText = formatDurationSimple(calculatedSeconds);
 
         const densifiedPath = [];
         const segmentLength = 10;
