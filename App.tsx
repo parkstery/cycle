@@ -477,6 +477,8 @@ const SV_HEADING_LOOKAHEAD_M = 52;
 const SV_HEADING_LOOKAHEAD_SHORT_M = 32;
 /** POV 시선 방위: 경로상 전방 이 거리(m) 지점까지의 방위 */
 const SV_POV_HEADING_LOOKAHEAD_M = 44;
+/** true 또는 URL `?svEveryPoint=1` 이면 거리뷰를 경로상 **모든** 점에서 조회(적응형·고정 간격 샘플링 생략). API·PREPARING 시간이 크게 늘어남 — 지금과의 체감 비교용. */
+const DEBUG_SV_SAMPLE_EVERY_PATH_POINT = false;
 /** 적응형 샘플: 직선 구간 간격(m) — 약 60km/h 거리뷰 진행 시 ~1초 전후 한 컷 */
 const SV_SAMPLE_INTERVAL_STRAIGHT_M = 12;
 /** 적응형 샘플: 회전·교차 구간 간격(m) */
@@ -1876,6 +1878,8 @@ const App: React.FC = () => {
       adaptiveSampling?: boolean;
       /** 슬라이딩 프리패치 시 직전 배치 끝이 공식 파노면 짧은 구간 사용자 파노 삽입 억제 */
       chainTailMeta?: { sampleDistM: number; wasOfficial: boolean };
+      /** true: `fromDistanceM`~`maxDistanceM` 구간의 path 인덱스마다 Street View 조회(매우 촘촘). DEBUG·URL과 OR. */
+      sampleEveryPathPoint?: boolean;
     }
   ): Promise<{ panoData: PanoDataItem[]; sampleCount: number }> => {
     if (!svServiceRef.current || !path.length) return { panoData: [], sampleCount: 0 };
@@ -1887,9 +1891,37 @@ const App: React.FC = () => {
     const fromDistanceM = options?.fromDistanceM ?? 0;
     const maxDistanceM = options?.maxDistanceM ?? totalM;
     const capDist = Math.min(totalM, maxDistanceM);
-    const useAdaptive = options?.adaptiveSampling !== false;
+    const sampleEveryPathPoint =
+      DEBUG_SV_SAMPLE_EVERY_PATH_POINT ||
+      (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('svEveryPoint') === '1') ||
+      options?.sampleEveryPathPoint === true;
+    const useAdaptive = !sampleEveryPathPoint && options?.adaptiveSampling !== false;
     const samples: { pathIndex: number; distAlongPath: number }[] = [];
-    if (useAdaptive) {
+    if (sampleEveryPathPoint) {
+      for (let i = 0; i < path.length; i++) {
+        const d = cumDist[i];
+        if (d < fromDistanceM - 1e-6) continue;
+        if (d > capDist + 1e-6) break;
+        samples.push({ pathIndex: i, distAlongPath: Math.min(d, capDist) });
+      }
+      if (samples.length === 0 && path.length > 0 && fromDistanceM <= capDist) {
+        let i = 0;
+        while (i < path.length - 1 && cumDist[i] < fromDistanceM) i++;
+        samples.push({
+          pathIndex: Math.min(i, path.length - 1),
+          distAlongPath: Math.min(Math.max(fromDistanceM, cumDist[i] ?? 0), capDist)
+        });
+      }
+      if (samples.length > 0) {
+        console.warn(
+          '[SV] sampleEveryPathPoint:',
+          samples.length,
+          'samples in',
+          Math.max(0, capDist - fromDistanceM).toFixed(0),
+          'm window'
+        );
+      }
+    } else if (useAdaptive) {
       let d = fromDistanceM;
       while (d <= capDist + 1e-6) {
         let i = 0;
