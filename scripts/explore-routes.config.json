@@ -1,5 +1,5 @@
 {
-  "$comment": "Explore Routes (curated). Build: npm run build:default-routes → public/explore-routes/explore-slot-*.json",
+  "$comment": "Explore Routes (curated). Build: npm run build:default-routes → public/explore-routes/explore-slot-*.json. explore-slot-12: origin/destination strings are Nominatim-safe; public JSON uses full postal labels for display.",
   "slots": [
     {
       "id": "explore-slot-1",
@@ -219,18 +219,16 @@
       "bundledId": "explore-slot-12",
       "source": "EXPLORE",
       "profile": "driving",
-      "origin": "Great Ocean Road, Lorne, Surf Coast Shire, Victoria, 3232, Australia",
-      "destination": "Wye River, Victoria, Australia",
-      "originCoord": [-38.539, 143.982],
-      "destCoord": [-38.5635, 143.9435],
+      "origin": "Apollo Bay, Victoria, 3233, Australia",
+      "destination": "2 Hird Street, Lorne, Victoria, Australia",
       "waypoints": [],
       "exploreDisplay": {
-        "title": "Great Ocean Road — Lorne to Wye",
+        "title": "Great Ocean Road (Apollo Bay to Lorne)",
         "country": "AU",
-        "city": "Lorne",
-        "distanceKm": 5,
-        "elevationGain": 160,
-        "difficulty": "easy",
+        "city": "Victoria",
+        "distanceKm": 42.8,
+        "elevationGain": 560,
+        "difficulty": "moderate",
         "scene": "sea",
         "tags": ["ocean", "coastal", "car"]
       }
