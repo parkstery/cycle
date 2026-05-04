@@ -488,13 +488,13 @@ const MIN_MS_BETWEEN_PANO_SWAPS = 880;
 /** 프리패치 커버 대비 주행 위치 갭 판정 여유(m) */
 const SV_GAP_SLACK_ROUTE_M = 42;
 /** 슬라이딩 프리패치 한 구간 길이(m). 과대 시 한 번 실패로 긴 공백(시골 구간 등) 발생 */
-const SV_SLIDING_PREFETCH_CHUNK_M = 190;
+const SV_SLIDING_PREFETCH_CHUNK_M = 300;
 /** 직전 캐시 끝 거리에서 약간 되돌려 겹쳐 수집 — 세그먼트 경계 누락·주행 선행 시 구멍 완화 */
-const SV_PREFETCH_OVERLAP_ROUTE_M = 45;
+const SV_PREFETCH_OVERLAP_ROUTE_M = 72;
 /** 마지막 파노 누적거리 대비 이 path index 만큼 앞서면 다음 슬라이딩 수집 시도 */
-const SV_SLIDING_TRIGGER_PATH_POINTS_BACK = 240;
+const SV_SLIDING_TRIGGER_PATH_POINTS_BACK = 200;
 /** 누적 거리로 캐시보다 앞서면 인덱스 조건만으로는 늦을 때 슬라이딩 수집(시작·회전로 교착 완화) */
-const SV_SLIDING_AHEAD_FETCH_M = 58;
+const SV_SLIDING_AHEAD_FETCH_M = 38;
 /** 갭이 길 때 라이브 getPanorama 간격(ms) */
 const LIVE_SV_GAP_FAST_MS = 1300;
 /** 갭이 상대적으로 짧을 때 라이브 간격(ms) */
@@ -530,10 +530,11 @@ const MAX_REALTIME_SV_ATTEMPTS = 3;
 /** 주행 위치 강제 이동 시 한 번에 이동할 경로 포인트 수 (Backward / Fast Forward) */
 const STEP_OFFSET = 5;
 
-/** 속도 기준: 이 값 이상이면 초기 거리뷰 수집 300m, 미만이면 100m. 주행 중 40 이상으로 올리면 해당 위치부터 300m 확장 수집 */
+/** 속도 기준: 이 값 이상이면 초기 거리뷰 수집 400m, 미만이면 220m. 주행 중 40 이상으로 올리면 해당 위치부터 400m 확장 수집 */
 const SPEED_THRESHOLD_KMH = 40;
-const INITIAL_PREFETCH_HIGH_M = 300;
-const INITIAL_PREFETCH_LOW_M = 100;
+/** 경로 직후 거리뷰 캐시 길이(m). 짧으면 샘플 구간 사이에서 끊김 체감이 커질 수 있어 저속·고속 모두 여유를 둔다. */
+const INITIAL_PREFETCH_HIGH_M = 400;
+const INITIAL_PREFETCH_LOW_M = 220;
 
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
@@ -4157,7 +4158,7 @@ const App: React.FC = () => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
   }, [restoreRouteFromSavedGeometry]);
 
-  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 300m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
+  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 400m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
   useEffect(() => {
     const prev = prevSpeedKmHRef.current;
     if (!(prev >= SPEED_THRESHOLD_KMH && effectiveSpeedKmH < SPEED_THRESHOLD_KMH)) prevSpeedKmHRef.current = effectiveSpeedKmH;
@@ -4782,7 +4783,7 @@ const App: React.FC = () => {
           setPanoramaView(startPos, heading);
         }
 
-        // Progressive loading: pre-fetch distance by speed (≥40 km/h: 300m, <40: 100m); rest loaded on-demand
+        // Progressive loading: pre-fetch distance by speed (≥40 km/h: 400m, <40: 220m); rest loaded on-demand
         (async () => {
           const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
           setAppPhase('PREPARING');

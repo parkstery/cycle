@@ -5,9 +5,11 @@
       "id": "explore-slot-1",
       "bundledId": "explore-slot-1",
       "source": "EXPLORE",
-      "profile": "driving",
+      "profile": "foot",
       "origin": "태종로, 부곡리, 강림면, 횡성군, 강원특별자치도, 25273, 대한민국",
       "destination": "치악산 등산로, 소초면, 원주시, 강원특별자치도, 26304, 대한민국",
+      "originCoord": [37.3291, 128.07502],
+      "destCoord": [37.357909, 128.061604],
       "waypoints": [],
       "exploreDisplay": {
         "title": "Chiaksan Mountain Trail",
@@ -17,7 +19,7 @@
         "elevationGain": 380,
         "difficulty": "moderate",
         "scene": "mountain",
-        "tags": ["mountain", "forest", "car"]
+        "tags": ["mountain", "forest", "foot"]
       }
     },
     {
@@ -104,19 +106,19 @@
       "id": "explore-slot-6",
       "bundledId": "explore-slot-6",
       "source": "EXPLORE",
-      "profile": "driving",
+      "profile": "foot",
       "origin": "Plain of Six Glaciers Trail, Improvement District No. 9, Alberta, Canada",
       "destination": "Mount Richardson Route, Improvement District No. 9, Alberta, Canada",
       "waypoints": [],
       "exploreDisplay": {
-        "title": "Lake Louise Alpine Loop",
+        "title": "Lake Louise Alpine Trek",
         "country": "CA",
         "city": "Lake Louise",
-        "distanceKm": 15.4,
+        "distanceKm": 16,
         "elevationGain": 480,
         "difficulty": "moderate",
         "scene": "mountain",
-        "tags": ["glacier", "rockies", "car"]
+        "tags": ["glacier", "rockies", "foot"]
       }
     },
     {
@@ -181,14 +183,14 @@
       "bundledId": "explore-slot-10",
       "source": "EXPLORE",
       "profile": "driving",
-      "origin": "Seestrasse, Gersau, Schwyz, 6442, Switzerland",
-      "destination": "66, Axenstrasse, Gruonen, Flüelen, Uri, 6454, Switzerland",
+      "origin": "Seestrasse, Vitznau, Luzern, 6354, Switzerland",
+      "destination": "Axenstrasse, Gruonen, Flüelen, Uri, 6454, Switzerland",
       "waypoints": [],
       "exploreDisplay": {
         "title": "Lake Lucerne Lakeside",
         "country": "CH",
         "city": "Lucerne",
-        "distanceKm": 25,
+        "distanceKm": 22,
         "elevationGain": 410,
         "difficulty": "moderate",
         "scene": "lake",
