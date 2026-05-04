@@ -154,6 +154,26 @@ const computeCumulativeDistances = (latLngs: [number, number][]): number[] => {
   return cum;
 };
 
+/** 경로 설정·Explore 목록과 동일: 거리(m) ÷ 사용자 평균 속도(km/h) → `formatDurationSimple` 과 동일 규칙의 표시 문자열 */
+function formatDurationSimpleFromMetersAndSpeed(
+  totalMeters: number | null | undefined,
+  speedKmH: number,
+  distanceTextFallback?: string
+): string {
+  let m = totalMeters;
+  if (m == null || !Number.isFinite(m) || m <= 0) {
+    const raw = String(distanceTextFallback ?? '').replace(/[^0-9.]/g, '');
+    const km = parseFloat(raw);
+    m = Number.isFinite(km) && km > 0 ? km * 1000 : 0;
+  }
+  if (m <= 0 || !speedKmH || speedKmH <= 0) return '0:00';
+  const totalSeconds = m / (speedKmH * 1000 / 3600);
+  if (!isFinite(totalSeconds) || totalSeconds < 0) return '0:00';
+  const h = Math.floor(totalSeconds / 3600);
+  const min = Math.round((totalSeconds % 3600) / 60);
+  return `${h}:${min.toString().padStart(2, '0')}`;
+}
+
 /** payload 가 v2 오프라인 복원에 필요한 모든 필드를 갖췄는지 검증 */
 const isOfflineRestorablePayload = (payload: SavedRoutePayload | undefined): boolean => {
   if (!payload) return false;
@@ -573,11 +593,14 @@ function getExploreRouteDisplay(route: SavedRoute): ExploreRouteDisplay {
 function ExploreRouteRow({
   route,
   onPick,
-  compact
+  compact,
+  speedKmH
 }: {
   route: SavedRoute;
   onPick: (r: SavedRoute) => void;
   compact?: boolean;
+  /** 설정과 동일 기준(거리÷평균 속도) 예상 주행 시간 표시 */
+  speedKmH?: number;
 }) {
   const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
   const d = getExploreRouteDisplay(route);
@@ -588,6 +611,14 @@ function ExploreRouteRow({
   const line2Parts: string[] = [];
   if (loc) line2Parts.push(loc);
   line2Parts.push(`${d.distanceKm} km`, `${d.elevationGain} m↑`, String(d.difficulty || '').toLowerCase());
+  if (speedKmH != null && speedKmH > 0 && route.routePayload) {
+    const eta = formatDurationSimpleFromMetersAndSpeed(
+      route.routePayload.totalDistanceMeters,
+      speedKmH,
+      route.routePayload.distance
+    );
+    line2Parts.push(`~${eta}`);
+  }
   if (d.tags?.length) line2Parts.push(...d.tags);
   const line2 = line2Parts.join(' · ');
   const titleCls = compact ? 'text-[12px]' : 'text-[13px]';
@@ -4048,6 +4079,18 @@ const App: React.FC = () => {
         });
       }
 
+      // 저장된 OSRM duration 문자열은 빌드 시 엔진 ETA일 수 있음 → 앱 기준(거리÷사용자 평균 속도)으로 통일
+      let restoreTotalM = payload.totalDistanceMeters;
+      if (restoreTotalM == null || !Number.isFinite(restoreTotalM) || restoreTotalM <= 0) {
+        if (payload.cumulativeDistances?.length) {
+          restoreTotalM = payload.cumulativeDistances[payload.cumulativeDistances.length - 1] ?? 0;
+        } else {
+          const cum = computeCumulativeDistances(densifiedLatLng);
+          restoreTotalM = cum[cum.length - 1] ?? 0;
+        }
+      }
+      const restoreDurationText = formatDurationSimpleFromMetersAndSpeed(restoreTotalM, speedKmH, payload.distance);
+
       // 4) 상태 동기 세팅 — 여기까지가 네트워크 없이 주행 가능한 상태
       const modeBySavedProfile = modeFromProfile(payload.profile);
       setMode(modeBySavedProfile);
@@ -4056,10 +4099,10 @@ const App: React.FC = () => {
         origin: saved.origin,
         destination: saved.destination,
         distance: payload.distance,
-        duration: payload.duration,
+        duration: restoreDurationText,
         path,
         elevation: elevationResults,
-        ...(payload.totalDistanceMeters != null ? { totalDistanceMeters: payload.totalDistanceMeters } : {}),
+        ...(restoreTotalM > 0 ? { totalDistanceMeters: restoreTotalM } : {}),
         ...(payload.cumulativeDistances ? { cumulativeDistances: payload.cumulativeDistances } : {})
       });
       lastRouteRequestRef.current = {
@@ -4135,7 +4178,7 @@ const App: React.FC = () => {
               provider: 'osrm',
               profile: payload.profile,
               distance: payload.distance,
-              duration: payload.duration,
+              duration: formatDurationSimpleFromMetersAndSpeed(totalM, speedKmH, payload.distance),
               fullGeometry: payload.fullGeometry,
               densifiedGeometry: densifiedLatLng,
               cumulativeDistances: cumulative.map(d => Number(d.toFixed(2))),
@@ -4189,6 +4232,19 @@ const App: React.FC = () => {
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
   }, [restoreRouteFromSavedGeometry]);
+
+  /** 평균 속도 슬라이더 변경 시: 저장/복원·OSRM 경로 모두 동일 공식(거리÷speedKmH)으로 ETA 문자열만 갱신 */
+  useEffect(() => {
+    setRoute((prev) => {
+      if (!prev) return prev;
+      const m = prev.totalDistanceMeters;
+      if (m == null || !Number.isFinite(m) || m <= 0) return prev;
+      if (!speedKmH || speedKmH <= 0) return prev;
+      const next = formatDurationSimpleFromMetersAndSpeed(m, speedKmH, prev.distance);
+      if (prev.duration === next) return prev;
+      return { ...prev, duration: next };
+    });
+  }, [speedKmH]);
 
   // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 400m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
   useEffect(() => {
@@ -4558,6 +4614,8 @@ const App: React.FC = () => {
       let path: any[] = [];
       let distText = '';
       let durText = '';
+      /** OSRM 응답 거리(m). ETA·totalDistanceMeters 는 사용자 속도 기준이라 동일 필드로 맞춘다. */
+      let osrmRouteLengthMeters = 0;
       let originLatLngOuter: any = null;
       let destLatLngOuter: any = null;
       try {
@@ -4595,6 +4653,7 @@ const App: React.FC = () => {
           lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);
           path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
           const routeLengthM = data.routes[0].distance;
+          osrmRouteLengthMeters = routeLengthM;
           distText = `${(routeLengthM / 1000).toFixed(1)} km`;
           // Route settings ETA: distance ÷ user average speed (speedKmH). Cycling-app assumption — not OSRM engine duration, not grade-adjusted simulation.
           durText = formatDurationSimple(routeLengthM / (speedKmH * 1000 / 3600));
@@ -4723,7 +4782,15 @@ const App: React.FC = () => {
             if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
           });
         }
-        setRoute({ origin: finalOrigin, destination: finalDestination, distance: distText, duration: durText, path: densifiedPath, elevation: elevationRes.results ?? [] });
+        setRoute({
+          origin: finalOrigin,
+          destination: finalDestination,
+          distance: distText,
+          duration: durText,
+          path: densifiedPath,
+          elevation: elevationRes.results ?? [],
+          ...(osrmRouteLengthMeters > 0 ? { totalDistanceMeters: Number(osrmRouteLengthMeters.toFixed(2)) } : {})
+        });
         if (hydrateFavoriteId && densifiedPath.length > 0) {
           const densifiedLatLng: [number, number][] = densifiedPath.map((p: any) => [fix8(p.lat()), fix8(p.lng())]);
           const fullGeom: [number, number][] = lastOsrmDecodedPathRef.current?.length
@@ -5540,6 +5607,7 @@ const App: React.FC = () => {
                     <ExploreRouteRow
                       key={route.id}
                       route={route}
+                      speedKmH={speedKmH}
                       onPick={(r) => {
                         setExplorePickerOpen(false);
                         void handleLoadFavorite(r);
@@ -6257,6 +6325,7 @@ const App: React.FC = () => {
                           key={route.id}
                           route={route}
                           compact
+                          speedKmH={speedKmH}
                           onPick={(r) => {
                             void handleLoadFavorite(r);
                           }}
