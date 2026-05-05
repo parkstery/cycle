@@ -523,14 +523,26 @@ const LIVE_SV_GAP_FAST_MS = 1300;
 const LIVE_SV_GAP_SLOW_MS = 3800;
 /** 같은 파노 키프레임일 때 POV(방위·줌) 갱신 최소 간격(ms) — 직선 구간 전진감 위해 다소 촘촘히 */
 const SV_POV_REFRESH_MIN_MS = 150;
-/** 같은 파노 샘플 구간 내 진행도(0~1)에 곱해 소폭 줌인 → 전진 체감 (Street View zoom, 과대 시 왜곡) */
-const SV_RIDE_POV_ZOOM_MAX = 1.35;
-/** 진행도에 따른 살짝 아래 시선(°) — 전방 도로가 잘 보이도록 */
-const SV_RIDE_POV_PITCH_MIN = -5;
+/** 같은 파노 구간 허용 줌 상한(Street View zoom). span 보정 후에도 넘지 않는 전역 캡 — 과줌 시 다음 파노 역전 방지 */
+const SV_RIDE_POV_ZOOM_CAP = 0.62;
+/** 구간 진행도 t 기준: 이 비율까지는 줌 0(헤딩만), 이후에만 줌 램프 */
+const SV_RIDE_POV_ZOOM_RAMP_START_T = 0.52;
+/** t ≤ 이 값까지 줌 인 → 이후 테일에서 줌 아웃 */
+const SV_RIDE_POV_ZOOM_RAMP_END_T = 0.88;
+/** 진행도에 따른 살짝 아래 시선(°) — 줌과 비례해 적용(과한 피치 단독 방지) */
+const SV_RIDE_POV_PITCH_MIN = -4;
 
 function smoothstep01(t: number): number {
   const x = Math.max(0, Math.min(1, t));
   return x * x * (3 - 2 * x);
+}
+
+/** 다음 키프레임까지 거리(span)가 짧을수록 줌 상한을 더 낮춤 — 다음 파노 시야를 줌이 잡아먹지 않게 */
+function zoomScaleFromSpanM(spanM: number): number {
+  if (spanM <= 16) return 0.26;
+  if (spanM <= 28) return 0.48;
+  if (spanM <= 55) return 0.74;
+  return 1;
 }
 
 /** panoData 키프레임 중 startDist 직후의 다음 키프레임 누적거리(m). 없으면 경로 끝. */
@@ -575,8 +587,22 @@ function computeSameKeyframeRidePov(
   const lookD = Math.min(distAlong + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
   const ahead = getLatLngAtDistanceAlongPath(pathForSv, cumDistSv, lookD);
   const heading = computeHeading(currentPos, { lat: ahead.lat, lng: ahead.lng });
-  const zoom = t * SV_RIDE_POV_ZOOM_MAX;
-  const pitch = t * SV_RIDE_POV_PITCH_MIN;
+  const maxZoom = SV_RIDE_POV_ZOOM_CAP * zoomScaleFromSpanM(span);
+  const ts = SV_RIDE_POV_ZOOM_RAMP_START_T;
+  const te = SV_RIDE_POV_ZOOM_RAMP_END_T;
+  let zoom = 0;
+  if (maxZoom > 0.004) {
+    if (t < ts) {
+      zoom = 0;
+    } else if (t <= te) {
+      const u = (t - ts) / Math.max(1e-6, te - ts);
+      zoom = smoothstep01(u) * maxZoom;
+    } else {
+      const v = (t - te) / Math.max(1e-6, 1 - te);
+      zoom = maxZoom * (1 - smoothstep01(v));
+    }
+  }
+  const pitch = maxZoom > 0.004 ? (zoom / maxZoom) * SV_RIDE_POV_PITCH_MIN : 0;
   return { heading, pitch, zoom };
 }
 
