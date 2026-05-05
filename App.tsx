@@ -521,8 +521,65 @@ const SV_SLIDING_AHEAD_FETCH_M = 38;
 const LIVE_SV_GAP_FAST_MS = 1300;
 /** 갭이 상대적으로 짧을 때 라이브 간격(ms) */
 const LIVE_SV_GAP_SLOW_MS = 3800;
-/** 같은 파노 키프레임일 때 주행 방향만 POV 갱신 최소 간격(ms) */
-const SV_POV_REFRESH_MIN_MS = 420;
+/** 같은 파노 키프레임일 때 POV(방위·줌) 갱신 최소 간격(ms) — 직선 구간 전진감 위해 다소 촘촘히 */
+const SV_POV_REFRESH_MIN_MS = 150;
+/** 같은 파노 샘플 구간 내 진행도(0~1)에 곱해 소폭 줌인 → 전진 체감 (Street View zoom, 과대 시 왜곡) */
+const SV_RIDE_POV_ZOOM_MAX = 1.35;
+/** 진행도에 따른 살짝 아래 시선(°) — 전방 도로가 잘 보이도록 */
+const SV_RIDE_POV_PITCH_MIN = -5;
+
+function smoothstep01(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
+
+/** panoData 키프레임 중 startDist 직후의 다음 키프레임 누적거리(m). 없으면 경로 끝. */
+function nextPanoKeyframeDistM(
+  panos: Array<{ pathIndex: number; distAlongRouteM?: number }>,
+  cumDist: number[],
+  startDist: number
+): number {
+  const lastI = cumDist.length - 1;
+  const pathEnd = lastI >= 0 ? cumDist[lastI] ?? startDist + 80 : startDist + 80;
+  let best = -1;
+  for (const p of panos) {
+    const dm = typeof p.distAlongRouteM === 'number' ? p.distAlongRouteM : cumDist[p.pathIndex] ?? 0;
+    if (dm > startDist + 0.25 && (best < 0 || dm < best)) best = dm;
+  }
+  if (best > 0) return Math.min(best, pathEnd);
+  return pathEnd;
+}
+
+/**
+ * 같은 panoId·같은 프리패치 키프레임 구간: 경로 누적거리 진행에 맞춰 heading(전방 m)·줌·피치를 계산.
+ * 샘플이 듬직한 직선에서도 화면이 멈춘 듯 보이지 않게 함.
+ */
+function computeSameKeyframeRidePov(
+  pathForSv: any[],
+  cumDistSv: number[],
+  svDisplayIdxForPano: number,
+  panoItem: PanoDataItem,
+  panos: PanoDataItem[]
+): { heading: number; pitch: number; zoom: number } | null {
+  if (pathForSv.length < 2) return null;
+  const pi = Math.min(Math.max(0, svDisplayIdxForPano), pathForSv.length - 1);
+  const currentPos = pathForSv[pi];
+  if (!currentPos) return null;
+  const distAlong = cumDistSv[pi] ?? 0;
+  const startDist =
+    typeof panoItem.distAlongRouteM === 'number' ? panoItem.distAlongRouteM : cumDistSv[panoItem.pathIndex] ?? 0;
+  const endDist = nextPanoKeyframeDistM(panos, cumDistSv, startDist);
+  const span = Math.max(14, endDist - startDist);
+  const t = smoothstep01((distAlong - startDist) / span);
+  const totalLen = cumDistSv[pathForSv.length - 1] ?? 0;
+  const lookD = Math.min(distAlong + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
+  const ahead = getLatLngAtDistanceAlongPath(pathForSv, cumDistSv, lookD);
+  const heading = computeHeading(currentPos, { lat: ahead.lat, lng: ahead.lng });
+  const zoom = t * SV_RIDE_POV_ZOOM_MAX;
+  const pitch = t * SV_RIDE_POV_PITCH_MIN;
+  return { heading, pitch, zoom };
+}
+
 /** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
 const SV_PASS2_RADIUS_M = 120;
 const SV_PASS2_MAX_ANGLE_DEG = 100;
@@ -1852,7 +1909,10 @@ const App: React.FC = () => {
         if (currentPanoId !== panoId) {
           currentPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
         } else {
-          currentPano.setPov({ heading, pitch: 0, zoom: 0 });
+          const curPov = currentPano.getPov?.();
+          const curH = curPov?.heading ?? 0;
+          if (Math.abs(normalizeAngleDiff(curH - heading)) < 0.35) { resolve(); return; }
+          currentPano.setPov({ heading, pitch: curPov?.pitch ?? 0, zoom: curPov?.zoom ?? 0 });
         }
         activePanoRef.current = 0;
         setVisiblePanoIdx(0);
@@ -1877,8 +1937,12 @@ const App: React.FC = () => {
         const currentPov = currentPano.getPov?.();
         const curH = currentPov?.heading ?? 0;
         const diff = Math.abs(normalizeAngleDiff(curH - heading));
-        if (diff < 1.5) { resolve(); return; }
-        currentPano.setPov({ heading, pitch: 0, zoom: 0 });
+        if (diff < 0.35) { resolve(); return; }
+        currentPano.setPov({
+          heading,
+          pitch: currentPov?.pitch ?? 0,
+          zoom: currentPov?.zoom ?? 0
+        });
         resolve();
         return;
       }
@@ -3177,7 +3241,16 @@ const App: React.FC = () => {
         if (panoItem) {
           lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
           lastDisplayedPanoIdRef.current = panoItem.panoId;
-          setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
+          void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto).then(() => {
+            const pe = computeSameKeyframeRidePov(pausePath, cumPause, currentIdx, panoItem, routeData.panoData);
+            if (!pe) return;
+            const cur = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
+            try {
+              if (cur?.setPov && cur.getPano?.() === panoItem.panoId) cur.setPov(pe);
+            } catch {
+              /* noop */
+            }
+          });
           setShowSvWarning(false);
         }
       }
@@ -3278,14 +3351,19 @@ const App: React.FC = () => {
               const nowMs = Date.now();
               if (nowMs - lastPovRefreshMsRef.current >= SV_POV_REFRESH_MIN_MS) {
                 lastPovRefreshMsRef.current = nowMs;
-                const h =
-                  lookAheadIdx > adjustedIdx && targetPosForHeading
-                    ? computeHeading(currentPos, targetPosForHeading)
-                    : panoItem.heading;
+                const povPack = computeSameKeyframeRidePov(pathForSv, cumDistSv, svDisplayIdxForPano, panoItem, panos);
                 const curPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
                 try {
-                  if (curPano?.setPov && (curPano.getStatus?.() === 'OK' || curPano.getStatus?.() === undefined)) {
-                    curPano.setPov({ heading: h, pitch: 0, zoom: 0 });
+                  if (
+                    povPack &&
+                    curPano?.setPov &&
+                    (curPano.getStatus?.() === 'OK' || curPano.getStatus?.() === undefined)
+                  ) {
+                    curPano.setPov({
+                      heading: povPack.heading,
+                      pitch: povPack.pitch,
+                      zoom: povPack.zoom
+                    });
                   }
                 } catch {
                   /* noop */
