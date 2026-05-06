@@ -1538,6 +1538,7 @@ const App: React.FC = () => {
               } else {
                 clearRouteLineGeometry(map);
               }
+              map.resize();
             } catch (e) {
               console.warn('[Mapbox] style.load route layer', e);
             }
@@ -1553,6 +1554,14 @@ const App: React.FC = () => {
             }
           });
           mapboxMapRef.current = map;
+          // 컨테이너 레이아웃 직후 치수가 잡히도록 한 프레임 뒤 resize (0 높이에서 타일이 안 그려지는 문제 방지)
+          requestAnimationFrame(() => {
+            try {
+              map.resize();
+            } catch {
+              /* ignore */
+            }
+          });
           if (!cancelled) setIsMapReady(true);
         } catch (err) {
           console.error('[Mapbox Map init]', err);
@@ -4440,10 +4449,10 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 맵: 불투명 배경(bg-slate-900), 전환 후 invalidateSize. */}
+      {/* 맵: 전체 화면 채움(inset-0). top/left/right만 두면 height:auto로 높이 0이 되어 Mapbox 타일이 안 보임. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 absolute top-0 left-0 right-0 z-10 ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
+        className={`duration-500 ease-in-out bg-slate-900 absolute inset-0 z-10 ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
         style={{
           transitionProperty: 'top, left, right, bottom, width, height, border-radius, opacity',
         }}
@@ -4483,17 +4492,6 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-      {mapRevealed && (
-        <a
-          href="https://www.openstreetmap.org/copyright"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="absolute right-0 z-[1000] text-[11px] text-slate-600 hover:underline bg-white/55 mr-[5px] pointer-events-auto"
-          style={{ bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}
-        >
-          © OpenStreetMap contributors
-        </a>
       )}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
