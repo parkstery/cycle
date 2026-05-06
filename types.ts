@@ -1,17 +1,3 @@
-/** Path index → PanoID + heading (pre-fetched, no API during RUNNING) */
-export interface PanoDataItem {
-  pathIndex: number;
-  panoId: string;
-  location: any;
-  heading: number;
-  /** true when panorama is user-contributed (fallback when no Google official imagery) */
-  isUserPhoto?: boolean;
-  /** [Phase 4] API 제공 시 실내/상가 필터용 (StreetViewLocation.description) */
-  description?: string;
-  /** 프리패치 시점 경로 누적 거리(m). 슬라이딩 연속·갭 판정에 사용 */
-  distAlongRouteM?: number;
-}
-
 /** Coaching valid until this path index (predictive coaching) */
 export interface CachedCoachingItem {
   coaching: CoachingData;
@@ -27,11 +13,6 @@ export interface RouteInfo {
   elevation: ElevationPoint[];
   totalDistanceMeters?: number;
   cumulativeDistances?: number[];
-  /** Pre-fetched Street View metadata (30m intervals); used in RUNNING without API */
-  panoData?: PanoDataItem[];
-  /** [Phase 5] coverage = panoCount / sampleCount. 70% 미만 시 안내 표시 */
-  streetViewCoverage?: number;
-  streetViewDisabled?: boolean;
   /** Predictive coaching segments; used in RUNNING without API */
   cachedCoaching?: CachedCoachingItem[];
 }

@@ -55,19 +55,6 @@ export default defineConfig(({ mode }) => {
     process.env.STADIA_MAPS_API_KEY = env.STADIA_MAPS_API_KEY;
   }
 
-  // Load explicit keys for better security separation
-  const GOOGLE_MAPS_API_KEY =
-    env.GOOGLE_MAPS_API_KEY
-    ?? env.VITE_GOOGLE_MAPS_API_KEY
-    ?? env.GOOGLE_MAS_API_KEY
-    ?? env.google_mas_api_key
-    ?? process.env.GOOGLE_MAPS_API_KEY
-    ?? process.env.VITE_GOOGLE_MAPS_API_KEY
-    // Android/CI에서 오타로 들어올 수 있는 대체 후보(레거시/환경차 대응)
-    ?? process.env.GOOGLE_MAS_API_KEY
-    ?? process.env.google_mas_api_key
-    ?? '';
-
   return {
     // Android/Capacitor: file:// 환경에서 리소스 로드 위해 상대 경로 사용 (절대경로 / 시 흰 화면)
     base: './',
@@ -226,10 +213,6 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      // Ensure process.env access in client code keeps GOOGLE_MAPS_API_KEY value.
-      'process.env': JSON.stringify({
-        GOOGLE_MAPS_API_KEY,
-      }),
       // Mapbox GL — loadEnv 로 .env.local 까지 읽어 클라이언트에 고정 주입 (일부 환경에서 import.meta.env 만으로 누락될 때 보강)
       'import.meta.env.VITE_MAPBOX_ACCESS_TOKEN': JSON.stringify(env.VITE_MAPBOX_ACCESS_TOKEN ?? ''),
       // Android 등 클라이언트에서 Stadia Route 직접 호출 시 — .env 의 STADIA_MAPS_API_KEY 를 VITE_ 없이도 쓰게 함(키는 번들에 포함됨).

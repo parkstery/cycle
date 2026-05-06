@@ -11,7 +11,6 @@ import {
   SimulationState,
   CoachingData,
   SavedRoute,
-  PanoDataItem,
   AppPhase,
   CachedCoachingItem,
   SavedRoutePayload,
@@ -593,7 +592,7 @@ const App: React.FC = () => {
       setElevationStatus((prev) => (prev?.kind === 'flat' ? null : prev));
     }, 5000);
   }, []);
-  const [routeSource, setRouteSource] = useState<'GOOGLE' | 'OSRM' | null>(null);
+  const [routeSource, setRouteSource] = useState<'OSRM' | null>(null);
   const [mapType, setMapType] = useState<string>('roadmap');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
@@ -698,7 +697,7 @@ const App: React.FC = () => {
 
   const [isMapReady, setIsMapReady] = useState(false);
   /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
-  const [googleMapsBootstrapError, setGoogleMapsBootstrapError] = useState<string | null>(null);
+  const [mapBootstrapError, setMapBootstrapError] = useState<string | null>(null);
   const [mapRevealed, setMapRevealed] = useState(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -1507,7 +1506,7 @@ const App: React.FC = () => {
     if (!mapRevealed || mapboxMapRef.current) return;
     if (!MAPBOX_ACCESS_TOKEN) {
       console.warn('[Mapbox] VITE_MAPBOX_ACCESS_TOKEN 미설정 — .env.local 참고');
-      setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox: 프로젝트 루트 .env.local 에 VITE_MAPBOX_ACCESS_TOKEN=pk.xxx 를 넣고 dev 서버를 재시작하세요.');
+      setMapBootstrapError((prev) => prev ?? 'Mapbox: 프로젝트 루트 .env.local 에 VITE_MAPBOX_ACCESS_TOKEN=pk.xxx 를 넣고 dev 서버를 재시작하세요.');
       setIsMapReady(true);
       return;
     }
@@ -1559,7 +1558,7 @@ const App: React.FC = () => {
             console.error('[Mapbox]', e);
             if (!cancelled) {
               const msg = (e as { error?: Error }).error?.message;
-              setGoogleMapsBootstrapError((prev) => prev ?? msg ?? 'Mapbox 지도를 불러오지 못했습니다. 토큰·네트워크를 확인하세요.');
+              setMapBootstrapError((prev) => prev ?? msg ?? 'Mapbox 지도를 불러오지 못했습니다. 토큰·네트워크를 확인하세요.');
             }
           });
           mapboxMapRef.current = map;
@@ -1574,7 +1573,7 @@ const App: React.FC = () => {
         } catch (err) {
           console.error('[Mapbox Map init]', err);
           if (!cancelled) {
-            setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox 지도를 초기화하지 못했습니다.');
+            setMapBootstrapError((prev) => prev ?? 'Mapbox 지도를 초기화하지 못했습니다.');
             setIsMapReady(true);
           }
         }
@@ -1584,7 +1583,7 @@ const App: React.FC = () => {
       if (attempts >= maxAttempts) {
         console.error('[Mapbox Map init] mapRef not ready after', maxAttempts, 'frames');
         if (!cancelled) {
-          setGoogleMapsBootstrapError((prev) => prev ?? '지도 영역을 준비하지 못했습니다. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
+          setMapBootstrapError((prev) => prev ?? '지도 영역을 준비하지 못했습니다. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
           setIsMapReady(true);
         }
         return;
@@ -2247,7 +2246,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> = 0;
-    // 의존성은 route?.path만 사용하고, panoData/cachedCoaching 등은 routeRef로 참조 (stale closure 방지)
+    // 의존성은 route?.path만 사용하고, cachedCoaching 등은 routeRef로 참조 (stale closure 방지)
     const routeData = routeRef.current;
     if (!route?.path?.length || !routeData) return () => clearTimeout(timer);
     const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
@@ -4184,17 +4183,17 @@ const App: React.FC = () => {
           </p>
         </div>
       )}
-      {googleMapsBootstrapError && (
+      {mapBootstrapError && (
         <div
           className="fixed left-0 right-0 z-[9998] mx-2 rounded-xl px-3 py-2.5 bg-amber-950/95 text-amber-50 text-[12px] font-medium leading-snug shadow-xl flex items-start gap-2 border border-amber-800/60"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
           role="alert"
         >
-          <span className="flex-1 min-w-0">{googleMapsBootstrapError}</span>
+          <span className="flex-1 min-w-0">{mapBootstrapError}</span>
           <button
             type="button"
             className="shrink-0 text-amber-200 underline text-[11px] px-1"
-            onClick={() => setGoogleMapsBootstrapError(null)}
+            onClick={() => setMapBootstrapError(null)}
           >
             닫기
           </button>
