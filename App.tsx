@@ -1502,18 +1502,20 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // Mapbox GL 베이스맵: mapRevealed 후 mapRef 가 잡힐 때까지 rAF 재시도 (Android WebView ref 레이스 방지)
+  // Mapbox GL 베이스맵: mapRevealed 후 컨테이너가 보이고 레이아웃이 잡힌 뒤 초기화 (opacity 트랜지션은 WebGL 첫 페인트와 충돌할 수 있어 맵 div에서는 사용하지 않음)
   useEffect(() => {
     if (!mapRevealed || mapboxMapRef.current) return;
     if (!MAPBOX_ACCESS_TOKEN) {
       console.warn('[Mapbox] VITE_MAPBOX_ACCESS_TOKEN 미설정 — .env.local 참고');
-      setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox: 프로젝트 루트 .env.local 에 VITE_MAPBOX_ACCESS_TOKEN=pk.xxx 를 넣어 주세요.');
+      setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox: 프로젝트 루트 .env.local 에 VITE_MAPBOX_ACCESS_TOKEN=pk.xxx 를 넣고 dev 서버를 재시작하세요.');
       setIsMapReady(true);
       return;
     }
 
     let cancelled = false;
-    let rafId = 0;
+    let bootRaf1 = 0;
+    let bootRaf2 = 0;
+    let retryRafId = 0;
     let attempts = 0;
     const maxAttempts = 180;
 
@@ -1543,6 +1545,13 @@ const App: React.FC = () => {
               console.warn('[Mapbox] style.load route layer', e);
             }
           });
+          map.once('idle', () => {
+            try {
+              map.resize();
+            } catch {
+              /* ignore */
+            }
+          });
           map.on('click', (e) => {
             handleLocationClickRef.current(e.lngLat.lat, e.lngLat.lng);
           });
@@ -1554,7 +1563,6 @@ const App: React.FC = () => {
             }
           });
           mapboxMapRef.current = map;
-          // 컨테이너 레이아웃 직후 치수가 잡히도록 한 프레임 뒤 resize (0 높이에서 타일이 안 그려지는 문제 방지)
           requestAnimationFrame(() => {
             try {
               map.resize();
@@ -1581,14 +1589,20 @@ const App: React.FC = () => {
         }
         return;
       }
-      rafId = window.requestAnimationFrame(tryCreateMap);
+      retryRafId = window.requestAnimationFrame(tryCreateMap);
     };
 
-    rafId = window.requestAnimationFrame(tryCreateMap);
+    bootRaf1 = window.requestAnimationFrame(() => {
+      bootRaf2 = window.requestAnimationFrame(() => {
+        tryCreateMap();
+      });
+    });
 
     return () => {
       cancelled = true;
-      if (rafId) window.cancelAnimationFrame(rafId);
+      if (bootRaf1) window.cancelAnimationFrame(bootRaf1);
+      if (bootRaf2) window.cancelAnimationFrame(bootRaf2);
+      if (retryRafId) window.cancelAnimationFrame(retryRafId);
       if (mapboxMapRef.current) {
         try {
           mapboxMapRef.current.remove();
@@ -4449,17 +4463,10 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 맵: 전체 화면 채움(inset-0). top/left/right만 두면 height:auto로 높이 0이 되어 Mapbox 타일이 안 보임. */}
+      {/* 맵: inset-0 + 명시 높이. opacity/transform 트랜지션 금지 — Mapbox WebGL이 페이드 중·transition-all 중 치수 0으로 그리는 경우가 있음. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 absolute inset-0 z-10 ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
-        style={{
-          transitionProperty: 'top, left, right, bottom, width, height, border-radius, opacity',
-        }}
-        onTransitionEnd={() => {
-          const map = mapboxMapRef.current;
-          triggerMapResize(map);
-        }}
+        className={`bg-slate-900 absolute inset-0 z-10 min-h-0 h-full w-full ${!mapRevealed ? 'invisible pointer-events-none' : ''}`}
       />
       {SHOW_ROUTE_TIMING_DEBUG_OVERLAY && mapRevealed && (
         <div
