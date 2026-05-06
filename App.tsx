@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Route as RouteIcon, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Maximize2, Minimize2, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, EyeOff, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
+import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -264,10 +264,6 @@ const loadBundledExploreRoutes = async (): Promise<SavedRoute[]> => {
   return loaded;
 };
 
-// 자동배포문제....
-// 거리뷰 버튼 아이콘 (Show Streetview Coverage) — base path 대응
-const STREETVIEW_ICON = `${(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}cycle_road.png`;
-
 function inferExploreScene(d: ExploreRouteDisplay): ExploreSceneCategory {
   if (d.scene && (EXPLORE_SCENE_CATEGORIES as readonly string[]).includes(d.scene)) return d.scene;
   const tags = (d.tags || []).map((t) => String(t).toLowerCase());
@@ -342,304 +338,8 @@ const BG_MUSIC_ERROR_SUPPRESS_MS = 400;
  */
 const COACH_PERIODIC_SPEAK_MS = 30_000;
 
-/** OVER_QUERY_LIMIT 시에만 DEFAULT 재시도 생략 (비용·무한 폴백 방지). ZERO_RESULTS는 GOOGLE에만 없을 수 있으므로 DEFAULT(사용자 파노라마) 폴백 시도 */
-const UNRECOVERABLE_STATUS = ['OVER_QUERY_LIMIT'];
-
-/** API 무응답 시 무한 대기 방지. 정상 로딩이 3초를 넘길 수 있으므로 6초로 설정 (과민 경고 방지) */
-const SV_GET_PANORAMA_TIMEOUT_MS = 6000;
-
-/** setPanoramaView / setPanoramaViewByPanoId 전체 대기 상한. getPano + status OK까지 6초 허용 */
-const PANORAMA_VIEW_TIMEOUT_MS = 6000;
-/** A안 테스트: 더블 버퍼 대신 단일 파노라마를 연속 갱신해 주행 연속성 확인 */
-const USE_CONTINUOUS_SV_DRIVE_THROUGH = true;
-
-type SvResultReason = 'timeout' | 'no_pano';
-type SvMapLayoutMode = 'split' | 'mini' | 'hidden';
-
-/**
- * getPanorama with fallback: try GOOGLE first, then DEFAULT (includes user Photo Spheres).
- * Returns { data, usedFallback, reason? }. reason 'timeout' = 응답 지연, 'no_pano' = 실제 커버리지 없음.
- * 경고 메시지는 no_pano일 때만 표시하고, timeout은 표시하지 않음.
- */
-const getPanoramaWithFallback = (
-  service: any,
-  opts: { location: any; radius: number; preference?: any }
-): Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }> => {
-  const apiPromise = new Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }>((resolve) => {
-    service.getPanorama({
-      location: opts.location,
-      radius: opts.radius,
-      source: google.maps.StreetViewSource.GOOGLE,
-      preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
-    }, (data: any, status: string) => {
-      if (status === 'OK' && data?.location?.pano) {
-        resolve({ data, usedFallback: false });
-        return;
-      }
-      if (UNRECOVERABLE_STATUS.includes(status)) {
-        resolve({ data: null, usedFallback: false, reason: 'no_pano' });
-        return;
-      }
-      service.getPanorama({
-        location: opts.location,
-        radius: opts.radius,
-        source: google.maps.StreetViewSource.DEFAULT,
-        preference: opts.preference ?? google.maps.StreetViewPreference.NEAREST
-      }, (fallbackData: any, fallbackStatus: string) => {
-        if (fallbackStatus === 'OK' && fallbackData?.location?.pano) {
-          resolve({ data: fallbackData, usedFallback: true });
-        } else {
-          resolve({ data: null, usedFallback: false, reason: 'no_pano' });
-        }
-      });
-    });
-  });
-  const timeoutPromise = new Promise<{ data: any; usedFallback: boolean; reason?: SvResultReason }>((resolve) => {
-    setTimeout(() => {
-      console.warn('[SV] getPanorama timeout — no callback within', SV_GET_PANORAMA_TIMEOUT_MS, 'ms');
-      resolve({ data: null, usedFallback: false, reason: 'timeout' });
-    }, SV_GET_PANORAMA_TIMEOUT_MS);
-  });
-  return Promise.race([apiPromise, timeoutPromise]);
-};
-
-/** Normalize angle difference to [-180, 180] */
-function normalizeAngleDiff(deg: number): number {
-  while (deg > 180) deg -= 360;
-  while (deg < -180) deg += 360;
-  return deg;
-}
-
-/** 누적 거리 distM 가 놓인 경로 포인트 인덱스(프리패치 playback pathIndex 정렬용) */
-function pathIndexAtCumulativeM(cumDist: number[], distM: number, pathLen: number): number {
-  if (!cumDist.length || pathLen < 1) return 0;
-  const total = cumDist[cumDist.length - 1] ?? 0;
-  const d = Math.max(0, Math.min(distM, total));
-  let i = 0;
-  const maxI = Math.min(pathLen - 1, cumDist.length - 1);
-  while (i < maxI && cumDist[i + 1] < d) i++;
-  return Math.min(i, pathLen - 1);
-}
-
-/**
- * 주행 방향 각도 범위 내 거리뷰만 채택.
- * GOOGLE 먼저 시도, 없으면 DEFAULT(사용자 파노라마 포함) 폴백.
- */
-const findStreetViewInDirection = (
-  service: any,
-  pathPoint: any,
-  pathNext: any,
-  pathIndex: number,
-  path: any[],
-  cumDist: number[] | null,
-  radius: number,
-  maxAngleDeg: number = 110,
-  corridorMult: number = 1,
-  /** 있으면 POV·방위 기준 누적 거리로 사용(경로상 보간 샘플과 세그먼트 인덱스 불일치 보정) */
-  distanceAlongM: number | null = null
-): Promise<PanoDataItem | null> => {
-  return getPanoramaWithFallback(service, {
-    location: pathPoint,
-    radius,
-    preference: google.maps.StreetViewPreference.NEAREST
-  }).then(({ data, usedFallback }) => {
-    if (!data?.location?.pano) return null;
-    const driveHeading = computeHeading(pathPoint, pathNext);
-    const panoLatLng = data.location.latLng;
-    const bearingToPano = computeHeading(pathPoint, panoLatLng);
-    const angleDiff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
-    if (angleDiff > maxAngleDeg) return null;
-    if (path.length >= 2) {
-      const lateralM = minDistanceFromPointToPolylinePath(panoLatLng, path, pathIndex, SV_POLYLINE_MATCH_HALFWIN);
-      const maxLat = SV_CORRIDOR_MAX_M * corridorMult;
-      const maxUserLat = SV_CORRIDOR_USER_MAX_M * Math.min(corridorMult, 1.45);
-      if (lateralM > maxLat) return null;
-      if (usedFallback && lateralM > maxUserLat) return null;
-    }
-    let heading: number;
-    if (cumDist && cumDist.length === path.length) {
-      const totalLen = cumDist[cumDist.length - 1];
-      const baseAlong =
-        distanceAlongM != null
-          ? Math.max(0, Math.min(distanceAlongM, totalLen))
-          : cumDist[pathIndex];
-      const povD = Math.min(baseAlong + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
-      const pov = getLatLngAtDistanceAlongPath(path, cumDist, povD);
-      heading = computeHeading(pathPoint, { lat: pov.lat, lng: pov.lng });
-    } else {
-      const nextIdx = Math.min(pathIndex + 10, path.length - 1);
-      heading = computeHeading(pathPoint, path[nextIdx]);
-    }
-    return {
-      pathIndex,
-      panoId: data.location.pano,
-      location: data.location.latLng,
-      heading,
-      isUserPhoto: usedFallback,
-      description: data.location?.description ?? undefined
-    };
-  });
-};
-
-/** [Phase 2] Multi-pass 1단계: 반경(m), 주행 방향 ±각도(°). 시니어 권고 50m ±40° */
-const SV_PASS1_RADIUS_M = 50;
-const SV_PASS1_MAX_ANGLE_DEG = 40;
-/** Pass1 실패 시 재시도 각도(°). 차로 전환 등으로 40° 밖에 파노가 있을 때 멈춤 방지, 실내 파노는 이후 필터로 제외 */
-const SV_PASS1_RELAXED_ANGLE_DEG = 90;
-/** 교차로·급회전 구간(인접 구간 방향 변화 합 ≥ 이 값°)에서 Pass 각도 강화 — 너무 넓으면 완만한 곡선에서만reject 증가 */
-const SV_TURN_SHARP_SUM_DEG = 38;
-const SV_PASS1_MAX_ANGLE_STRICT = 32;
-const SV_PASS1_RELAXED_ANGLE_STRICT = 72;
-const SV_PASS2_MAX_ANGLE_STRICT = 88;
-/** 급곡선에서만 짧은 전방 헤딩(회전로·라운드어바웃 탄젠트 왜곡 완화) */
-const SV_HEADING_LOOKAHEAD_SHARP_SUM_DEG = 52;
-const SV_HEADING_LOOKAHEAD_M = 52;
-const SV_HEADING_LOOKAHEAD_SHORT_M = 32;
-/** POV 시선 방위: 경로상 전방 이 거리(m) 지점까지의 방위 */
-const SV_POV_HEADING_LOOKAHEAD_M = 44;
-/** true 또는 URL `?svEveryPoint=1` 이면 거리뷰를 경로상 **모든** 점에서 조회(적응형·고정 간격 샘플링 생략). API·PREPARING 시간이 크게 늘어남 — 지금과의 체감 비교용. */
-const DEBUG_SV_SAMPLE_EVERY_PATH_POINT = false;
-/** 적응형 샘플: 직선 구간 간격(m) — 약 60km/h 거리뷰 진행 시 ~1초 전후 한 컷 */
-const SV_SAMPLE_INTERVAL_STRAIGHT_M = 12;
-/** 적응형 샘플: 회전·교차 구간 간격(m) */
-const SV_SAMPLE_INTERVAL_TURN_M = 7;
-/** 이 값 이상이면 회전 구간으로 간주(직선에서 6m 샘플 깜빡임 방지) */
-const SV_ADAPTIVE_TURN_SUM_DEG = 40;
-/** 연속 거리뷰 스왑 최소 간격(ms) — 짧은 구간 연속 컷 폭주 완화 */
-const MIN_MS_BETWEEN_PANO_SWAPS = 880;
-/** 프리패치 커버 대비 주행 위치 갭 판정 여유(m) */
-const SV_GAP_SLACK_ROUTE_M = 42;
-/** 슬라이딩 프리패치 한 구간 길이(m). 과대 시 한 번 실패로 긴 공백(시골 구간 등) 발생 */
-const SV_SLIDING_PREFETCH_CHUNK_M = 300;
-/** 직전 캐시 끝 거리에서 약간 되돌려 겹쳐 수집 — 세그먼트 경계 누락·주행 선행 시 구멍 완화 */
-const SV_PREFETCH_OVERLAP_ROUTE_M = 72;
-/** 마지막 파노 누적거리 대비 이 path index 만큼 앞서면 다음 슬라이딩 수집 시도 */
-const SV_SLIDING_TRIGGER_PATH_POINTS_BACK = 200;
-/** 누적 거리로 캐시보다 앞서면 인덱스 조건만으로는 늦을 때 슬라이딩 수집(시작·회전로 교착 완화) */
-const SV_SLIDING_AHEAD_FETCH_M = 38;
-/** 갭이 길 때 라이브 getPanorama 간격(ms) */
-const LIVE_SV_GAP_FAST_MS = 1300;
-/** 갭이 상대적으로 짧을 때 라이브 간격(ms) */
-const LIVE_SV_GAP_SLOW_MS = 3800;
-/** 같은 파노 키프레임일 때 POV(방위·줌) 갱신 최소 간격(ms) — 직선 구간 전진감 위해 다소 촘촘히 */
-const SV_POV_REFRESH_MIN_MS = 150;
-/** 같은 파노 구간 허용 줌 상한(Street View zoom). span 보정 후에도 넘지 않는 전역 캡 — 과줌 시 다음 파노 역전 방지 */
-const SV_RIDE_POV_ZOOM_CAP = 0.62;
-/** 구간 진행도 t 기준: 이 비율까지는 줌 0(헤딩만), 이후에만 줌 램프 */
-const SV_RIDE_POV_ZOOM_RAMP_START_T = 0.52;
-/** t ≤ 이 값까지 줌 인 → 이후 테일에서 줌 아웃 */
-const SV_RIDE_POV_ZOOM_RAMP_END_T = 0.88;
-/** 진행도에 따른 살짝 아래 시선(°) — 줌과 비례해 적용(과한 피치 단독 방지) */
-const SV_RIDE_POV_PITCH_MIN = -4;
-
-function smoothstep01(t: number): number {
-  const x = Math.max(0, Math.min(1, t));
-  return x * x * (3 - 2 * x);
-}
-
-/** 다음 키프레임까지 거리(span)가 짧을수록 줌 상한을 더 낮춤 — 다음 파노 시야를 줌이 잡아먹지 않게 */
-function zoomScaleFromSpanM(spanM: number): number {
-  if (spanM <= 16) return 0.26;
-  if (spanM <= 28) return 0.48;
-  if (spanM <= 55) return 0.74;
-  return 1;
-}
-
-/** panoData 키프레임 중 startDist 직후의 다음 키프레임 누적거리(m). 없으면 경로 끝. */
-function nextPanoKeyframeDistM(
-  panos: Array<{ pathIndex: number; distAlongRouteM?: number }>,
-  cumDist: number[],
-  startDist: number
-): number {
-  const lastI = cumDist.length - 1;
-  const pathEnd = lastI >= 0 ? cumDist[lastI] ?? startDist + 80 : startDist + 80;
-  let best = -1;
-  for (const p of panos) {
-    const dm = typeof p.distAlongRouteM === 'number' ? p.distAlongRouteM : cumDist[p.pathIndex] ?? 0;
-    if (dm > startDist + 0.25 && (best < 0 || dm < best)) best = dm;
-  }
-  if (best > 0) return Math.min(best, pathEnd);
-  return pathEnd;
-}
-
-/**
- * 같은 panoId·같은 프리패치 키프레임 구간: 경로 누적거리 진행에 맞춰 heading(전방 m)·줌·피치를 계산.
- * 샘플이 듬직한 직선에서도 화면이 멈춘 듯 보이지 않게 함.
- */
-function computeSameKeyframeRidePov(
-  pathForSv: any[],
-  cumDistSv: number[],
-  svDisplayIdxForPano: number,
-  panoItem: PanoDataItem,
-  panos: PanoDataItem[]
-): { heading: number; pitch: number; zoom: number } | null {
-  if (pathForSv.length < 2) return null;
-  const pi = Math.min(Math.max(0, svDisplayIdxForPano), pathForSv.length - 1);
-  const currentPos = pathForSv[pi];
-  if (!currentPos) return null;
-  const distAlong = cumDistSv[pi] ?? 0;
-  const startDist =
-    typeof panoItem.distAlongRouteM === 'number' ? panoItem.distAlongRouteM : cumDistSv[panoItem.pathIndex] ?? 0;
-  const endDist = nextPanoKeyframeDistM(panos, cumDistSv, startDist);
-  const span = Math.max(14, endDist - startDist);
-  const t = smoothstep01((distAlong - startDist) / span);
-  const totalLen = cumDistSv[pathForSv.length - 1] ?? 0;
-  const lookD = Math.min(distAlong + SV_POV_HEADING_LOOKAHEAD_M, totalLen);
-  const ahead = getLatLngAtDistanceAlongPath(pathForSv, cumDistSv, lookD);
-  const heading = computeHeading(currentPos, { lat: ahead.lat, lng: ahead.lng });
-  const maxZoom = SV_RIDE_POV_ZOOM_CAP * zoomScaleFromSpanM(span);
-  const ts = SV_RIDE_POV_ZOOM_RAMP_START_T;
-  const te = SV_RIDE_POV_ZOOM_RAMP_END_T;
-  let zoom = 0;
-  if (maxZoom > 0.004) {
-    if (t < ts) {
-      zoom = 0;
-    } else if (t <= te) {
-      const u = (t - ts) / Math.max(1e-6, te - ts);
-      zoom = smoothstep01(u) * maxZoom;
-    } else {
-      const v = (t - te) / Math.max(1e-6, 1 - te);
-      zoom = maxZoom * (1 - smoothstep01(v));
-    }
-  }
-  const pitch = maxZoom > 0.004 ? (zoom / maxZoom) * SV_RIDE_POV_PITCH_MIN : 0;
-  return { heading, pitch, zoom };
-}
-
-/** [Phase 2] Multi-pass 2단계: 반경(m), 완화된 방향 한계(무방향 최근접 제거로 옆 주차장 파노 방지) */
-const SV_PASS2_RADIUS_M = 120;
-const SV_PASS2_MAX_ANGLE_DEG = 100;
-/** Pass3 이후에도 후보가 없을 때만(시골·좁은 도로). 각도·횡거리 완화 */
-const SV_PASS4_RADIUS_M = 145;
-const SV_PASS4_MAX_ANGLE_DEG = 118;
-const SV_PASS4_CORRIDOR_MULT = 2.55;
-/** 경로 폴리라인 대 파노 위치 횡거리 상한(미터). 초과 시 후보 제외 */
-const SV_CORRIDOR_MAX_M = 48;
-/** 사용자 기여 파노만 더 엄격한 횡거리(미터) */
-const SV_CORRIDOR_USER_MAX_M = 22;
-/** pathIndex 기준으로 앞뒤 몇 개 세그먼트까지 횡거리 계산 */
-const SV_POLYLINE_MATCH_HALFWIN = 110;
-/** 공식 거리뷰 직후 짧은 구간(미터)에는 사용자 파노를 프리패치에 넣지 않음 */
-const SV_SHORT_GAP_SKIP_USER_M = 75;
-/** [Phase 2] 점수 가중치: 거리 60%, 방향 40%. score = 0.6*(1-d/maxD) + 0.4*(1-diff/90) */
-const SV_SCORE_DIST_WEIGHT = 0.6;
-const SV_SCORE_ANGLE_WEIGHT = 0.4;
-const SV_SCORE_ANGLE_DENOM_DEG = 90;
-/** [Phase 4] 실내/상가 파노 제외용. description에 포함 시 후보에서 제외 (tilt는 getPanorama 응답에 없음) */
-const SV_INDOOR_KEYWORDS = /Shop|Indoor|Business/i;
-/** [Phase 5] coverage 미만이면 거리뷰 부족 안내 (Street View 비활성 또는 배지) */
-const COVERAGE_MIN = 0.7;
-/** [Phase 1 이후 미사용] 주행 중 실시간 검색 제거로 사용 안 함. */
-const MAX_REALTIME_SV_ATTEMPTS = 3;
-
 /** 주행 위치 강제 이동 시 한 번에 이동할 경로 포인트 수 (Backward / Fast Forward) */
 const STEP_OFFSET = 5;
-
-/** 속도 기준: 이 값 이상이면 초기 거리뷰 수집 400m, 미만이면 220m. 주행 중 40 이상으로 올리면 해당 위치부터 400m 확장 수집 */
-const SPEED_THRESHOLD_KMH = 40;
-/** 경로 직후 거리뷰 캐시 길이(m). 짧으면 샘플 구간 사이에서 끊김 체감이 커질 수 있어 저속·고속 모두 여유를 둔다. */
-const INITIAL_PREFETCH_HIGH_M = 400;
-const INITIAL_PREFETCH_LOW_M = 220;
 
 /** True when current inputs match the last successful route request (for Go reuse). */
 function inputsMatch(
@@ -735,18 +435,8 @@ const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
 
-  // Double Buffering Refs
-  const svContainerRef = useRef<HTMLDivElement>(null);
-  const svRef1 = useRef<HTMLDivElement>(null);
-  const svRef2 = useRef<HTMLDivElement>(null);
-  const panorama1 = useRef<any>(null);
-  const panorama2 = useRef<any>(null);
-  const activePanoRef = useRef<number>(0); // 0 or 1
-  const [visiblePanoIdx, setVisiblePanoIdx] = useState<number>(0); // Controls Z-Index
-
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const streetViewCoverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
   const googleMarkersRef = useRef<google.maps.Marker[]>([]);
   const simulationMarker = useRef<google.maps.Marker | null>(null);
   const startMarker = useRef<google.maps.Marker | null>(null);
@@ -754,24 +444,6 @@ const App: React.FC = () => {
   const waypointMarkers = useRef<google.maps.Marker[]>([]);
   const tempMarker = useRef<google.maps.Marker | null>(null);
   const searchMarkerRef = useRef<google.maps.Marker | null>(null);
-  const svServiceRef = useRef<any>(null);
-  const svErrorCount = useRef(0);
-  const isSvSearching = useRef(false); // Semaphore to prevent overlapping SV searches
-  const isSegmentFetchingRef = useRef(false); // Prevent overlapping on-demand segment fetches
-  /** 갭 구간에서 커버리지는 있는데 프리페치만 늦을 때 저빈도로 라이브 getPanorama 시도 */
-  const lastLiveSvFallbackAtMsRef = useRef(0);
-  /** Street View 표시용 path index: 시뮬 속도와 분리해 최대 60 km/h로만 진행해 고속에서도 거리뷰가 부드럽게 전환되도록 함 */
-  const svDisplayPathIndexRef = useRef(0);
-  const lastSvDisplayUpdateRef = useRef(0);
-  /** 마지막으로 표시한 파노의 pathIndex — 더 작은 인덱스로 갱신해 후진처럼 보이는 현상 방지 */
-  const lastDisplayedPanoPathIndexRef = useRef(-1);
-  /** 거리뷰 파노 스왑 시각(연속 컷 폭주 완화) */
-  const lastPanoSwapAtMsRef = useRef(0);
-  /** 현재 화면에 올라간 파노 ID(동일 파노 구간 POV 보정용) */
-  const lastDisplayedPanoIdRef = useRef<string | null>(null);
-  const lastPovRefreshMsRef = useRef(0);
-  const pendingSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Cancel previous swap when called again
-  const pendingSwapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Fallback swap if status_changed never OK (방안 A)
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -893,15 +565,7 @@ const App: React.FC = () => {
     totalMs: number | null;
     slowModalMs: number | null;
   } | null>(null);
-  const [isSvActive, setIsSvActive] = useState(false);
-  const [svMapLayoutMode, setSvMapLayoutMode] = useState<SvMapLayoutMode>('split');
-  const isSvFullScreen = svMapLayoutMode !== 'split';
-  const isSvMapHidden = svMapLayoutMode === 'hidden';
-  const [showCoverage, setShowCoverage] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [svStatus, setSvStatus] = useState<string>('');
-  const [showSvWarning, setShowSvWarning] = useState(false);
-  const [isUserPano, setIsUserPano] = useState(false); // true when showing user-contributed panorama (fallback)
   /**
    * Elevation 데이터 상태 표시:
    *  - kind 'ok': 표고 정상, provider 표시(디버그 배지)
@@ -1035,7 +699,6 @@ const App: React.FC = () => {
 
   // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
-  const [preparingProgress, setPreparingProgress] = useState<{ k: number; n: number } | null>(null);
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
@@ -1064,9 +727,6 @@ const App: React.FC = () => {
   const [rideLimitMessage, setRideLimitMessage] = useState<string | null>(null);
   const [maxRideLimitMessage, setMaxRideLimitMessage] = useState<string | null>(null);
 
-  const lastPanToTime = useRef<number>(0);
-  /** 주행 중 속도가 SPEED_THRESHOLD_KMH 미만 → 이상으로 올랐을 때 확장 prefetch 트리거용 */
-  const prevSpeedKmHRef = useRef(20);
 
   // Go 버튼 클릭 시 4초 카운트다운 (3, 2, 1, Start!) — 로딩 대기 시간 활용
   const [countdown, setCountdown] = useState<3 | 2 | 1 | 'start' | null>(null);
@@ -1096,7 +756,6 @@ const App: React.FC = () => {
     routeInputExpanded: true,
     hasRoute: false,
     elevationExpanded: true,
-    streetViewFullScreen: false,
     sensorsModalOpen: false,
     bikeProfileModalOpen: false,
     explorePickerOpen: false,
@@ -1192,7 +851,6 @@ const App: React.FC = () => {
       routeInputExpanded,
       hasRoute: route !== null,
       elevationExpanded,
-      streetViewFullScreen: isSvActive && isSvFullScreen,
       sensorsModalOpen,
       bikeProfileModalOpen,
       explorePickerOpen,
@@ -1215,8 +873,6 @@ const App: React.FC = () => {
     routeInputExpanded,
     route,
     elevationExpanded,
-    isSvActive,
-    isSvFullScreen,
     sensorsModalOpen,
     bikeProfileModalOpen,
     explorePickerOpen,
@@ -1793,479 +1449,6 @@ const App: React.FC = () => {
     localStorage.setItem(FAVORITE_ROUTES_STORAGE_KEY, JSON.stringify(newFavorites));
   };
 
-  // Helper: swap only after nextPano is OK + 150ms delay (방안 A: 검은 화면 방지). onSwapDone 호출 시 스왑 완료(첫 거리뷰 디스플레이 보장용).
-  const scheduleSwapAfterOk = useCallback((nextPano: any, _nextIdx: number, doSwap: () => void, onSwapDone?: () => void) => {
-    if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
-      doSwap();
-      onSwapDone?.();
-      return;
-    }
-    const safelyRemoveListener = (listener: any) => {
-      if (!listener) return;
-      try {
-        if (typeof listener.remove === 'function') {
-          listener.remove();
-          return;
-        }
-        const eventApi = (window as any).google?.maps?.event;
-        if (eventApi?.removeListener) eventApi.removeListener(listener);
-      } catch (e) {
-        console.warn('[SV] listener remove skipped due to transient state:', e);
-      }
-    };
-    const runSwap = () => {
-      doSwap();
-      onSwapDone?.();
-    };
-    if (pendingSwapFallbackRef.current) {
-      clearTimeout(pendingSwapFallbackRef.current);
-      pendingSwapFallbackRef.current = null;
-    }
-    const doSwapWithDelay = () => {
-      pendingSwapTimeoutRef.current = null;
-      runSwap();
-    };
-    const FALLBACK_MS = 1500;
-    const DELAY_AFTER_OK_MS = 150;
-    let listener: any = null;
-    pendingSwapFallbackRef.current = setTimeout(() => {
-      pendingSwapFallbackRef.current = null;
-      safelyRemoveListener(listener);
-      runSwap();
-    }, FALLBACK_MS);
-    listener = nextPano.addListener('status_changed', () => {
-      if (nextPano.getStatus() !== 'OK') return;
-      if (listener) { safelyRemoveListener(listener); listener = null; }
-      if (pendingSwapFallbackRef.current) { clearTimeout(pendingSwapFallbackRef.current); pendingSwapFallbackRef.current = null; }
-      pendingSwapTimeoutRef.current = setTimeout(doSwapWithDelay, DELAY_AFTER_OK_MS);
-    });
-  }, []);
-
-  // Helper function to update panorama atomically (Hybrid Double Buffer). 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
-  // 무한 대기 방지: PANORAMA_VIEW_TIMEOUT_MS 초과 시 resolve하여 주행이 반드시 시작되도록 함.
-  const setPanoramaView = useCallback((location: any, heading: number): Promise<void> => {
-    const inner = new Promise<void>((resolve) => {
-      if (!svServiceRef.current) { resolve(); return; }
-      if (pendingSwapTimeoutRef.current) {
-        clearTimeout(pendingSwapTimeoutRef.current);
-        pendingSwapTimeoutRef.current = null;
-      }
-      if (pendingSwapFallbackRef.current) {
-        clearTimeout(pendingSwapFallbackRef.current);
-        pendingSwapFallbackRef.current = null;
-      }
-      getPanoramaWithFallback(svServiceRef.current, { location, radius: 50 }).then(({ data, usedFallback, reason }) => {
-        if (!data?.location) {
-          // timeout은 응답 지연일 뿐이므로 경고 표시 안 함. no_pano일 때만 "No street view" 표시
-          if (reason === 'no_pano') setShowSvWarning(true);
-          resolve();
-          return;
-        }
-        setShowSvWarning(false);
-        setIsUserPano(usedFallback);
-        if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
-          const currentPano = panorama1.current;
-          if (!currentPano) { resolve(); return; }
-          currentPano.setOptions({
-            pano: data.location.pano,
-            pov: { heading, pitch: 0, zoom: 0 },
-            visible: true
-          });
-          activePanoRef.current = 0;
-          setVisiblePanoIdx(0);
-          resolve();
-          return;
-        }
-        const currentIdx = activePanoRef.current;
-        const nextIdx = currentIdx === 0 ? 1 : 0;
-        const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-        const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
-
-        if (!currentPano || !nextPano) { resolve(); return; }
-
-        const newPanoId = data.location.pano;
-        const currentPanoId = currentPano.getPano();
-
-        const doSwap = () => {
-          pendingSwapTimeoutRef.current = null;
-          activePanoRef.current = nextIdx;
-          setVisiblePanoIdx(nextIdx);
-        };
-
-        nextPano.setOptions({
-          pano: newPanoId,
-          pov: { heading, pitch: 0, zoom: 0 },
-          visible: true
-        });
-
-        scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
-      }).catch(() => resolve());
-    });
-    const timeout = new Promise<void>((resolve) => {
-      setTimeout(() => {
-        console.warn('[SV] setPanoramaView timeout — proceeding without street view');
-        // timeout은 로딩 지연이므로 경고 표시하지 않음. OK 수신 시 status_changed에서 해제됨
-        resolve();
-      }, PANORAMA_VIEW_TIMEOUT_MS);
-    });
-    return Promise.race([inner, timeout]);
-  }, [scheduleSwapAfterOk]);
-
-  /**
-   * 거리뷰 표시: 내부적으로 계산된 각도(heading)를 적용한 뒤 스왑하여 보여줌.
-   * isUserPhoto: 사용자 제작 이미지 여부(배지 표시용).
-   * 스왑 완료 시 resolve하여 변경된 경로 거리뷰 디스플레이 보장.
-   * 무한 대기 방지: PANORAMA_VIEW_TIMEOUT_MS 초과 시 resolve하여 주행이 반드시 시작되도록 함.
-   */
-  const setPanoramaViewByPanoId = useCallback((panoId: string, heading: number, isUserPhoto?: boolean): Promise<void> => {
-    const inner = new Promise<void>((resolve) => {
-      setIsUserPano(!!isUserPhoto);
-      if (pendingSwapTimeoutRef.current) {
-        clearTimeout(pendingSwapTimeoutRef.current);
-        pendingSwapTimeoutRef.current = null;
-      }
-      if (pendingSwapFallbackRef.current) {
-        clearTimeout(pendingSwapFallbackRef.current);
-        pendingSwapFallbackRef.current = null;
-      }
-      if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
-        const currentPano = panorama1.current;
-        if (!currentPano) { resolve(); return; }
-        const currentPanoId = currentPano.getPano?.();
-        if (currentPanoId !== panoId) {
-          currentPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
-        } else {
-          const curPov = currentPano.getPov?.();
-          const curH = curPov?.heading ?? 0;
-          if (Math.abs(normalizeAngleDiff(curH - heading)) < 0.35) { resolve(); return; }
-          currentPano.setPov({ heading, pitch: curPov?.pitch ?? 0, zoom: curPov?.zoom ?? 0 });
-        }
-        activePanoRef.current = 0;
-        setVisiblePanoIdx(0);
-        resolve();
-        return;
-      }
-      const currentIdx = activePanoRef.current;
-      const nextIdx = currentIdx === 0 ? 1 : 0;
-      const currentPano = currentIdx === 0 ? panorama1.current : panorama2.current;
-      const nextPano = nextIdx === 0 ? panorama1.current : panorama2.current;
-      if (!currentPano || !nextPano) { resolve(); return; }
-      const currentPanoId = currentPano.getPano();
-
-      const doSwap = () => {
-        pendingSwapTimeoutRef.current = null;
-        activePanoRef.current = nextIdx;
-        setVisiblePanoIdx(nextIdx);
-      };
-
-      // 같은 파노라마: heading 차이 1.5° 미만이면 무시, 1.5° 이상이면 POV만 갱신(스왑 없이) → 멈춤 감소
-      if (currentPanoId === panoId) {
-        const currentPov = currentPano.getPov?.();
-        const curH = currentPov?.heading ?? 0;
-        const diff = Math.abs(normalizeAngleDiff(curH - heading));
-        if (diff < 0.35) { resolve(); return; }
-        currentPano.setPov({
-          heading,
-          pitch: currentPov?.pitch ?? 0,
-          zoom: currentPov?.zoom ?? 0
-        });
-        resolve();
-        return;
-      }
-
-      nextPano.setOptions({ pano: panoId, pov: { heading, pitch: 0, zoom: 0 }, visible: true });
-      scheduleSwapAfterOk(nextPano, nextIdx, doSwap, () => resolve());
-    });
-    const timeout = new Promise<void>((resolve) => {
-      setTimeout(() => {
-        console.warn('[SV] setPanoramaViewByPanoId timeout — proceeding without street view');
-        // timeout은 로딩 지연이므로 경고 표시하지 않음. OK 수신 시 status_changed에서 해제됨
-        resolve();
-      }, PANORAMA_VIEW_TIMEOUT_MS);
-    });
-    return Promise.race([inner, timeout]);
-  }, [scheduleSwapAfterOk]);
-
-  /** [Phase 2] Pre-fetch: Multi-pass(50m ±40° → 완화각 → 120m+방향) 후 후보 수집, 점수로 1개 선택. [Phase 5] sampleCount 반환. */
-  const preFetchStreetViewData = useCallback(async (
-    path: any[],
-    onProgress: (k: number, n: number) => void,
-    options?: {
-      fromDistanceM?: number;
-      maxDistanceM?: number;
-      /** 고정 간격(m). adaptiveSampling이 false일 때만 사용 */
-      intervalM?: number;
-      /** 직선은 넓게·회전·교차는 촘촘히 (기본 true). false면 intervalM(기본 10m) 고정 */
-      adaptiveSampling?: boolean;
-      /** 슬라이딩 프리패치 시 직전 배치 끝이 공식 파노면 짧은 구간 사용자 파노 삽입 억제 */
-      chainTailMeta?: { sampleDistM: number; wasOfficial: boolean };
-      /** true: `fromDistanceM`~`maxDistanceM` 구간의 path 인덱스마다 Street View 조회(매우 촘촘). DEBUG·URL과 OR. */
-      sampleEveryPathPoint?: boolean;
-    }
-  ): Promise<{ panoData: PanoDataItem[]; sampleCount: number }> => {
-    if (!svServiceRef.current || !path.length) return { panoData: [], sampleCount: 0 };
-    const cumDist: number[] = [0];
-    for (let i = 1; i < path.length; i++) {
-      cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
-    }
-    const totalM = cumDist[path.length - 1];
-    const fromDistanceM = options?.fromDistanceM ?? 0;
-    const maxDistanceM = options?.maxDistanceM ?? totalM;
-    const capDist = Math.min(totalM, maxDistanceM);
-    const sampleEveryPathPoint =
-      DEBUG_SV_SAMPLE_EVERY_PATH_POINT ||
-      (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('svEveryPoint') === '1') ||
-      options?.sampleEveryPathPoint === true;
-    const useAdaptive = !sampleEveryPathPoint && options?.adaptiveSampling !== false;
-    const samples: { pathIndex: number; distAlongPath: number }[] = [];
-    if (sampleEveryPathPoint) {
-      for (let i = 0; i < path.length; i++) {
-        const d = cumDist[i];
-        if (d < fromDistanceM - 1e-6) continue;
-        if (d > capDist + 1e-6) break;
-        samples.push({ pathIndex: i, distAlongPath: Math.min(d, capDist) });
-      }
-      if (samples.length === 0 && path.length > 0 && fromDistanceM <= capDist) {
-        let i = 0;
-        while (i < path.length - 1 && cumDist[i] < fromDistanceM) i++;
-        samples.push({
-          pathIndex: Math.min(i, path.length - 1),
-          distAlongPath: Math.min(Math.max(fromDistanceM, cumDist[i] ?? 0), capDist)
-        });
-      }
-      if (samples.length > 0) {
-        console.warn(
-          '[SV] sampleEveryPathPoint:',
-          samples.length,
-          'samples in',
-          Math.max(0, capDist - fromDistanceM).toFixed(0),
-          'm window'
-        );
-      }
-    } else if (useAdaptive) {
-      let d = fromDistanceM;
-      while (d <= capDist + 1e-6) {
-        let i = 0;
-        while (i < path.length - 1 && cumDist[i + 1] < d) i++;
-        const pathIndex = Math.min(i, path.length - 1);
-        samples.push({ pathIndex, distAlongPath: Math.min(d, capDist) });
-        const turnSumAt = headingChangeSumAlongPath(path, cumDist, pathIndex, 24, 28);
-        const step =
-          turnSumAt >= SV_ADAPTIVE_TURN_SUM_DEG ? SV_SAMPLE_INTERVAL_TURN_M : SV_SAMPLE_INTERVAL_STRAIGHT_M;
-        d += step;
-      }
-      if (samples.length === 0 && fromDistanceM <= capDist) {
-        let i = 0;
-        while (i < path.length - 1 && cumDist[i + 1] < fromDistanceM) i++;
-        samples.push({ pathIndex: Math.min(i, path.length - 1), distAlongPath: fromDistanceM });
-      }
-    } else {
-      const intervalM = options?.intervalM ?? 10;
-      for (let d = fromDistanceM; d <= capDist; d += intervalM) {
-        let i = 0;
-        while (i < path.length - 1 && cumDist[i + 1] < d) i++;
-        samples.push({ pathIndex: Math.min(i, path.length - 1), distAlongPath: d });
-      }
-    }
-    const panoData: PanoDataItem[] = [];
-    const n = samples.length;
-    let lastChainMeta: { sampleDistM: number; isOfficial: boolean } | null =
-      options?.chainTailMeta?.wasOfficial === true
-        ? { sampleDistM: options.chainTailMeta.sampleDistM, isOfficial: true }
-        : null;
-    for (let k = 0; k < n; k++) {
-      const { distAlongPath: sampleDistM } = samples[k];
-      const totalLen = cumDist[path.length - 1];
-      const clampedDist = Math.min(sampleDistM, totalLen);
-      const onPath = getLatLngAtDistanceAlongPath(path, cumDist, clampedDist);
-      const pathPoint = { lat: onPath.lat, lng: onPath.lng };
-      const geomIdx = onPath.segmentIndex;
-      const turnSumHere = headingChangeSumAlongPath(path, cumDist, geomIdx, 22, 30);
-      const lookM =
-        turnSumHere >= SV_HEADING_LOOKAHEAD_SHARP_SUM_DEG ? SV_HEADING_LOOKAHEAD_SHORT_M : SV_HEADING_LOOKAHEAD_M;
-      let pathNextForSv: any;
-      if (totalLen - clampedDist < 8) {
-        pathNextForSv = path[Math.min(geomIdx + 1, path.length - 1)];
-      } else {
-        const lookDist = Math.min(clampedDist + lookM, totalLen);
-        const ahead = getLatLngAtDistanceAlongPath(path, cumDist, lookDist);
-        pathNextForSv = { lat: ahead.lat, lng: ahead.lng };
-      }
-      const driveHeading = computeHeading(pathPoint, pathNextForSv);
-      const sharpTurn = turnSumHere >= SV_TURN_SHARP_SUM_DEG;
-      const pass1Angle = sharpTurn ? SV_PASS1_MAX_ANGLE_STRICT : SV_PASS1_MAX_ANGLE_DEG;
-      const pass1RelaxedAngle = sharpTurn ? SV_PASS1_RELAXED_ANGLE_STRICT : SV_PASS1_RELAXED_ANGLE_DEG;
-      const pass2Angle = sharpTurn ? SV_PASS2_MAX_ANGLE_STRICT : SV_PASS2_MAX_ANGLE_DEG;
-      const candidates: { item: PanoDataItem; maxD: number }[] = [];
-
-      const pass1 = await findStreetViewInDirection(
-        svServiceRef.current,
-        pathPoint,
-        pathNextForSv,
-        geomIdx,
-        path,
-        cumDist,
-        SV_PASS1_RADIUS_M,
-        pass1Angle,
-        1,
-        clampedDist
-      );
-      if (pass1) candidates.push({ item: pass1, maxD: SV_PASS1_RADIUS_M });
-
-      if (candidates.length === 0) {
-        const pass1Relaxed = await findStreetViewInDirection(
-          svServiceRef.current,
-          pathPoint,
-          pathNextForSv,
-          geomIdx,
-          path,
-          cumDist,
-          SV_PASS1_RADIUS_M,
-          pass1RelaxedAngle,
-          1,
-          clampedDist
-        );
-        if (pass1Relaxed) candidates.push({ item: pass1Relaxed, maxD: SV_PASS1_RADIUS_M });
-      }
-
-      if (candidates.length === 0) {
-        const pass2 = await findStreetViewInDirection(
-          svServiceRef.current,
-          pathPoint,
-          pathNextForSv,
-          geomIdx,
-          path,
-          cumDist,
-          SV_PASS2_RADIUS_M,
-          pass2Angle,
-          1,
-          clampedDist
-        );
-        if (pass2?.panoId) {
-          const desc = pass2.description ?? '';
-          if (!SV_INDOOR_KEYWORDS.test(desc)) {
-            candidates.push({ item: pass2, maxD: SV_PASS2_RADIUS_M });
-          }
-        }
-      }
-
-      if (candidates.length === 0) {
-        const pass3Angle = Math.min(pass2Angle + 14, 112);
-        const pass3 = await findStreetViewInDirection(
-          svServiceRef.current,
-          pathPoint,
-          pathNextForSv,
-          geomIdx,
-          path,
-          cumDist,
-          SV_PASS2_RADIUS_M,
-          pass3Angle,
-          1.92,
-          clampedDist
-        );
-        if (pass3?.panoId) {
-          const desc = pass3.description ?? '';
-          if (!SV_INDOOR_KEYWORDS.test(desc)) {
-            candidates.push({ item: pass3, maxD: SV_PASS2_RADIUS_M });
-          }
-        }
-      }
-
-      if (candidates.length === 0) {
-        const pass4 = await findStreetViewInDirection(
-          svServiceRef.current,
-          pathPoint,
-          pathNextForSv,
-          geomIdx,
-          path,
-          cumDist,
-          SV_PASS4_RADIUS_M,
-          SV_PASS4_MAX_ANGLE_DEG,
-          SV_PASS4_CORRIDOR_MULT,
-          clampedDist
-        );
-        if (pass4?.panoId) {
-          const desc = pass4.description ?? '';
-          if (!SV_INDOOR_KEYWORDS.test(desc)) {
-            candidates.push({ item: pass4, maxD: SV_PASS4_RADIUS_M });
-          }
-        }
-      }
-
-      const filtered = candidates.filter(c => !c.item.description || !SV_INDOOR_KEYWORDS.test(c.item.description));
-      let best: PanoDataItem | null = null;
-      let bestScore = -1;
-      for (const { item, maxD } of filtered) {
-        const d = computeDistanceBetween(pathPoint, item.location);
-        const bearingToPano = computeHeading(pathPoint, item.location);
-        const diff = Math.abs(normalizeAngleDiff(bearingToPano - driveHeading));
-        const score =
-          SV_SCORE_DIST_WEIGHT * (1 - Math.min(d, maxD) / maxD) +
-          SV_SCORE_ANGLE_WEIGHT * (1 - Math.min(diff, SV_SCORE_ANGLE_DENOM_DEG) / SV_SCORE_ANGLE_DENOM_DEG);
-        if (score > bestScore) {
-          bestScore = score;
-          best = item;
-        }
-      }
-      if (best) {
-        const skipUserShortGap =
-          !!best.isUserPhoto &&
-          lastChainMeta !== null &&
-          lastChainMeta.isOfficial &&
-          clampedDist - lastChainMeta.sampleDistM < SV_SHORT_GAP_SKIP_USER_M;
-        if (!skipUserShortGap) {
-          let playbackIdx = pathIndexAtCumulativeM(cumDist, clampedDist, path.length);
-          if (panoData.length > 0) {
-            const prevPi = panoData[panoData.length - 1].pathIndex;
-            if (playbackIdx <= prevPi) playbackIdx = prevPi + 1;
-          }
-          playbackIdx = Math.min(playbackIdx, path.length - 1);
-          panoData.push({
-            ...best,
-            pathIndex: playbackIdx,
-            distAlongRouteM: clampedDist
-          });
-          lastChainMeta = { sampleDistM: clampedDist, isOfficial: !best.isUserPhoto };
-        }
-      }
-      onProgress(k + 1, n);
-      if (k < n - 1) await new Promise(r => setTimeout(r, 80));
-    }
-    return { panoData, sampleCount: n };
-  }, []);
-
-  /**
-   * 주행 위치에 맞는 pano 한 건.
-   * distAlongRouteM 가 있으면 누적 거리 기준(예전 연속성 원칙) — pathIndex 만 쓰면 Arc 등에서 panoData[0]에 고착.
-   */
-  const getPanoDataForRidePosition = useCallback(
-    (panoData: PanoDataItem[], cumDistArr: number[], pathIdx: number): PanoDataItem | null => {
-      if (!panoData.length) return null;
-      const pi = Math.min(Math.max(0, pathIdx), cumDistArr.length - 1);
-      const distM = cumDistArr[pi] ?? 0;
-      const hasDistMeta = panoData.some((p) => typeof p.distAlongRouteM === 'number');
-      if (hasDistMeta) {
-        let best: PanoDataItem | null = null;
-        let bestDm = -1;
-        for (const p of panoData) {
-          const dm = p.distAlongRouteM;
-          if (typeof dm !== 'number') continue;
-          if (dm <= distM + 0.02 && dm > bestDm) {
-            bestDm = dm;
-            best = p;
-          }
-        }
-        if (best) return best;
-      }
-      let bestI: PanoDataItem | null = null;
-      for (const p of panoData) {
-        if (p.pathIndex <= pathIdx && (bestI === null || p.pathIndex > bestI.pathIndex)) bestI = p;
-      }
-      return bestI ?? panoData[0];
-    },
-    []
-  );
-
   // 사용자 현재 위치 조회 (Geolocation API) — 지도 노출 전에 요청해 초기 중심에 반영
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -2762,32 +1945,6 @@ const App: React.FC = () => {
       .catch(() => { });
   }, []);
 
-  // Street View init (Panorama + Service) when Google loaded and SV divs exist
-  useEffect(() => {
-    if (!isMapsApiLoaded || !svRef1.current || panorama1.current) return;
-    if (!USE_CONTINUOUS_SV_DRIVE_THROUGH && !svRef2.current) return;
-    const svOptions = { visible: true, enableCloseButton: false, disableDefaultUI: true, clickToGo: false, motionTracking: false, motionTrackingControl: false, pov: { heading: 0, pitch: 0, zoom: 0 } };
-    panorama1.current = new google.maps.StreetViewPanorama(svRef1.current, svOptions);
-    if (USE_CONTINUOUS_SV_DRIVE_THROUGH) {
-      panorama2.current = null;
-      activePanoRef.current = 0;
-      setVisiblePanoIdx(0);
-    } else {
-      panorama2.current = new google.maps.StreetViewPanorama(svRef2.current, svOptions);
-    }
-    svServiceRef.current = new google.maps.StreetViewService();
-    const handleStatus = () => {
-      const currentPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-      if (currentPano) setSvStatus(currentPano.getStatus());
-      // OK 수신 시 경고 즉시 해제. 양쪽 파노라마 모두 확인(스왑 직전에 로드된 쪽이 OK여도 해제)
-      if (panorama1.current?.getStatus() === 'OK' || panorama2.current?.getStatus?.() === 'OK') {
-        setShowSvWarning(false);
-      }
-    };
-    panorama1.current.addListener('status_changed', handleStatus);
-    panorama2.current?.addListener?.('status_changed', handleStatus);
-  }, [isMapsApiLoaded]);
-
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
@@ -2835,8 +1992,7 @@ const App: React.FC = () => {
       !s.historyExpanded &&
       s.routeSettingsPanelExpanded &&
       s.routeInputExpanded &&
-      (!s.hasRoute || s.elevationExpanded) &&
-      !s.streetViewFullScreen;
+      (!s.hasRoute || s.elevationExpanded);
 
     let listenerHandle: PluginListenerHandle | undefined;
 
@@ -2920,11 +2076,6 @@ const App: React.FC = () => {
         lastAndroidExitPressRef.current = 0;
         setCountdown(null);
         countdownDoneRef.current = null;
-        return;
-      }
-      if (s.streetViewFullScreen) {
-        lastAndroidExitPressRef.current = 0;
-        setSvMapLayoutMode('split');
         return;
       }
       if (s.historyExpanded) {
@@ -3119,15 +2270,6 @@ const App: React.FC = () => {
     routeRef.current = route;
   }, [route]);
 
-  // 주행 시작→미니맵 전환 시 Google Map 크기 갱신
-  useEffect(() => {
-    const map = googleMapRef.current;
-    if (!map || !isSvFullScreen) return;
-    const t1 = setTimeout(() => triggerMapResize(map), 100);
-    const t2 = setTimeout(() => triggerMapResize(map), 600);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [isSvFullScreen, triggerMapResize]);
-
   // 도로(Road)는 항상 표시. 켜고 끄는 대상이 아님.
   useEffect(() => {
     const map = googleMapRef.current;
@@ -3135,20 +2277,7 @@ const App: React.FC = () => {
     map.setOptions({ styles: null });
   }, [isMapReady]);
 
-  // Show Streetview Coverage: 거리뷰 가능한 전체 도로 레이어(Google StreetViewCoverageLayer) 표시/숨김.
-  useEffect(() => {
-    const map = googleMapRef.current;
-    if (!map) {
-      if (streetViewCoverageLayerRef.current) streetViewCoverageLayerRef.current.setMap(null);
-      return;
-    }
-    if (!streetViewCoverageLayerRef.current) {
-      streetViewCoverageLayerRef.current = new google.maps.StreetViewCoverageLayer();
-    }
-    streetViewCoverageLayerRef.current.setMap(showCoverage ? map : null);
-  }, [showCoverage, isMapReady]);
-
-  // 탐색된 경로(폴리라인)는 showCoverage와 무관하게 항상 동일 스타일로 표시.
+  // 탐색된 경로(폴리라인)는 항상 동일 스타일로 표시.
   useEffect(() => {
     const poly = googlePolylineRef.current;
     if (!poly) return;
@@ -3252,35 +2381,9 @@ const App: React.FC = () => {
       simulationMarker.current.setIcon(cyclingIcon);
     }
 
-    // 일시정지 상태: ref·거리뷰·맵만 동기화 후 종료 (타이머 없음)
+    // 일시정지: 마커·맵 중심만 동기화
     if (!simulation.isActive) {
-      svDisplayPathIndexRef.current = currentIdx;
-      lastDisplayedPanoPathIndexRef.current = currentIdx - 1;
-      lastSvDisplayUpdateRef.current = Date.now();
-      if (isSvActive && routeData.panoData?.length) {
-        const pausePath = route.path;
-        const cumPause: number[] = [0];
-        for (let i = 1; i < pausePath.length; i++) {
-          cumPause[i] = cumPause[i - 1] + computeDistanceBetween(pausePath[i - 1], pausePath[i]);
-        }
-        const panoItem = getPanoDataForRidePosition(routeData.panoData, cumPause, currentIdx);
-        if (panoItem) {
-          lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
-          lastDisplayedPanoIdRef.current = panoItem.panoId;
-          void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto).then(() => {
-            const pe = computeSameKeyframeRidePov(pausePath, cumPause, currentIdx, panoItem, routeData.panoData);
-            if (!pe) return;
-            const cur = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-            try {
-              if (cur?.setPov && cur.getPano?.() === panoItem.panoId) cur.setPov(pe);
-            } catch {
-              /* noop */
-            }
-          });
-          setShowSvWarning(false);
-        }
-      }
-      if (isSvFullScreen && googleMapRef.current) {
+      if (googleMapRef.current) {
         const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
         const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
         googleMapRef.current.panTo({ lat: plat, lng: plng });
@@ -3288,7 +2391,7 @@ const App: React.FC = () => {
       return () => clearTimeout(0);
     }
 
-    // 주행 중: 기존 로직 (타이머, 거리뷰 60km/h 상한, 코칭 등)
+    // 주행 중: 코칭 등
     setAppPhase('RUNNING');
     if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
     if (currentIdx >= route.path.length - 1) {
@@ -3300,165 +2403,11 @@ const App: React.FC = () => {
       return () => clearTimeout(0);
     }
 
-    // Street View 표시 인덱스: 진행 속도는 항상 60 km/h 상한 (주행 스피드 10~70과 독립)
-      const METERS_PER_PATH_POINT = 2;
-      const MAX_SV_SPEED_M_PER_SEC = (60 * 1000) / 3600;
-      if (currentIdx === 0) {
-        svDisplayPathIndexRef.current = 0;
-        lastSvDisplayUpdateRef.current = Date.now();
-        lastDisplayedPanoPathIndexRef.current = -1;
-        lastPanoSwapAtMsRef.current = 0;
-        lastDisplayedPanoIdRef.current = null;
-        lastPovRefreshMsRef.current = 0;
-      } else if (svDisplayPathIndexRef.current < currentIdx) {
-        const elapsed = Date.now() - lastSvDisplayUpdateRef.current;
-        const maxPoints = (MAX_SV_SPEED_M_PER_SEC * (elapsed / 1000)) / METERS_PER_PATH_POINT;
-        const advance = Math.min(Math.max(1, Math.floor(maxPoints)), currentIdx - svDisplayPathIndexRef.current);
-        if (advance >= 1) {
-          svDisplayPathIndexRef.current += advance;
-          lastSvDisplayUpdateRef.current = Date.now();
-        }
-      }
-      const svDisplayIdx = svDisplayPathIndexRef.current;
-      const svDisplayIdxForPano = svDisplayIdx;
-
-      // ---- STREET VIEW: 캐시 우선 + 갭 시 저빈도 라이브 조회. panoData만 갱신돼도 동기화되도록 route?.panoData 의존성 유지. ----
-      if (isSvActive) {
-        if (routeData.panoData?.length) {
-          const panos = routeData.panoData;
-          const pathForSv = route.path;
-          const cumDistSv: number[] = [0];
-          for (let i = 1; i < pathForSv.length; i++) {
-            cumDistSv[i] = cumDistSv[i - 1] + computeDistanceBetween(pathForSv[i - 1], pathForSv[i]);
-          }
-          const panoItem = getPanoDataForRidePosition(panos, cumDistSv, svDisplayIdxForPano);
-          let maxPanoPathIdx = -1;
-          let maxDistAlong = -1;
-          for (const p of panos) {
-            if (p.pathIndex > maxPanoPathIdx) maxPanoPathIdx = p.pathIndex;
-            if (typeof p.distAlongRouteM === 'number') maxDistAlong = Math.max(maxDistAlong, p.distAlongRouteM);
-          }
-          if (maxDistAlong < 0) {
-            maxDistAlong = cumDistSv[Math.min(Math.max(0, maxPanoPathIdx), pathForSv.length - 1)];
-          }
-          const svDistAlong = cumDistSv[Math.min(svDisplayIdxForPano, pathForSv.length - 1)];
-          const gapLenM = maxDistAlong >= 0 ? svDistAlong - maxDistAlong : 0;
-          const inGap = maxDistAlong >= 0 && gapLenM > SV_GAP_SLACK_ROUTE_M;
-
-          if (inGap) {
-            setShowSvWarning(true);
-            const nowMs = Date.now();
-            const liveMs = gapLenM > 95 ? LIVE_SV_GAP_FAST_MS : LIVE_SV_GAP_SLOW_MS;
-            if (nowMs - lastLiveSvFallbackAtMsRef.current >= liveMs) {
-              lastLiveSvFallbackAtMsRef.current = nowMs;
-              const h =
-                lookAheadIdx > adjustedIdx && targetPosForHeading
-                  ? computeHeading(currentPos, targetPosForHeading)
-                  : 0;
-              void setPanoramaView(currentPos, h);
-            }
-          } else {
-            setShowSvWarning(false);
-            if (panoItem && panoItem.pathIndex > lastDisplayedPanoPathIndexRef.current) {
-              const nowMs = Date.now();
-              const allowImmediate = lastDisplayedPanoPathIndexRef.current < 0;
-              if (allowImmediate || nowMs - lastPanoSwapAtMsRef.current >= MIN_MS_BETWEEN_PANO_SWAPS) {
-                lastPanoSwapAtMsRef.current = nowMs;
-                lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
-                lastDisplayedPanoIdRef.current = panoItem.panoId;
-                void setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
-              }
-            } else if (
-              panoItem &&
-              lastDisplayedPanoPathIndexRef.current >= 0 &&
-              panoItem.pathIndex === lastDisplayedPanoPathIndexRef.current &&
-              panoItem.panoId === lastDisplayedPanoIdRef.current
-            ) {
-              const nowMs = Date.now();
-              if (nowMs - lastPovRefreshMsRef.current >= SV_POV_REFRESH_MIN_MS) {
-                lastPovRefreshMsRef.current = nowMs;
-                const povPack = computeSameKeyframeRidePov(pathForSv, cumDistSv, svDisplayIdxForPano, panoItem, panos);
-                const curPano = activePanoRef.current === 0 ? panorama1.current : panorama2.current;
-                try {
-                  if (
-                    povPack &&
-                    curPano?.setPov &&
-                    (curPano.getStatus?.() === 'OK' || curPano.getStatus?.() === undefined)
-                  ) {
-                    curPano.setPov({
-                      heading: povPack.heading,
-                      pitch: povPack.pitch,
-                      zoom: povPack.zoom
-                    });
-                  }
-                } catch {
-                  /* noop */
-                }
-              }
-            }
-          }
-          const distAtCurrentForFetch = cumDistSv[Math.min(currentIdx, pathForSv.length - 1)];
-          const aheadOfCacheM = maxDistAlong >= 0 ? distAtCurrentForFetch - maxDistAlong : -1;
-          const needFetchByIndex =
-            maxPanoPathIdx >= 0 && currentIdx >= maxPanoPathIdx - SV_SLIDING_TRIGGER_PATH_POINTS_BACK;
-          const needFetchByDist = maxDistAlong >= 0 && aheadOfCacheM > SV_SLIDING_AHEAD_FETCH_M;
-          const shouldSlidingFetch =
-            panos.length > 0 &&
-            (needFetchByIndex || needFetchByDist) &&
-            !isSegmentFetchingRef.current &&
-            svServiceRef.current;
-          // 슬라이딩 prefetch: 누적 거리 기준 캐시 끝에 근접 시 다음 구간 수집
-          if (shouldSlidingFetch) {
-            isSegmentFetchingRef.current = true;
-            const path = route.path;
-            const totalM = cumDistSv[path.length - 1];
-            // 주행 인덱스가 캐시보다 앞서도 fromM 을 당겨오지 않음 → 구간 건너뛰기 공백 방지
-            const fromM = Math.max(0, maxDistAlong - SV_PREFETCH_OVERLAP_ROUTE_M);
-            const toM = Math.min(fromM + SV_SLIDING_PREFETCH_CHUNK_M, totalM);
-            if (fromM < toM) {
-              const prevPanos = route.panoData || [];
-              const tail = prevPanos.length ? prevPanos[prevPanos.length - 1] : null;
-              const tailDist =
-                tail &&
-                (typeof tail.distAlongRouteM === 'number'
-                  ? tail.distAlongRouteM
-                  : cumDistSv[Math.min(tail.pathIndex, path.length - 1)]);
-              const chainTailMeta =
-                tail && !tail.isUserPhoto && tailDist !== undefined
-                  ? {
-                      sampleDistM: tailDist as number,
-                      wasOfficial: true as const
-                    }
-                  : undefined;
-              preFetchStreetViewData(path, () => { }, {
-                fromDistanceM: fromM,
-                maxDistanceM: toM,
-                ...(chainTailMeta ? { chainTailMeta } : {})
-              })
-                .then(({ panoData: nextPanos }) => {
-                  if (nextPanos.length) {
-                    setRoute((prev) => prev ? { ...prev, panoData: [...(prev.panoData || []), ...nextPanos] } : null);
-                  }
-                })
-                .finally(() => { isSegmentFetchingRef.current = false; });
-            } else {
-              isSegmentFetchingRef.current = false;
-            }
-          }
-        } else {
-          setShowSvWarning(true);
-        }
-        if (isSvFullScreen && googleMapRef.current) {
-          const now = Date.now();
-          if (now - lastPanToTime.current > 1000) {
-            lastPanToTime.current = now;
-            const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
-            const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-            googleMapRef.current.panTo({ lat: plat, lng: plng });
-          }
-        }
-      }
-      // -----------------------------------------------------------
+    if (googleMapRef.current) {
+      const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+      const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+      googleMapRef.current.panTo({ lat: plat, lng: plng });
+    }
 
       // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
       const elevation = routeData.elevation ?? [];
@@ -3569,7 +2518,7 @@ const App: React.FC = () => {
       }
       // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, route?.panoData, isSvFullScreen, isSvActive, setPanoramaView, setPanoramaViewByPanoId, getPanoDataForRidePosition, preFetchStreetViewData]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path]);
 
   // Simulation progression driver: runs continuously while simulation is active,
   // accumulates distance from live speed, and advances currentIndex by path segments.
@@ -4220,8 +3169,6 @@ const App: React.FC = () => {
       console.log('[SIMULATION_STOP] reason=restore_saved_route');
       setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
       setAppPhase('IDLE');
-      svDisplayPathIndexRef.current = 0;
-      lastDisplayedPanoPathIndexRef.current = -1;
       // 이전 ride 잔존 상태 전면 리셋 — coach text·elapsed·covered·코칭 refs 가
       // 새 경로 주행 시작 전까지 이전 값을 보여 주는 문제 방지
       setCoachData(null);
@@ -4239,11 +3186,6 @@ const App: React.FC = () => {
       lastSpokenTipIndexRef.current = null;
       originLocationRef.current = originSeed;
       destLocationRef.current = destSeed;
-      if (path.length > 0) {
-        const startPos = path[0];
-        const heading = path.length > 1 ? computeHeading(startPos, path[1]) : 0;
-        setPanoramaView(startPos, heading);
-      }
       if (googleMapRef.current && path.length > 0) {
         const bounds = new google.maps.LatLngBounds();
         path.forEach((p: any) => bounds.extend(p));
@@ -4302,27 +3244,6 @@ const App: React.FC = () => {
         })();
       }
 
-      // 6) Street View prefetch — 비블로킹. 실패해도 경로 주행은 가능.
-      (async () => {
-        try {
-          const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
-          setAppPhase('PREPARING');
-          setPreparingProgress({ k: 0, n: 1 });
-          const { panoData, sampleCount } = await preFetchStreetViewData(
-            path,
-            (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: initialPrefetchM }
-          );
-          setPreparingProgress(null);
-          const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
-          setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
-          setAppPhase('IDLE');
-        } catch (e) {
-          console.warn('[RESTORE] street view prefetch failed (non-fatal)', e);
-          setPreparingProgress(null);
-          setAppPhase('IDLE');
-        }
-      })();
     } catch (e) {
       console.error('[RESTORE_FAIL] falling back to OSRM recalculation', e);
       // 오프라인 복원 실패 — 세션 내에서만 calculateRoute 로 폴백(localStorage 는 건드리지 않음).
@@ -4331,7 +3252,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, elevationEngine, setPanoramaView, preFetchStreetViewData, speedKmH, updateFavoriteRoutePayload]);
+  }, [elevationProvider, elevationEngine, speedKmH, updateFavoriteRoutePayload]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
@@ -4350,56 +3271,10 @@ const App: React.FC = () => {
     });
   }, [speedKmH]);
 
-  // 주행 중 속도가 40 km/h 이상으로 올랐을 때: 해당 위치부터 400m 확장 prefetch 후 주행 재개. 고속→저속으로 내려가면 수집 거리는 그대로 두고 40 이상 상태 유지(ref 미갱신).
-  useEffect(() => {
-    const prev = prevSpeedKmHRef.current;
-    if (!(prev >= SPEED_THRESHOLD_KMH && effectiveSpeedKmH < SPEED_THRESHOLD_KMH)) prevSpeedKmHRef.current = effectiveSpeedKmH;
-    if (appPhase !== 'RUNNING' || !route?.path?.length || effectiveSpeedKmH < SPEED_THRESHOLD_KMH || prev >= SPEED_THRESHOLD_KMH) return;
-    const path = route.path;
-    const currentPathIndex = Math.min(simulation.currentIndex, path.length - 1);
-    const cumDist: number[] = [0];
-    for (let i = 1; i < path.length; i++) {
-      cumDist[i] = cumDist[i - 1] + computeDistanceBetween(path[i - 1], path[i]);
-    }
-    const currentDistanceM = cumDist[currentPathIndex];
-    setSimulation((s) => ({ ...s, isActive: false }));
-    setAppPhase('PREPARING');
-    setPreparingProgress({ k: 0, n: 1 });
-    const keptBefore = (route.panoData || []).filter((p: PanoDataItem) => p.pathIndex < currentPathIndex);
-    const tailKept = keptBefore.length ? keptBefore[keptBefore.length - 1] : null;
-    const chainTailMetaSpeed =
-      tailKept && !tailKept.isUserPhoto
-        ? {
-            sampleDistM:
-              typeof tailKept.distAlongRouteM === 'number'
-                ? tailKept.distAlongRouteM
-                : cumDist[Math.min(tailKept.pathIndex, path.length - 1)],
-            wasOfficial: true as const
-          }
-        : undefined;
-    preFetchStreetViewData(path, (k, n) => setPreparingProgress({ k, n }), {
-      fromDistanceM: currentDistanceM,
-      maxDistanceM: currentDistanceM + INITIAL_PREFETCH_HIGH_M,
-      ...(chainTailMetaSpeed ? { chainTailMeta: chainTailMetaSpeed } : {})
-    }).then(({ panoData: newPanoData }) => {
-      const kept = keptBefore;
-      const merged = [...kept, ...newPanoData];
-      setRoute((prevRoute) => (prevRoute ? { ...prevRoute, panoData: merged } : null));
-      setPreparingProgress(null);
-      setAppPhase('RUNNING');
-      setSimulation((s) => ({ ...s, isActive: true }));
-    }).catch(() => {
-      setPreparingProgress(null);
-      setAppPhase('RUNNING');
-      setSimulation((s) => ({ ...s, isActive: true }));
-    });
-  }, [effectiveSpeedKmH, appPhase, route, preFetchStreetViewData]);
-
   const clearMapOverlays = () => {
     setLockedRouteProfile(null);
     hasShownModePulseRef.current = false;
     setAppPhase('IDLE');
-    setPreparingProgress(null);
     setRewardOfferModalStage(null);
     setRewardOfferTargetKm(0);
     setRideLimitMessage(null);
@@ -4435,9 +3310,6 @@ const App: React.FC = () => {
     originLocationRef.current = null;
     destLocationRef.current = null;
 
-    svErrorCount.current = 0;
-    setShowSvWarning(false);
-    setIsUserPano(false);
     setElapsedTime(0);
     setCoveredDistance(0);
     setAverageRpm(0);
@@ -4462,15 +3334,6 @@ const App: React.FC = () => {
       rpmSampleSumRef.current = 0;
       rpmSampleCountRef.current = 0;
 
-      const startPos = route.path[0];
-      const nextPos = route.path.length > 1 ? route.path[1] : startPos;
-      const heading = computeHeading(startPos, nextPos);
-
-      // Update view (Hybrid)
-      setPanoramaView(startPos, heading);
-
-      setSvMapLayoutMode('mini');
-
       getCourseBriefing(route).then(speak);
     }
   };
@@ -4488,14 +3351,6 @@ const App: React.FC = () => {
     lastCoachSpeakAtMsRef.current = 0;
     lastSpokenResistanceRef.current = null;
     lastSpokenTipIndexRef.current = null;
-    setSvMapLayoutMode('split');
-    setIsUserPano(false);
-    // We don't hide panorama instance itself anymore, just the container via isSvActive toggle
-    // However, simulation.isActive sets isSvActive state usually in toggle? 
-    // Wait, isSvActive was controlled via visibility button. 
-    // We should probably hide the SV container when stopped?
-    // No, maybe user wants to see it? Let's leave isSvActive state as is, 
-    // but the simulation effect won't run.
 
     setIsCoachThinking(false);
     setCoachData(null);
@@ -4510,93 +3365,14 @@ const App: React.FC = () => {
     setSimulation(prev => {
       const isActive = !prev.isActive;
       if (!isActive) console.log('[SIMULATION_STOP] reason=user_pause');
-      if (isActive) {
-        // Restore heading/position
-        if (route && route.path[prev.currentIndex]) {
-          const nextIdx = Math.min(prev.currentIndex + 1, route.path.length - 1);
-          const heading = computeHeading(
-            route.path[prev.currentIndex],
-            route.path[nextIdx]
-          );
-          setPanoramaView(route.path[prev.currentIndex], heading);
-        }
-        setSvMapLayoutMode('mini');
-        setIsSvActive(true); // Ensure container is visible
-      }
       return { ...prev, isActive };
     });
   };
 
-  const handleToggleStreetView = useCallback(() => {
-    const nextActive = !isSvActive;
-
-    // Hide일 때는 Street View 전용 레이아웃 상태도 함께 정리해 map-only 화면을 보장한다.
-    if (!nextActive) {
-      setIsSvActive(false);
-      setSvMapLayoutMode('split');
-      return;
-    }
-
-    setIsSvActive(true);
-    if (!route?.path?.length) return;
-
-    const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
-    const currentPos = route.path[currentIdx];
-    if (!currentPos) return;
-
-    const syncCurrentStreetView = async () => {
-      if (route.panoData?.length) {
-        const syncPath = route.path;
-        const cumSync: number[] = [0];
-        for (let i = 1; i < syncPath.length; i++) {
-          cumSync[i] = cumSync[i - 1] + computeDistanceBetween(syncPath[i - 1], syncPath[i]);
-        }
-        const panoItem = getPanoDataForRidePosition(route.panoData, cumSync, currentIdx);
-        if (panoItem) {
-          svDisplayPathIndexRef.current = currentIdx;
-          lastSvDisplayUpdateRef.current = Date.now();
-          lastDisplayedPanoPathIndexRef.current = panoItem.pathIndex;
-          await setPanoramaViewByPanoId(panoItem.panoId, panoItem.heading, panoItem.isUserPhoto);
-          setShowSvWarning(false);
-          return;
-        }
-      }
-
-      const nextPos = route.path[Math.min(currentIdx + 1, route.path.length - 1)] || currentPos;
-      const heading = computeHeading(currentPos, nextPos);
-      await setPanoramaView(currentPos, heading);
-    };
-
-    void syncCurrentStreetView();
-  }, [
-    getPanoDataForRidePosition,
-    isSvActive,
-    route,
-    setPanoramaView,
-    setPanoramaViewByPanoId,
-    simulation.currentIndex,
-  ]);
-
-  const handleCycleStreetViewLayout = useCallback(() => {
-    // split -> mini -> hidden -> split
-    if (svMapLayoutMode === 'split') {
-      setSvMapLayoutMode('mini');
-      return;
-    }
-    if (svMapLayoutMode === 'mini') {
-      setSvMapLayoutMode('hidden');
-      return;
-    }
-    setSvMapLayoutMode('split');
-  }, [svMapLayoutMode]);
-
-  /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/거리뷰/표고는 기존 effect가 동기화. */
+  /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/표고는 기존 effect가 동기화. */
   const jumpToRouteIndex = (targetIndex: number) => {
     if (!route?.path?.length) return;
     const clamped = Math.max(0, Math.min(targetIndex, route.path.length - 1));
-    svDisplayPathIndexRef.current = clamped;
-    lastDisplayedPanoPathIndexRef.current = clamped - 1;
-    lastSvDisplayUpdateRef.current = Date.now();
     setSimulation(prev => ({ ...prev, currentIndex: clamped }));
     const coord = route.path[clamped];
     const lat = typeof coord.lat === 'function' ? coord.lat() : coord.lat;
@@ -4931,13 +3707,10 @@ const App: React.FC = () => {
         }
         lastRouteRequestRef.current = { origin: String(finalOrigin).trim(), destination: String(finalDestination).trim(), waypointNames: activeWaypoints.map(w => (w.name || '').trim()), mode: activeMode };
 
-        // [경로 전환 시 거리뷰 멈춤 방지] 새 path 설정 직후 시뮬레이션·거리뷰 ref 리셋 (방안 1·3)
+        // 새 path 설정 직후 시뮬레이션 리셋
         console.log('[SIMULATION_STOP] reason=route_recalculated');
         setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
         setAppPhase('IDLE');
-        svDisplayPathIndexRef.current = 0;
-        lastDisplayedPanoPathIndexRef.current = -1;
-        lastSvDisplayUpdateRef.current = 0;
         lastCoachedIndex.current = -1;
 
         // 의도한 UX만: Car/Bike/Foot으로 새 경로 계산된 경우에만 Go 버튼 펄스 (주행 중·Go 클릭 시에는 미동작)
@@ -4950,36 +3723,13 @@ const App: React.FC = () => {
           goButtonPulseTimeoutsRef.current.push(window.setTimeout(() => setGoButtonPulse(false), 1200));
         }
 
-        // (방안 2) 새 경로 시작점으로 거리뷰 즉시 이동 — 이전 경로 화면에 멈춰 보이는 시간 제거
-        if (densifiedPath.length > 0) {
-          const startPos = densifiedPath[0];
-          const heading = densifiedPath.length > 1 ? computeHeading(startPos, densifiedPath[1]) : 0;
-          setPanoramaView(startPos, heading);
+        if (autoStart) {
+          countdownDoneRef.current = async () => {
+            const r = routeRef.current;
+            if (r) await startSimulationOnly(r);
+          };
+          setCountdown(3);
         }
-
-        // Progressive loading: pre-fetch distance by speed (≥40 km/h: 400m, <40: 220m); rest loaded on-demand
-        (async () => {
-          const initialPrefetchM = speedKmH >= SPEED_THRESHOLD_KMH ? INITIAL_PREFETCH_HIGH_M : INITIAL_PREFETCH_LOW_M;
-          setAppPhase('PREPARING');
-          setPreparingProgress({ k: 0, n: 1 });
-          const { panoData, sampleCount } = await preFetchStreetViewData(
-            densifiedPath,
-            (k, n) => setPreparingProgress({ k, n }),
-            { maxDistanceM: initialPrefetchM }
-          );
-          setPreparingProgress(null);
-          const coverage = sampleCount > 0 ? panoData.length / sampleCount : 0;
-          setRoute((prev) => (prev ? { ...prev, panoData, streetViewCoverage: coverage, streetViewDisabled: coverage < COVERAGE_MIN } : null));
-          setAppPhase('IDLE');
-
-          if (autoStart) {
-            countdownDoneRef.current = async () => {
-              const r = routeRef.current;
-              if (r) await startSimulationOnly(r);
-            };
-            setCountdown(3);
-          }
-        })();
       }
     } catch (err) {
       console.error('[CALCULATE_ROUTE_FINAL_ERROR]', {
@@ -5014,9 +3764,9 @@ const App: React.FC = () => {
       });
       setLoading(false);
     }
-  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, setPanoramaView, preFetchStreetViewData, setPanoramaViewByPanoId, updateFavoriteRoutePayload, showElevationFlatToast]);
+  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, updateFavoriteRoutePayload, showElevationFlatToast]);
 
-  /** Core: actually starts ride (sets panorama, coaching, timers). Reward logic calls this. */
+  /** Core: actually starts ride (coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
     setRideLimitMessage(null);
     setMaxRideLimitMessage(null);
@@ -5042,23 +3792,11 @@ const App: React.FC = () => {
     lastSpokenTipIndexRef.current = null;
 
     const pathLen = currentRoute.path.length;
-    // Start after first StreetView (or map fallback) is visible.
-    const firstPano = currentRoute.panoData && currentRoute.panoData.length > 0 ? currentRoute.panoData[0] : null;
-    if (firstPano) {
-      await setPanoramaViewByPanoId(firstPano.panoId, firstPano.heading, firstPano.isUserPhoto);
-    } else if (pathLen > 0) {
-      setShowSvWarning(true);
-      const startPos = currentRoute.path[0];
-      const heading = pathLen > 1 ? computeHeading(startPos, currentRoute.path[1]) : 0;
-      await setPanoramaView(startPos, heading);
-    }
 
     // 첫 코칭 발화/음악 루프 등 ref 기반 로직이 React state effect 를 기다리지 않게 즉시 반영한다.
     simulationActiveRef.current = true;
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
-    setSvMapLayoutMode('mini');
-    setIsSvActive(true);
 
     const elevLen = currentRoute.elevation.length;
     const segmentSize = Math.min(20, elevLen);
@@ -5084,7 +3822,7 @@ const App: React.FC = () => {
       }
     }
     lastCoachedIndex.current = 0;
-  }, [speedKmH, setPanoramaView, setPanoramaViewByPanoId]);
+  }, [speedKmH]);
 
   /** Start simulation using existing route. Applies rewarded video extension rules. */
   const startSimulationOnly = useCallback(async (currentRoute: RouteInfo) => {
@@ -5729,51 +4467,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Street View Container — 주행 시 항상 표시(기본 기능). 전환 유지. */}
-      <div
-        ref={svContainerRef}
-        className={`bg-black transition-all duration-500 ease-in-out overflow-hidden ${isSvActive ? (isSvFullScreen ? 'absolute top-0 left-0 right-0 z-40 opacity-100' : 'absolute top-0 left-0 right-0 h-[50%] z-20 opacity-100 border-b-2 border-slate-700') : 'absolute top-0 left-0 w-full h-0 opacity-0 pointer-events-none z-0'}`}
-        style={{
-          bottom: (isSvActive && isSvFullScreen)
-            ? 0
-            : undefined,
-        }}
-      >
-        <div ref={svRef1} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 0 ? 'z-20 opacity-100' : 'z-10'}`} />
-        {!USE_CONTINUOUS_SV_DRIVE_THROUGH && (
-          <div ref={svRef2} className={`absolute inset-0 transition-opacity duration-300 ${visiblePanoIdx === 1 ? 'z-20 opacity-100' : 'z-10'}`} />
-        )}
-      </div>
-
       {loading && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
           <span className="route-search-blink text-white font-bold text-sm text-glow-black">Searching for route...</span>
-        </div>
-      )}
-      {appPhase === 'PREPARING' && preparingProgress && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-[75] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
-          <span className="text-white font-bold text-sm text-glow-black">Preparing Street View... ({preparingProgress.k}/{preparingProgress.n})</span>
-        </div>
-      )}
-      {isSvActive && showSvWarning && (
-        <div
-          className={`absolute z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}
-          style={{ left: SAFE_LEFT_1REM }}
-        >
-          <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 shadow-xl animate-in fade-in zoom-in duration-300">
-            <ShieldAlert size={18} className="text-amber-500 animate-pulse" />
-            <span className="text-white font-bold text-xs">No Street View available for this section.</span>
-          </div>
-        </div>
-      )}
-      {isSvActive && isUserPano && (
-        <div
-          className={`absolute z-[45] flex items-center justify-start pointer-events-none ${isSvFullScreen ? 'bottom-32' : 'top-[42%]'}`}
-          style={{ left: SAFE_LEFT_1REM }}
-        >
-          <div className="bg-slate-700/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl">
-            <span className="text-slate-200 font-medium text-[10px]">사용자 제작 이미지</span>
-          </div>
         </div>
       )}
       {/* Elevation: 평지 폴백 토스트 (5초 자동 사라짐) */}
@@ -5799,21 +4495,12 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 맵: 불투명 배경(bg-slate-900)으로 거리뷰 비침 방지, 전환 후 invalidateSize. */}
+      {/* 맵: 불투명 배경(bg-slate-900), 전환 후 invalidateSize. */}
       <div
         ref={mapRef}
-        className={`duration-500 ease-in-out bg-slate-900 ${!isSvActive ? 'absolute top-0 left-0 right-0 z-10' : isSvFullScreen ? (isSvMapHidden ? 'absolute top-0 left-0 right-0 z-[25] opacity-0 pointer-events-none' : "absolute w-36 h-36 z-[500] rounded-3xl border-4 border-white shadow-2xl overflow-hidden") : "absolute left-0 right-0 h-[50%] z-[25] overflow-hidden"} ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
+        className={`duration-500 ease-in-out bg-slate-900 absolute top-0 left-0 right-0 z-10 ${!mapRevealed ? 'opacity-0 pointer-events-none' : ''}`}
         style={{
-          transitionProperty: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 'top, left, border-radius, border-width, opacity' : 'top, left, right, bottom, width, height, border-radius, opacity',
-          width: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 144 : undefined,
-          height: (isSvActive && isSvFullScreen && !isSvMapHidden) ? 144 : undefined,
-          bottom: !isSvFullScreen ? 0 : undefined,
-          ...(isSvActive && isSvFullScreen && !isSvMapHidden
-            ? {
-                top: SAFE_TOP_4_25REM,
-                left: SAFE_LEFT_1REM,
-              }
-            : {}),
+          transitionProperty: 'top, left, right, bottom, width, height, border-radius, opacity',
         }}
         onTransitionEnd={() => {
           const map = googleMapRef.current;
@@ -5892,44 +4579,11 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Control Group - Shifted Up (80% size) */}
-      <div
-        className="fixed z-[1000] flex flex-col gap-1.5 pointer-events-auto"
-        style={{
-          right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
-          top: SAFE_TOP_1REM,
-        }}
-      >
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, () => setShowCoverage((v) => !v))}
-          onClick={() => setShowCoverage(!showCoverage)}
-          title={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${showCoverage ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}
-        >
-          <RouteIcon size={19} aria-label={showCoverage ? "Hide Street View Coverage" : "Show Street View Coverage"} className="pointer-events-none" />
-        </button>
-        <button onClick={handleToggleStreetView} title={isSvActive ? "Hide Street View" : "Show Street View"} className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvActive ? 'bg-yellow-400 text-slate-900' : 'bg-white text-slate-400'}`}>
-          <img src={STREETVIEW_ICON} alt="Street View" className="w-[1.2rem] h-[1.2rem] object-contain" />
-        </button>
-        {isSvActive && (
-          <button
-            onClick={handleCycleStreetViewLayout}
-            title={!isSvFullScreen ? "Maximize View" : (isSvMapHidden ? "Minimize View" : "Hide Mini Map")}
-            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center ${isSvMapHidden ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-          >
-            {!isSvFullScreen ? <Maximize2 size={19} /> : (isSvMapHidden ? <EyeOff size={19} /> : <Minimize2 size={19} />)}
-          </button>
-        )}
-      </div>
-
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
       <div
         className="fixed z-[1000] flex flex-col items-end leading-none select-none"
         style={{
-          right: 'calc(env(safe-area-inset-right, 0px) + 1rem + 2.4rem + 0.5rem)',
+          right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
           top: SAFE_TOP_SPEED_PANEL,
           pointerEvents: 'none',
         }}
