@@ -40,6 +40,17 @@ import {
   getLatLngAtDistanceAlongPath,
   headingChangeSumAlongPath
 } from './services/geoUtils';
+import mapboxgl, { type Map as MapboxMap } from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { MAPBOX_ACCESS_TOKEN } from './mapboxToken';
+import {
+  ROUTE_LAYER,
+  clearRouteLineGeometry,
+  ensureRouteLineLayer,
+  fitMapToPath,
+  mapStyleUrl,
+  setRouteLineGeometry,
+} from './services/mapboxRouteLayer';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -53,7 +64,6 @@ import { analytics } from './firebase';
 logEvent(analytics, "app_open");
 logEvent(analytics, "test_event");
 
-declare var google: any;
 const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
@@ -206,6 +216,9 @@ const toLatLngPair = (p: any): [number, number] => {
   const lng = typeof p?.lng === 'function' ? p.lng() : p?.lng;
   return [fix8(lat), fix8(lng)];
 };
+
+const coordLat = (p: any): number => (typeof p.lat === 'function' ? p.lat() : p.lat);
+const coordLng = (p: any): number => (typeof p.lng === 'function' ? p.lng() : p.lng);
 
 const modeFromProfile = (profile: 'cycling' | 'driving' | 'foot'): TravelMode => (
   profile === 'driving' ? TravelMode.DRIVING : profile === 'cycling' ? TravelMode.BICYCLING : TravelMode.WALKING
@@ -435,15 +448,16 @@ const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
 
-  const googleMapRef = useRef<google.maps.Map | null>(null);
-  const googlePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const googleMarkersRef = useRef<google.maps.Marker[]>([]);
-  const simulationMarker = useRef<google.maps.Marker | null>(null);
-  const startMarker = useRef<google.maps.Marker | null>(null);
-  const endMarker = useRef<google.maps.Marker | null>(null);
-  const waypointMarkers = useRef<google.maps.Marker[]>([]);
-  const tempMarker = useRef<google.maps.Marker | null>(null);
-  const searchMarkerRef = useRef<google.maps.Marker | null>(null);
+  const mapboxMapRef = useRef<MapboxMap | null>(null);
+  /** OSRM/복원 경로를 GeoJSON 라인으로 그릴 때 최신 path 보관 (style.load 시 재적용) */
+  const routeLinePathRef = useRef<any[]>([]);
+  const mapMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const simulationMarker = useRef<mapboxgl.Marker | null>(null);
+  const startMarker = useRef<mapboxgl.Marker | null>(null);
+  const endMarker = useRef<mapboxgl.Marker | null>(null);
+  const waypointMarkers = useRef<mapboxgl.Marker[]>([]);
+  const tempMarker = useRef<mapboxgl.Marker | null>(null);
+  const searchMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -477,17 +491,14 @@ const App: React.FC = () => {
   const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
   const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => { });
-  const triggerMapResize = useCallback((map?: google.maps.Map | null) => {
-    const targetMap = map ?? googleMapRef.current;
-    const eventApi = (window as any).google?.maps?.event;
-    if (!eventApi || !targetMap) return false;
-    // WebView timing race: map 인스턴스가 해제/전환 중이면 trigger 내부에서 예외가 날 수 있다.
-    if (typeof (targetMap as any).getDiv !== 'function') return false;
+  const triggerMapResize = useCallback((map?: MapboxMap | null) => {
+    const targetMap = map ?? mapboxMapRef.current;
+    if (!targetMap) return false;
     try {
-      eventApi.trigger(targetMap, 'resize');
+      targetMap.resize();
       return true;
     } catch (e) {
-      console.warn('[Map] resize trigger skipped due to transient map state:', e);
+      console.warn('[Mapbox] resize skipped:', e);
       return false;
     }
   }, []);
@@ -686,7 +697,6 @@ const App: React.FC = () => {
   const destSetFromSwapRef = useRef(false);
 
   const [isMapReady, setIsMapReady] = useState(false);
-  const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
   const [googleMapsBootstrapError, setGoogleMapsBootstrapError] = useState<string | null>(null);
   const [mapRevealed, setMapRevealed] = useState(false);
@@ -1396,9 +1406,7 @@ const App: React.FC = () => {
       if (!pair || pair.length < 2 || !Number.isFinite(pair[0]) || !Number.isFinite(pair[1])) return null;
       const lat = pair[0];
       const lng = pair[1];
-      return typeof google !== 'undefined' && google.maps?.LatLng
-        ? new google.maps.LatLng(lat, lng)
-        : { lat, lng };
+      return { lat, lng };
     };
     let originSeedLoad = mkRefPoint(pLoad?.originLatLng);
     let destSeedLoad = mkRefPoint(pLoad?.destLatLng);
@@ -1494,44 +1502,62 @@ const App: React.FC = () => {
     return () => timeouts.forEach((t) => clearTimeout(t));
   }, [origin, destination]);
 
-  // Google Map 베이스맵 생성: Maps API 로드 + mapRevealed 후, mapRef 가 잡힐 때까지 rAF 재시도 (Android WebView에서 ref 타이밍 레이스 방지)
+  // Mapbox GL 베이스맵: mapRevealed 후 mapRef 가 잡힐 때까지 rAF 재시도 (Android WebView ref 레이스 방지)
   useEffect(() => {
-    if (!isMapsApiLoaded || !mapRevealed || googleMapRef.current) return;
+    if (!mapRevealed || mapboxMapRef.current) return;
+    if (!MAPBOX_ACCESS_TOKEN) {
+      console.warn('[Mapbox] VITE_MAPBOX_ACCESS_TOKEN 미설정 — .env.local 참고');
+      setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox: 프로젝트 루트 .env.local 에 VITE_MAPBOX_ACCESS_TOKEN=pk.xxx 를 넣어 주세요.');
+      setIsMapReady(true);
+      return;
+    }
 
     let cancelled = false;
     let rafId = 0;
     let attempts = 0;
-    const maxAttempts = 180; // ~3s @60fps — 인트로(2s) 직후 레이아웃 지연까지 커버
+    const maxAttempts = 180;
 
     const tryCreateMap = () => {
-      if (cancelled || googleMapRef.current) return;
+      if (cancelled || mapboxMapRef.current) return;
       const el = mapRef.current;
       if (el) {
         try {
-          const map = new google.maps.Map(el, {
-            center: { lat: 37.5512, lng: 126.9882 },
+          mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+          const map = new mapboxgl.Map({
+            container: el,
+            style: mapStyleUrl(mapTypeRef.current),
+            center: [126.9882, 37.5512],
             zoom: 14,
-            mapTypeId: mapTypeRef.current,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-            zoomControl: false,
-            cameraControl: false,
-            scaleControl: true,
-            scaleControlOptions: { position: google.maps.ControlPosition.BOTTOM_CENTER },
-            rotateControl: false,
-            tiltControl: false,
-            clickableIcons: false, // 상점·POI 이름은 보이기만 하고 클릭 시 구글맵으로 연결되지 않음
+            attributionControl: true,
           });
-          googleMapRef.current = map;
-          map.addListener('click', (e: google.maps.MapMouseEvent) => {
-            if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
+          map.on('style.load', () => {
+            try {
+              ensureRouteLineLayer(map);
+              if (routeLinePathRef.current.length) {
+                setRouteLineGeometry(map, routeLinePathRef.current);
+              } else {
+                clearRouteLineGeometry(map);
+              }
+            } catch (e) {
+              console.warn('[Mapbox] style.load route layer', e);
+            }
           });
+          map.on('click', (e) => {
+            handleLocationClickRef.current(e.lngLat.lat, e.lngLat.lng);
+          });
+          map.on('error', (e) => {
+            console.error('[Mapbox]', e);
+            if (!cancelled) {
+              const msg = (e as { error?: Error }).error?.message;
+              setGoogleMapsBootstrapError((prev) => prev ?? msg ?? 'Mapbox 지도를 불러오지 못했습니다. 토큰·네트워크를 확인하세요.');
+            }
+          });
+          mapboxMapRef.current = map;
           if (!cancelled) setIsMapReady(true);
         } catch (err) {
-          console.error('[Google Map init]', err);
+          console.error('[Mapbox Map init]', err);
           if (!cancelled) {
-            setGoogleMapsBootstrapError((prev) => prev ?? 'Google 지도를 초기화하지 못했습니다.');
+            setGoogleMapsBootstrapError((prev) => prev ?? 'Mapbox 지도를 초기화하지 못했습니다.');
             setIsMapReady(true);
           }
         }
@@ -1539,7 +1565,7 @@ const App: React.FC = () => {
       }
       attempts += 1;
       if (attempts >= maxAttempts) {
-        console.error('[Google Map init] mapRef not ready after', maxAttempts, 'frames');
+        console.error('[Mapbox Map init] mapRef not ready after', maxAttempts, 'frames');
         if (!cancelled) {
           setGoogleMapsBootstrapError((prev) => prev ?? '지도 영역을 준비하지 못했습니다. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
           setIsMapReady(true);
@@ -1554,16 +1580,22 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
       if (rafId) window.cancelAnimationFrame(rafId);
-      googleMapRef.current = null;
+      if (mapboxMapRef.current) {
+        try {
+          mapboxMapRef.current.remove();
+        } catch {
+          /* ignore */
+        }
+        mapboxMapRef.current = null;
+      }
       setIsMapReady(false);
     };
-  }, [mapRevealed, isMapsApiLoaded]);
+  }, [mapRevealed]);
 
   // 사용자 위치를 받으면 지도 중심을 해당 위치로 이동
   useEffect(() => {
-    if (!isMapReady || !userLocation || !googleMapRef.current) return;
-    googleMapRef.current.panTo(userLocation);
-    googleMapRef.current.setZoom(14);
+    if (!isMapReady || !userLocation || !mapboxMapRef.current) return;
+    mapboxMapRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 14, duration: 0 });
   }, [isMapReady, userLocation]);
 
   useEffect(() => {
@@ -1711,33 +1743,10 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, []);
 
-  // 좌측 하단 "Google 지도에서 이 지역 열기" 링크 비활성화 (클릭해도 외부로 열리지 않도록)
-  useEffect(() => {
-    const container = mapRef.current;
-    if (!container || !isMapReady) return;
-    const disableGoogleMapsLink = () => {
-      const anchors = container.querySelectorAll<HTMLAnchorElement>(
-        'a[href*="google.com/maps"], a[href*="maps.google.com"], a[title*="이 지역 열기"], a[title*="Open this area"]'
-      );
-      anchors.forEach((a: HTMLAnchorElement) => {
-        a.addEventListener('click', (e: MouseEvent) => e.preventDefault(), { capture: true });
-        a.style.pointerEvents = 'none';
-        a.style.cursor = 'default';
-      });
-    };
-    disableGoogleMapsLink();
-    const t1 = window.setTimeout(disableGoogleMapsLink, 500);
-    const t2 = window.setTimeout(disableGoogleMapsLink, 1500);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [isMapReady]);
-
-  // 맵 컨테이너 리사이즈 시(상/하 전환·미니맵) Google Map resize 이벤트
+  // 맵 컨테이너 리사이즈 시 Mapbox resize
   useEffect(() => {
     const el = mapRef.current;
-    if (!el || !googleMapRef.current) return;
+    if (!el || !mapboxMapRef.current) return;
     const ro = new ResizeObserver(() => {
       triggerMapResize();
     });
@@ -1807,10 +1816,7 @@ const App: React.FC = () => {
 
   // 클릭한 위치(맵/경로) → 즉시 인포윈도우 표시 후, 주소·표고 비동기 채우기 (지연 개선)
   useEffect(() => {
-    if (typeof (window as any).google === 'undefined' || !(window as any).google.maps?.LatLng) return;
-    const g = (window as any).google;
     handleLocationClickRef.current = (lat: number, lng: number) => {
-      const location = new g.maps.LatLng(lat, lng);
       // 1) 즉시 팝업 표시 (체감 지연 제거)
       setClickedLocation({
         lat,
@@ -1818,7 +1824,7 @@ const App: React.FC = () => {
         name: 'Loading...',
         address: MAP_PICK_FALLBACK_ADDRESS,
         elevation: null,
-        location,
+        location: { lat, lng },
       });
       // 2) 주소 조회 → 도착 시 해당 클릭이 현재 표시 중일 때만 갱신
       resolveNearestAddress(lat, lng)
@@ -1840,97 +1846,7 @@ const App: React.FC = () => {
           });
         });
     };
-  }, [isMapsApiLoaded, elevationProvider, resolveNearestAddress]);
-
-  // Google Maps API: Map(베이스맵) + Street View
-  useEffect(() => {
-    if ((window as any).google?.maps?.Map) {
-      setIsMapsApiLoaded(true);
-      return;
-    }
-    // Vite의 `define` 주입이 Android 빌드 과정에서 누락될 수 있어,
-    // 런타임(윈도우/메타태그)에서 2차로 키를 찾도록 보강합니다.
-    const apiKey =
-      (process.env as any)?.GOOGLE_MAPS_API_KEY
-      ?? (window as any).__GOOGLE_MAPS_API_KEY__
-      ?? (typeof document !== 'undefined'
-        ? (document.querySelector('meta[name="GOOGLE_MAPS_API_KEY"]') as HTMLMetaElement | null)?.content
-        : undefined)
-      ?? '';
-    if (!apiKey) {
-      console.warn('[GoogleMaps] GOOGLE_MAPS_API_KEY is missing. maps script not loaded.');
-      setGoogleMapsBootstrapError('GOOGLE_MAPS_API_KEY 가 빌드에 없습니다. Android 빌드 시 키 주입을 확인하세요.');
-      setIsMapReady(true);
-      return;
-    }
-    // Google이 키/제한/과금 문제로 지도 로드를 거부할 때 호출됨 → Logcat에서 원인 추적용
-    (window as any).gm_authFailure = () => {
-      console.error(
-        '[GoogleMaps] gm_authFailure: Cloud Console에서 (1) Maps JavaScript API·Street View 활성화 (2) 결제 연결 (3) 앱 키 제한에 https://localhost/* 추가 를 확인하세요. (Capacitor WebView 출처는 보통 localhost)'
-      );
-      setGoogleMapsBootstrapError('Google Maps 인증 실패(gm_authFailure). 콘솔/Cloud 설정을 확인하세요.');
-      setIsMapReady(true);
-    };
-    const callbackName = '__cycleSvApiReady';
-    (window as any)[callbackName] = () => {
-      (window as any)[callbackName] = null;
-      setIsMapsApiLoaded(true);
-    };
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}`;
-    script.async = true;
-    script.onerror = () => {
-      console.error('[GoogleMaps] script onerror — 네트워크 또는 CSP 차단 가능');
-      setGoogleMapsBootstrapError('Google Maps 스크립트를 불러오지 못했습니다. 네트워크를 확인하세요.');
-      setIsMapReady(true);
-    };
-    document.head.appendChild(script);
-  }, []);
-
-  // Android WebView에서 간헐적으로 발생하는 Google Maps event race를 방어/계측
-  useEffect(() => {
-    const g = (window as any).google;
-    const eventApi = g?.maps?.event;
-    if (!isMapsApiLoaded || !eventApi || eventApi.__cyclePatched) return;
-
-    const originalTrigger = typeof eventApi.trigger === 'function' ? eventApi.trigger.bind(eventApi) : null;
-    const originalRemoveListener = typeof eventApi.removeListener === 'function'
-      ? eventApi.removeListener.bind(eventApi)
-      : null;
-
-    if (originalTrigger) {
-      eventApi.trigger = (instance: any, eventName: string, ...args: any[]) => {
-        if (!instance) {
-          console.warn('[GMapsEventPatch] skip trigger: missing instance', { eventName });
-          return;
-        }
-        try {
-          return originalTrigger(instance, eventName, ...args);
-        } catch (e) {
-          console.warn('[GMapsEventPatch] trigger failed', {
-            eventName,
-            hasGetDiv: typeof instance?.getDiv === 'function',
-            error: e,
-          });
-          return;
-        }
-      };
-    }
-
-    if (originalRemoveListener) {
-      eventApi.removeListener = (listener: any) => {
-        if (!listener) return;
-        try {
-          return originalRemoveListener(listener);
-        } catch (e) {
-          console.warn('[GMapsEventPatch] removeListener failed', e);
-          return;
-        }
-      };
-    }
-
-    eventApi.__cyclePatched = true;
-  }, [isMapsApiLoaded]);
+  }, [elevationProvider, resolveNearestAddress]);
 
   // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
   useEffect(() => {
@@ -2270,23 +2186,14 @@ const App: React.FC = () => {
     routeRef.current = route;
   }, [route]);
 
-  // 도로(Road)는 항상 표시. 켜고 끄는 대상이 아님.
+  // 탐색된 경로 라인 스타일 유지
   useEffect(() => {
-    const map = googleMapRef.current;
-    if (!map) return;
-    map.setOptions({ styles: null });
-  }, [isMapReady]);
-
-  // 탐색된 경로(폴리라인)는 항상 동일 스타일로 표시.
-  useEffect(() => {
-    const poly = googlePolylineRef.current;
-    if (!poly) return;
-    poly.setOptions({
-      strokeColor: '#ff3020',
-      strokeWeight: 5,
-      strokeOpacity: 1,
-    });
-  }, [route]);
+    const map = mapboxMapRef.current;
+    if (!map?.getLayer(ROUTE_LAYER)) return;
+    map.setPaintProperty(ROUTE_LAYER, 'line-color', '#ff3020');
+    map.setPaintProperty(ROUTE_LAYER, 'line-width', 5);
+    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', 1);
+  }, [route, isMapReady]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -2350,7 +2257,7 @@ const App: React.FC = () => {
     // Sync simulation marker to currentIndex (주행 중·일시정지 공통)
     const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
     const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-    const map = googleMapRef.current;
+    const map = mapboxMapRef.current;
     let flipHorizontal = false;
     if (lookAheadIdx > currentIdx && targetPosForHeading) {
       try {
@@ -2361,39 +2268,52 @@ const App: React.FC = () => {
       }
     }
     const dataUrl = cyclingMarkerDataUrlRef.current;
-    const cyclingIcon = (() => {
+    const cyclingIconUrl = (() => {
       if (dataUrl) {
         const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
         const wobble = '<animateTransform attributeName="transform" type="rotate" values="-3 20 22;3 20 22;-3 20 22" dur="1.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"/>';
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><g>' + wobble + '<image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></g></svg>';
-        return { url: 'data:image/svg+xml,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+        return 'data:image/svg+xml,' + encodeURIComponent(svg);
       }
-      return { url: CYCLING_POSITION_MARKER_URL, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) };
+      return CYCLING_POSITION_MARKER_URL;
     })();
     if (!simulationMarker.current && map) {
-      simulationMarker.current = new google.maps.Marker({
-        position: { lat, lng },
-        map,
-        icon: cyclingIcon,
-      });
+      const el = document.createElement('div');
+      el.style.width = '40px';
+      el.style.height = '40px';
+      el.style.pointerEvents = 'none';
+      const img = document.createElement('img');
+      img.width = 40;
+      img.height = 40;
+      img.alt = '';
+      img.src = cyclingIconUrl;
+      img.style.display = 'block';
+      el.appendChild(img);
+      simulationMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([lng, lat])
+        .addTo(map);
     } else if (simulationMarker.current) {
-      simulationMarker.current.setPosition({ lat, lng });
-      simulationMarker.current.setIcon(cyclingIcon);
+      simulationMarker.current.setLngLat([lng, lat]);
+      const img = simulationMarker.current.getElement().querySelector('img');
+      if (img) img.src = cyclingIconUrl;
     }
 
     // 일시정지: 마커·맵 중심만 동기화
     if (!simulation.isActive) {
-      if (googleMapRef.current) {
+      if (mapboxMapRef.current) {
         const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
         const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-        googleMapRef.current.panTo({ lat: plat, lng: plng });
+        mapboxMapRef.current.easeTo({ center: [plng, plat], duration: 0 });
       }
       return () => clearTimeout(0);
     }
 
     // 주행 중: 코칭 등
     setAppPhase('RUNNING');
-    if (tempMarker.current) { tempMarker.current.setMap(null); tempMarker.current = null; }
+    if (tempMarker.current) {
+      tempMarker.current.remove();
+      tempMarker.current = null;
+    }
     if (currentIdx >= route.path.length - 1) {
       console.log('[SIMULATION_STOP] reason=end_of_route');
       setSimulation(prev => ({ ...prev, isActive: false }));
@@ -2403,10 +2323,10 @@ const App: React.FC = () => {
       return () => clearTimeout(0);
     }
 
-    if (googleMapRef.current) {
+    if (mapboxMapRef.current) {
       const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
       const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-      googleMapRef.current.panTo({ lat: plat, lng: plng });
+      mapboxMapRef.current.easeTo({ center: [plng, plat], duration: 0 });
     }
 
       // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
@@ -3041,18 +2961,30 @@ const App: React.FC = () => {
     return () => synth.removeEventListener('voiceschanged', onVoicesChanged);
   }, []);
 
-  const createCustomMarker = (latLng: any, label: string, color: string): google.maps.Marker => {
+  const createCustomMarker = (latLng: any, label: string, color: string): mapboxgl.Marker => {
     const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
     const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
-    const map = googleMapRef.current;
+    const map = mapboxMapRef.current;
     if (!map) throw new Error('Map not ready');
-    const marker = new google.maps.Marker({
-      position: { lat, lng },
-      map,
-      label: { text: label, color: 'white', fontWeight: 'bold', fontSize: '14px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
-    });
-    googleMarkersRef.current.push(marker);
+    const el = document.createElement('div');
+    el.style.width = '28px';
+    el.style.height = '28px';
+    el.style.borderRadius = '50%';
+    el.style.backgroundColor = color;
+    el.style.border = '2px solid white';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.style.color = 'white';
+    el.style.fontWeight = 'bold';
+    el.style.fontSize = '14px';
+    el.style.boxSizing = 'border-box';
+    const span = document.createElement('span');
+    span.setAttribute('data-m-label', '1');
+    span.textContent = label;
+    el.appendChild(span);
+    const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    mapMarkersRef.current.push(marker);
     return marker;
   };
 
@@ -3064,10 +2996,6 @@ const App: React.FC = () => {
   const restoreRouteFromSavedGeometry = useCallback(async (saved: SavedRoute) => {
     const payload = saved.routePayload;
     if (!payload?.fullGeometry?.length) return;
-    if (typeof google === 'undefined' || !google.maps?.LatLng) {
-      console.warn('[RESTORE] google.maps not ready; aborting restore for', saved.id);
-      return;
-    }
     setLoading(true);
     routeCalcWallStartRef.current = Date.now();
     try {
@@ -3077,7 +3005,7 @@ const App: React.FC = () => {
       const densifiedLatLng: [number, number][] = canOffline && payload.densifiedGeometry?.length
         ? payload.densifiedGeometry
         : densifyLatLngPath(payload.fullGeometry, ROUTE_DENSIFY_INTERVAL_M);
-      const path = densifiedLatLng.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+      const path = densifiedLatLng.map(([lat, lng]) => ({ lat, lng }));
       if (path.length < 2) throw new Error('Restored path too short');
 
       // 2) elevation 준비 — 저장된 elevationSamples 가 있으면 재구성, 없으면 평지로 초기화 후 백그라운드 재요청
@@ -3089,7 +3017,7 @@ const App: React.FC = () => {
         elevationResults = applyRoadElevationModel(
           payload.elevationSamples.map(([lat, lng, elev], i) => ({
             elevation: smoothedElevs[i] ?? elev,
-            location: new google.maps.LatLng(lat, lng),
+            location: { lat, lng },
             resolution: 0
           }))
         );
@@ -3104,32 +3032,29 @@ const App: React.FC = () => {
         }
       }
 
-      // 3) 마커·폴리라인 동기 재구성
+      // 3) 마커·경로 라인 동기 재구성
       const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
-      oldMarkers.forEach(m => m?.setMap(null));
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => !oldMarkers.includes(m));
+      oldMarkers.forEach((m) => m?.remove());
+      mapMarkersRef.current = mapMarkersRef.current.filter((m) => !oldMarkers.includes(m));
       startMarker.current = null;
       endMarker.current = null;
       waypointMarkers.current = [];
-      if (googlePolylineRef.current) {
-        googlePolylineRef.current.setMap(null);
-        googlePolylineRef.current = null;
-      }
-      const originSeed = payload.originLatLng ? new google.maps.LatLng(payload.originLatLng[0], payload.originLatLng[1]) : path[0];
-      const destSeed = payload.destLatLng ? new google.maps.LatLng(payload.destLatLng[0], payload.destLatLng[1]) : path[path.length - 1];
+      const originSeed = payload.originLatLng
+        ? { lat: payload.originLatLng[0], lng: payload.originLatLng[1] }
+        : path[0];
+      const destSeed = payload.destLatLng
+        ? { lat: payload.destLatLng[0], lng: payload.destLatLng[1] }
+        : path[path.length - 1];
       startMarker.current = createCustomMarker(path[0], 'A', '#3b82f6');
       endMarker.current = createCustomMarker(path[path.length - 1], 'B', '#ef4444');
       saved.waypoints.forEach((wp, idx) => {
         waypointMarkers.current.push(createCustomMarker({ lat: wp.lat, lng: wp.lng }, (idx + 1).toString(), '#f59e0b'));
       });
-      const gmap = googleMapRef.current;
-      if (gmap) {
-        const pathForPoly = path.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
-        googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5, clickable: true });
-        googlePolylineRef.current.setMap(gmap);
-        googlePolylineRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
-          if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
-        });
+      routeLinePathRef.current = path;
+      const mmap = mapboxMapRef.current;
+      if (mmap) {
+        ensureRouteLineLayer(mmap);
+        setRouteLineGeometry(mmap, path);
       }
 
       // 저장된 OSRM duration 문자열은 빌드 시 엔진 ETA일 수 있음 → 앱 기준(거리÷사용자 평균 속도)으로 통일
@@ -3186,11 +3111,7 @@ const App: React.FC = () => {
       lastSpokenTipIndexRef.current = null;
       originLocationRef.current = originSeed;
       destLocationRef.current = destSeed;
-      if (googleMapRef.current && path.length > 0) {
-        const bounds = new google.maps.LatLngBounds();
-        path.forEach((p: any) => bounds.extend(p));
-        googleMapRef.current.fitBounds(bounds);
-      }
+      if (mmap && path.length > 0) fitMapToPath(mmap, path);
 
       // 5) Elevation self-heal — payload 에 elevation 없을 때만 백그라운드로 한 번 보강 + v2 승격
       if (!elevationHydratedFromPayload) {
@@ -3202,7 +3123,7 @@ const App: React.FC = () => {
             const hydrated = applyRoadElevationModel(
               openRes.results.map((r, i) => ({
                 elevation: smoothed[i] ?? r.elevation,
-                location: new google.maps.LatLng(r.latitude, r.longitude),
+                location: { lat: r.latitude, lng: r.longitude },
                 resolution: 0
               }))
             );
@@ -3286,14 +3207,22 @@ const App: React.FC = () => {
     rideAllowedLimitMetersRef.current = DEFAULT_RIDE_LIMIT_M;
     rideTargetMetersRef.current = DEFAULT_RIDE_LIMIT_M;
     rideStoppedByLimitRef.current = false;
-    if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
-    googleMarkersRef.current.forEach(m => m.setMap(null));
-    googleMarkersRef.current = [];
-    if (simulationMarker.current) { simulationMarker.current.setMap(null); simulationMarker.current = null; }
+    routeLinePathRef.current = [];
+    const mmapClear = mapboxMapRef.current;
+    if (mmapClear) clearRouteLineGeometry(mmapClear);
+    mapMarkersRef.current.forEach((m) => m.remove());
+    mapMarkersRef.current = [];
+    if (simulationMarker.current) {
+      simulationMarker.current.remove();
+      simulationMarker.current = null;
+    }
     startMarker.current = null;
     endMarker.current = null;
     waypointMarkers.current = [];
-    if (searchMarkerRef.current) { searchMarkerRef.current.setMap(null); searchMarkerRef.current = null; }
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove();
+      searchMarkerRef.current = null;
+    }
     setRoute(null);
     lastRouteRequestRef.current = null;
     console.log('[SIMULATION_STOP] reason=clear_map');
@@ -3377,7 +3306,7 @@ const App: React.FC = () => {
     const coord = route.path[clamped];
     const lat = typeof coord.lat === 'function' ? coord.lat() : coord.lat;
     const lng = typeof coord.lng === 'function' ? coord.lng() : coord.lng;
-    googleMapRef.current?.panTo({ lat, lng });
+    mapboxMapRef.current?.easeTo({ center: [lng, lat], duration: 0 });
   };
 
   const calculateRoute = useCallback(async (
@@ -3450,7 +3379,9 @@ const App: React.FC = () => {
     rpmSampleSumRef.current = 0;
     rpmSampleCountRef.current = 0;
     lastCoachedIndex.current = -1;
-    if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
+    routeLinePathRef.current = [];
+    const mmapPre = mapboxMapRef.current;
+    if (mmapPre) clearRouteLineGeometry(mmapPre);
     // OSRM only (no Google Directions). Geocoding: Nominatim only.
 
     // OSRM 좌표: ref(맵 클릭·추천 선택·저장 경로 스냅)가 있으면 그 좌표만 사용한다.
@@ -3472,22 +3403,24 @@ const App: React.FC = () => {
 
       const getCoord = async (routingPoint: any, addressFallback: string, which: 'origin' | 'destination') => {
         if (routingPoint != null && isFiniteRoutingPoint(routingPoint)) {
-          if (typeof routingPoint.lat === 'function' && typeof routingPoint.lng === 'function') return routingPoint;
-          return new google.maps.LatLng(routingPoint.lat, routingPoint.lng);
+          if (typeof routingPoint.lat === 'function' && typeof routingPoint.lng === 'function') {
+            return { lat: routingPoint.lat(), lng: routingPoint.lng() };
+          }
+          return { lat: routingPoint.lat, lng: routingPoint.lng };
         }
         const trimmed = String(addressFallback || '').trim();
         if (!trimmed) {
           throw new Error(`[OSRM] ${which}: 고정 좌표 없고 주소도 비어 있음`);
         }
         const res = await nominatim.addressToCoord(trimmed);
-        return new google.maps.LatLng(res.lat, res.lng);
+        return { lat: res.lat, lng: res.lng };
       };
       const toLatLng = (p: any) => {
         if (!p) return null;
-        if (typeof p.lat === 'function' && typeof p.lng === 'function') return p;
+        if (typeof p.lat === 'function' && typeof p.lng === 'function') return { lat: p.lat(), lng: p.lng() };
         const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
         const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
-        if (lat != null && lng != null && typeof google !== 'undefined' && google.maps?.LatLng) return new google.maps.LatLng(lat, lng);
+        if (lat != null && lng != null) return { lat: Number(lat), lng: Number(lng) };
         return null;
       };
 
@@ -3505,7 +3438,7 @@ const App: React.FC = () => {
         destLatLngOuter = destLatLng;
         const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
         const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-        const coords = [originLatLng, ...wpLatLngs, destLatLng].map(p => `${p.lng()},${p.lat()}`).join(';');
+        const coords = [originLatLng, ...wpLatLngs, destLatLng].map((p) => `${coordLng(p)},${coordLat(p)}`).join(';');
         const data = Capacitor.isNativePlatform()
           ? await fetchOsrmRouteJson(profile, coords)
           : await (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`)).json();
@@ -3531,18 +3464,14 @@ const App: React.FC = () => {
           }
           const decoded = decodePath(data.routes[0].geometry);
           lastOsrmDecodedPathRef.current = decoded.map(([lat, lng]) => [fix8(lat), fix8(lng)] as [number, number]);
-          path = decoded.map(([lat, lng]) => new google.maps.LatLng(lat, lng));
+          path = decoded.map(([lat, lng]) => ({ lat, lng }));
           const routeLengthM = data.routes[0].distance;
           osrmRouteLengthMeters = routeLengthM;
           distText = `${(routeLengthM / 1000).toFixed(1)} km`;
           // Route settings ETA: distance ÷ user average speed (speedKmH). Cycling-app assumption — not OSRM engine duration, not grade-adjusted simulation.
           durText = formatDurationSimple(routeLengthM / (speedKmH * 1000 / 3600));
           setRouteSource('OSRM');
-          if (googleMapRef.current && path.length) {
-            const bounds = new google.maps.LatLngBounds();
-            path.forEach((p: any) => bounds.extend(p));
-            googleMapRef.current.fitBounds(bounds);
-          }
+          if (mapboxMapRef.current && path.length) fitMapToPath(mapboxMapRef.current, path);
         }
       } catch (e) {
         console.error('[OSRM_ERROR]', e);
@@ -3595,7 +3524,7 @@ const App: React.FC = () => {
             results: applyRoadElevationModel(
               openRes.results.map((r, i) => ({
                 elevation: smoothed[i] ?? r.elevation,
-                location: new google.maps.LatLng(r.latitude, r.longitude),
+                location: { lat: r.latitude, lng: r.longitude },
                 resolution: 0
               }))
             )
@@ -3636,31 +3565,27 @@ const App: React.FC = () => {
             const heading = computeHeading(p1, p2);
             for (let j = 1; j <= stepCount; j++) {
               const nextPt = computeOffset(p1, j * segmentLength, heading);
-              densifiedPath.push(new google.maps.LatLng(nextPt.lat, nextPt.lng));
+              densifiedPath.push({ lat: nextPt.lat, lng: nextPt.lng });
             }
           }
         }
         densifiedPath.push(path[path.length - 1]);
         const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
-        oldMarkers.forEach(m => m.setMap(null));
-        googleMarkersRef.current = googleMarkersRef.current.filter(m => !oldMarkers.includes(m));
+        oldMarkers.forEach((m) => m.remove());
+        mapMarkersRef.current = mapMarkersRef.current.filter((m) => !oldMarkers.includes(m));
         startMarker.current = null;
         endMarker.current = null;
         waypointMarkers.current = [];
-        if (googlePolylineRef.current) { googlePolylineRef.current.setMap(null); googlePolylineRef.current = null; }
         startMarker.current = createCustomMarker(densifiedPath[0], 'A', '#3b82f6');
         endMarker.current = createCustomMarker(densifiedPath[densifiedPath.length - 1], 'B', '#ef4444');
         activeWaypoints.forEach((wp, idx) => {
           waypointMarkers.current.push(createCustomMarker(wp.location, (idx + 1).toString(), '#f59e0b'));
         });
-        const gmap = googleMapRef.current;
-        if (gmap) {
-          const pathForPoly = densifiedPath.map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
-          googlePolylineRef.current = new google.maps.Polyline({ path: pathForPoly, strokeColor: '#ff3020', strokeWeight: 5, clickable: true });
-          googlePolylineRef.current.setMap(gmap);
-          googlePolylineRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
-            if (e.latLng) handleLocationClickRef.current(e.latLng.lat(), e.latLng.lng());
-          });
+        routeLinePathRef.current = densifiedPath;
+        const mmapRoute = mapboxMapRef.current;
+        if (mmapRoute) {
+          ensureRouteLineLayer(mmapRoute);
+          setRouteLineGeometry(mmapRoute, densifiedPath);
         }
         setRoute({
           origin: finalOrigin,
@@ -3672,7 +3597,7 @@ const App: React.FC = () => {
           ...(osrmRouteLengthMeters > 0 ? { totalDistanceMeters: Number(osrmRouteLengthMeters.toFixed(2)) } : {})
         });
         if (hydrateFavoriteId && densifiedPath.length > 0) {
-          const densifiedLatLng: [number, number][] = densifiedPath.map((p: any) => [fix8(p.lat()), fix8(p.lng())]);
+          const densifiedLatLng: [number, number][] = densifiedPath.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))]);
           const fullGeom: [number, number][] = lastOsrmDecodedPathRef.current?.length
             ? lastOsrmDecodedPathRef.current.slice()
             : densifiedLatLng.slice();
@@ -3987,7 +3912,10 @@ const App: React.FC = () => {
         });
       }
 
-      if (startMarker.current) { startMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current); }
+      if (startMarker.current) {
+        startMarker.current.remove();
+        mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== startMarker.current);
+      }
       startMarker.current = createCustomMarker(clickedLocation.location, 'A', '#3b82f6');
 
       setClickedLocation(null);
@@ -4018,7 +3946,10 @@ const App: React.FC = () => {
         });
       }
 
-      if (endMarker.current) { endMarker.current.setMap(null); googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current); }
+      if (endMarker.current) {
+        endMarker.current.remove();
+        mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== endMarker.current);
+      }
       endMarker.current = createCustomMarker(clickedLocation.location, 'B', '#ef4444');
 
       setClickedLocation(null);
@@ -4064,12 +3995,13 @@ const App: React.FC = () => {
     setWaypoints(newWaypoints);
 
     if (waypointMarkers.current[idx]) {
-      waypointMarkers.current[idx].setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== waypointMarkers.current[idx]);
+      waypointMarkers.current[idx].remove();
+      mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== waypointMarkers.current[idx]);
       waypointMarkers.current.splice(idx, 1);
       // 남은 웨이포인트 마커 라벨을 1, 2, … 로 재정렬
       waypointMarkers.current.forEach((m, i) => {
-        m.setOptions({ label: { text: (i + 1).toString(), color: 'white', fontWeight: 'bold', fontSize: '14px' } });
+        const labelEl = m.getElement().querySelector('[data-m-label]');
+        if (labelEl) labelEl.textContent = String(i + 1);
       });
     }
   };
@@ -4098,8 +4030,8 @@ const App: React.FC = () => {
     setOriginSuggestions([]);
     setShowOriginSuggestions(false);
     if (startMarker.current) {
-      startMarker.current?.setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== startMarker.current);
+      startMarker.current.remove();
+      mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== startMarker.current);
       startMarker.current = null;
     }
   };
@@ -4110,36 +4042,48 @@ const App: React.FC = () => {
     setDestinationSuggestions([]);
     setShowDestinationSuggestions(false);
     if (endMarker.current) {
-      endMarker.current?.setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== endMarker.current);
+      endMarker.current.remove();
+      mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== endMarker.current);
       endMarker.current = null;
     }
   };
 
   const clearPlaceSearchMarker = () => {
     if (searchMarkerRef.current) {
-      searchMarkerRef.current.setMap(null);
-      googleMarkersRef.current = googleMarkersRef.current.filter(m => m !== searchMarkerRef.current);
+      searchMarkerRef.current.remove();
+      mapMarkersRef.current = mapMarkersRef.current.filter((m) => m !== searchMarkerRef.current);
       searchMarkerRef.current = null;
     }
   };
 
   const applyPlaceSearchOnMap = (lat: number, lng: number, recentLabel: string) => {
-    const map = googleMapRef.current;
+    const map = mapboxMapRef.current;
     if (!map) return;
-    map.setCenter({ lat, lng });
-    map.setZoom(16);
+    map.jumpTo({ center: [lng, lat], zoom: 16 });
     clearPlaceSearchMarker();
-    searchMarkerRef.current = new google.maps.Marker({
-      position: { lat, lng },
-      map,
-      label: { text: 'P', color: 'white', fontWeight: 'bold', fontSize: '12px' },
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
-    });
-    searchMarkerRef.current.addListener('click', () => {
+    const el = document.createElement('div');
+    el.style.width = '28px';
+    el.style.height = '28px';
+    el.style.borderRadius = '50%';
+    el.style.backgroundColor = '#22c55e';
+    el.style.border = '2px solid white';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.style.color = 'white';
+    el.style.fontWeight = 'bold';
+    el.style.fontSize = '12px';
+    el.style.cursor = 'pointer';
+    const span = document.createElement('span');
+    span.setAttribute('data-m-label', '1');
+    span.textContent = 'P';
+    el.appendChild(span);
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
       clearPlaceSearchMarker();
     });
-    googleMarkersRef.current.push(searchMarkerRef.current);
+    searchMarkerRef.current = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    mapMarkersRef.current.push(searchMarkerRef.current);
     setRecentPlaceSearches(prev => {
       const filtered = prev.filter(item => item !== recentLabel);
       const updated = [recentLabel, ...filtered].slice(0, 5);
@@ -4161,7 +4105,7 @@ const App: React.FC = () => {
 
   const handlePlaceSearch = async (term?: string) => {
     const query = (term ?? searchTerm).trim();
-    if (!query || !googleMapRef.current) return;
+    if (!query || !mapboxMapRef.current) return;
     setShowPlaceSearchSuggestions(false);
     setPlaceSearchHighlightIndex(-1);
     try {
@@ -4188,7 +4132,8 @@ const App: React.FC = () => {
   const handleToggleMapType = () => {
     const next = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
     setMapType(next);
-    if (googleMapRef.current) googleMapRef.current.setMapTypeId(next);
+    const mmap = mapboxMapRef.current;
+    if (mmap) mmap.setStyle(mapStyleUrl(next));
   };
 
   // Android WebView에서 일부 터치가 click으로 승격되지 않는 경우가 있어,
@@ -4503,7 +4448,7 @@ const App: React.FC = () => {
           transitionProperty: 'top, left, right, bottom, width, height, border-radius, opacity',
         }}
         onTransitionEnd={() => {
-          const map = googleMapRef.current;
+          const map = mapboxMapRef.current;
           triggerMapResize(map);
         }}
       />
