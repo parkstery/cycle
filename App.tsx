@@ -82,7 +82,6 @@ const ROUTE_PHASE_SLOW_MODAL_MS = 500;
 const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 /** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
 const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
-const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -500,48 +499,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const applyRoadCoverageOverlay = useCallback(
-    (map?: MapboxMap | null) => {
-      const target = map ?? mapboxMapRef.current;
-      if (!target) return;
-      const visible = roadCoverageVisible;
-      try {
-        const hasLayer = !!target.getLayer(ROUTABLE_ROAD_LAYER_ID);
-        if (!hasLayer) {
-          target.addLayer(
-            {
-              id: ROUTABLE_ROAD_LAYER_ID,
-              type: 'line',
-              source: 'composite',
-              'source-layer': 'road',
-              filter: [
-                'in',
-                ['coalesce', ['get', 'class'], ''],
-                ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'street', 'street_limited', 'service', 'track', 'path', 'cycleway']],
-              ],
-              layout: {
-                visibility: visible ? 'visible' : 'none',
-                'line-cap': 'round',
-                'line-join': 'round',
-              },
-              paint: {
-                'line-color': '#22d3ee',
-                'line-opacity': 0.9,
-                'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 13, 2.2, 16, 4],
-              },
-            },
-            target.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
-          );
-        } else {
-          target.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', visible ? 'visible' : 'none');
-        }
-      } catch (e) {
-        console.warn('[Mapbox] road coverage overlay', e);
-      }
-    },
-    [roadCoverageVisible]
-  );
-
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
@@ -661,7 +618,7 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
-  const [roadCoverageVisible, setRoadCoverageVisible] = useState(false);
+  const [routeCoverageVisible, setRouteCoverageVisible] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   /** Right route list: user My Routes vs curated Explore Routes (cloud + local cache). */
   const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'explore'>('my_routes');
@@ -1557,7 +1514,6 @@ const App: React.FC = () => {
           map.on('style.load', () => {
             try {
               ensureRouteLineLayer(map);
-              applyRoadCoverageOverlay(map);
               if (routeLinePathRef.current.length) {
                 setRouteLineGeometry(map, routeLinePathRef.current);
               } else {
@@ -1648,7 +1604,7 @@ const App: React.FC = () => {
       }
       setIsMapReady(false);
     };
-  }, [mapRevealed, applyRoadCoverageOverlay]);
+  }, [mapRevealed]);
 
   // 사용자 위치를 받으면 지도 중심을 해당 위치로 이동
   useEffect(() => {
@@ -2235,12 +2191,8 @@ const App: React.FC = () => {
     if (!map?.getLayer(ROUTE_LAYER)) return;
     map.setPaintProperty(ROUTE_LAYER, 'line-color', '#ff3020');
     map.setPaintProperty(ROUTE_LAYER, 'line-width', 5);
-    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', 1);
-  }, [route, isMapReady, mapType]);
-
-  useEffect(() => {
-    applyRoadCoverageOverlay();
-  }, [applyRoadCoverageOverlay, isMapReady, mapType]);
+    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', routeCoverageVisible ? 1 : 0);
+  }, [route, isMapReady, routeCoverageVisible, mapType]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -4573,7 +4525,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      {/* Road coverage toggle (legacy Street View Coverage position) */}
+      {/* Route coverage toggle (legacy Street View Coverage position) */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
@@ -4585,12 +4537,12 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRoadCoverageVisible((prev) => !prev))}
-          onClick={() => setRoadCoverageVisible((prev) => !prev)}
-          title={roadCoverageVisible ? '도로 보기 Off' : '도로 보기 On'}
-          aria-label={roadCoverageVisible ? 'Hide road coverage' : 'Show road coverage'}
+          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCoverageVisible((prev) => !prev))}
+          onClick={() => setRouteCoverageVisible((prev) => !prev)}
+          title={routeCoverageVisible ? 'Street View Coverage Off' : 'Street View Coverage On'}
+          aria-label={routeCoverageVisible ? 'Hide route coverage' : 'Show route coverage'}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            roadCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
+            routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
           }`}
         >
           <MapPin size={16} className="pointer-events-none" />
