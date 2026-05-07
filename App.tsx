@@ -586,9 +586,10 @@ const App: React.FC = () => {
     }, 5000);
   }, []);
   const [routeSource, setRouteSource] = useState<'OSRM' | null>(null);
-  const [mapType, setMapType] = useState<string>('roadmap');
+  const [mapType, setMapType] = useState<'streets' | 'outdoors' | 'light' | 'satellite'>('streets');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
+  const [mapStyleDropdownOpen, setMapStyleDropdownOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -4106,11 +4107,15 @@ const App: React.FC = () => {
     clearPlaceSearchMarker();
   };
 
-  const handleToggleMapType = () => {
-    const next = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
+  const applyMapStyle = (next: 'streets' | 'outdoors' | 'light' | 'satellite') => {
+    setMapStyleDropdownOpen(false);
     setMapType(next);
     const mmap = mapboxMapRef.current;
     if (mmap) mmap.setStyle(mapStyleUrl(next));
+  };
+
+  const handleToggleMapStyleDropdown = () => {
+    setMapStyleDropdownOpen((prev) => !prev);
   };
 
   // Android WebView에서 일부 터치가 click으로 승격되지 않는 경우가 있어,
@@ -4474,13 +4479,50 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapType)}
-          onClick={handleToggleMapType}
+          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapStyleDropdown)}
+          onClick={handleToggleMapStyleDropdown}
           title="Change Map Style"
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapStyleDropdownOpen ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
         >
           <Layers size={19} className="pointer-events-none" />
         </button>
+        {mapStyleDropdownOpen && (
+          <div
+            className="absolute right-0 mt-2 w-[12.5rem] overflow-hidden rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md shadow-2xl"
+            style={{ pointerEvents: 'auto' }}
+            role="menu"
+          >
+            {(
+              [
+                { id: 'streets', label: '일반 지도 (Streets)' },
+                { id: 'outdoors', label: '아웃도어 (Outdoors)' },
+                { id: 'light', label: '라이트 (Light)' },
+                { id: 'satellite', label: '위성 (Satellite)' },
+              ] as const
+            ).map((item) => {
+              const active = mapType === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onPointerDown={stopPointerPropagation}
+                  onTouchStart={stopPointerPropagation}
+                  onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(item.id))}
+                  onClick={() => applyMapStyle(item.id)}
+                  className={`w-full px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
+                    active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                  role="menuitem"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate">{item.label}</span>
+                    {active && <span className="text-[11px] font-black">✓</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
