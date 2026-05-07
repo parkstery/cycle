@@ -618,6 +618,7 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
+  const [routeCoverageVisible, setRouteCoverageVisible] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   /** Right route list: user My Routes vs curated Explore Routes (cloud + local cache). */
   const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'explore'>('my_routes');
@@ -2190,8 +2191,8 @@ const App: React.FC = () => {
     if (!map?.getLayer(ROUTE_LAYER)) return;
     map.setPaintProperty(ROUTE_LAYER, 'line-color', '#ff3020');
     map.setPaintProperty(ROUTE_LAYER, 'line-width', 5);
-    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', 1);
-  }, [route, isMapReady]);
+    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', routeCoverageVisible ? 1 : 0);
+  }, [route, isMapReady, routeCoverageVisible, mapType]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -5076,6 +5077,17 @@ const App: React.FC = () => {
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
               <div className="flex-1 min-w-0 pl-1 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setRouteCoverageVisible((prev) => !prev)}
+                    title={routeCoverageVisible ? 'Street View Coverage Off' : 'Street View Coverage On'}
+                    aria-label={routeCoverageVisible ? 'Hide route coverage' : 'Show route coverage'}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${
+                      routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    <MapPin size={14} />
+                  </button>
                   <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                     <MessageSquare size={16} />
                   </button>
