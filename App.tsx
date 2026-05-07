@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
+import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth, Box } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -83,6 +83,8 @@ const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 /** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
 const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
+const TERRAIN_SOURCE_ID = 'mapbox-dem';
+const BUILDING_LAYER_ID = '3d-buildings';
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
 const SIMULATION_PROGRESS_TICK_MS = 33;
 
@@ -502,6 +504,52 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const applyMap3DState = useCallback((map?: MapboxMap | null) => {
+    const m = map ?? mapboxMapRef.current;
+    if (!m) return;
+    try {
+      if (map3DEnabledRef.current) {
+        if (!m.getSource(TERRAIN_SOURCE_ID)) {
+          m.addSource(TERRAIN_SOURCE_ID, {
+            type: 'raster-dem',
+            url: 'mapbox://mapbox.terrain-rgb',
+            tileSize: 512,
+            maxzoom: 14,
+          });
+        }
+        m.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: 1.3 });
+        if (!m.getLayer(BUILDING_LAYER_ID)) {
+          const layers = m.getStyle().layers || [];
+          const labelLayer = layers.find((layer) => layer.type === 'symbol' && !!layer.layout?.['text-field']);
+          m.addLayer(
+            {
+              id: BUILDING_LAYER_ID,
+              source: 'composite',
+              'source-layer': 'building',
+              filter: ['==', 'extrude', 'true'],
+              type: 'fill-extrusion',
+              minzoom: 15,
+              paint: {
+                'fill-extrusion-color': '#cbd5e1',
+                'fill-extrusion-height': ['get', 'height'],
+                'fill-extrusion-base': ['get', 'min_height'],
+                'fill-extrusion-opacity': 0.6,
+              },
+            },
+            labelLayer?.id
+          );
+        }
+        m.easeTo({ pitch: 60, bearing: -20, duration: 500 });
+      } else {
+        m.setTerrain(null);
+        if (m.getLayer(BUILDING_LAYER_ID)) m.removeLayer(BUILDING_LAYER_ID);
+        m.easeTo({ pitch: 0, duration: 350 });
+      }
+    } catch (e) {
+      console.warn('[Mapbox] 3D toggle', e);
+    }
+  }, []);
+
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
@@ -592,6 +640,9 @@ const App: React.FC = () => {
   const [mapType, setMapType] = useState<'streets' | 'outdoors' | 'satellite' | 'hybrid'>('streets');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
+  const [map3DEnabled, setMap3DEnabled] = useState(false);
+  const map3DEnabledRef = useRef(map3DEnabled);
+  map3DEnabledRef.current = map3DEnabled;
   const [mapStyleDropdownOpen, setMapStyleDropdownOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1549,6 +1600,7 @@ const App: React.FC = () => {
               } else {
                 map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisibleRef.current ? 'visible' : 'none');
               }
+              applyMap3DState(map);
               if (routeLinePathRef.current.length) {
                 setRouteLineGeometry(map, routeLinePathRef.current);
               } else {
@@ -1639,7 +1691,7 @@ const App: React.FC = () => {
       }
       setIsMapReady(false);
     };
-  }, [mapRevealed]);
+  }, [mapRevealed, applyMap3DState]);
 
   // 사용자 위치를 받으면 지도 중심을 해당 위치로 이동
   useEffect(() => {
@@ -2267,6 +2319,10 @@ const App: React.FC = () => {
       console.warn('[Mapbox] road coverage overlay', e);
     }
   }, [isMapReady, mapType, routeCoverageVisible]);
+
+  useEffect(() => {
+    applyMap3DState();
+  }, [isMapReady, mapType, map3DEnabled, applyMap3DState]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -4603,7 +4659,7 @@ const App: React.FC = () => {
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
-          right: SAFE_RIGHT_1REM,
+          right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
           top: SAFE_TOP_1REM,
         }}
       >
@@ -4624,6 +4680,29 @@ const App: React.FC = () => {
             alt=""
             className={`pointer-events-none w-[1.05rem] h-[1.05rem] object-contain ${routeCoverageVisible ? 'opacity-100' : 'opacity-70 grayscale'}`}
           />
+        </button>
+      </div>
+      {/* 3D map toggle */}
+      <div
+        className="fixed z-[1000] pointer-events-auto"
+        style={{
+          right: SAFE_RIGHT_1REM,
+          top: SAFE_TOP_1REM,
+        }}
+      >
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => activateFromTouchEnd(e, () => setMap3DEnabled((prev) => !prev))}
+          onClick={() => setMap3DEnabled((prev) => !prev)}
+          title={map3DEnabled ? '3D 맵 Off' : '3D 맵 On'}
+          aria-label={map3DEnabled ? 'Disable 3D map' : 'Enable 3D map'}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+            map3DEnabled ? 'bg-sky-100 text-sky-700' : 'bg-white text-slate-500'
+          }`}
+        >
+          <Box size={16} className="pointer-events-none" />
         </button>
       </div>
 
