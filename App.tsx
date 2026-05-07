@@ -4525,6 +4525,29 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
+      {/* Route coverage toggle (legacy Street View Coverage position) */}
+      <div
+        className="fixed z-[1000] pointer-events-auto"
+        style={{
+          right: SAFE_RIGHT_1REM,
+          top: SAFE_TOP_1REM,
+        }}
+      >
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCoverageVisible((prev) => !prev))}
+          onClick={() => setRouteCoverageVisible((prev) => !prev)}
+          title={routeCoverageVisible ? 'Street View Coverage Off' : 'Street View Coverage On'}
+          aria-label={routeCoverageVisible ? 'Hide route coverage' : 'Show route coverage'}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+            routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
+          }`}
+        >
+          <MapPin size={16} className="pointer-events-none" />
+        </button>
+      </div>
 
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
       <div
@@ -5077,17 +5100,6 @@ const App: React.FC = () => {
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
               <div className="flex-1 min-w-0 pl-1 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setRouteCoverageVisible((prev) => !prev)}
-                    title={routeCoverageVisible ? 'Street View Coverage Off' : 'Street View Coverage On'}
-                    aria-label={routeCoverageVisible ? 'Hide route coverage' : 'Show route coverage'}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${
-                      routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <MapPin size={14} />
-                  </button>
                   <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                     <MessageSquare size={16} />
                   </button>
