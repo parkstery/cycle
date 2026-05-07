@@ -116,7 +116,7 @@ export function stopPhrase(): void {
 export async function playCoachingThenResistance(
   tipId: string,
   resId: string,
-  lang?: string
+  _lang?: string
 ): Promise<{ coachingPlayed: boolean; resistancePlayed: boolean; fallback: boolean }> {
   stopCurrent();
   const coachingText =

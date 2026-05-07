@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import type { OpenElevationResponse } from './openElevation';
-import type { TravelMode } from '../types';
+import { TravelMode } from '../types';
 
 function getStadiaClientApiKey(): string {
   return String((import.meta.env as { VITE_STADIA_MAPS_API_KEY?: string }).VITE_STADIA_MAPS_API_KEY ?? '').trim();

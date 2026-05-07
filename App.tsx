@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Navigation, Play, Pause, RotateCcw, Trash2, X, MapPin, Target, Volume2, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, ChevronDown, History, Zap, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, CheckCircle2, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
+import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -12,7 +12,6 @@ import {
   CoachingData,
   SavedRoute,
   AppPhase,
-  CachedCoachingItem,
   SavedRoutePayload,
   ExploreRouteDisplay,
   EXPLORE_SCENE_CATEGORIES,
@@ -28,16 +27,13 @@ import { fetchOsrmRouteJson } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { AdMob, RewardAdOptions, AdMobRewardItem, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, RewardAdOptions, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import {
   decodePath,
   computeDistanceBetween,
   computeHeading,
   computeOffset,
-  minDistanceFromPointToPolylinePath,
-  getLatLngAtDistanceAlongPath,
-  headingChangeSumAlongPath
 } from './services/geoUtils';
 import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
 import { MAPBOX_ACCESS_TOKEN } from './mapboxToken';
@@ -544,15 +540,12 @@ const App: React.FC = () => {
   const sensorRpmEmaRef = useRef<number | null>(null);
   const sensorLastValidRpmRef = useRef<number | null>(null);
   const sensorLastValidRpmAtRef = useRef(0);
-  const sensorBelowMoveThresholdSinceRef = useRef<number | null>(null);
   const sensorCapacityLiveRef = useRef(90);
   const sensorCapacitySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const SENSOR_RPM_HOLD_MS = 2000;
   const SENSOR_MOVE_STOP_KMH = 0.2;
-  const SENSOR_STOP_GRACE_MS = 2200;
   const SENSOR_PEDALING_RPM_THRESHOLD = 8;
   const SENSOR_NO_PACKET_FORCE_ZERO_MS = 3500;
-  const SENSOR_HARD_STOP_MS = 3000;
   const SENSOR_DISPLAY_ZERO_RPM = 1;
   const SENSOR_HARD_ZERO_MS = 2500;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
@@ -576,7 +569,6 @@ const App: React.FC = () => {
     totalMs: number | null;
     slowModalMs: number | null;
   } | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   /**
    * Elevation 데이터 상태 표시:
    *  - kind 'ok': 표고 정상, provider 표시(디버그 배지)
@@ -607,7 +599,6 @@ const App: React.FC = () => {
 
   // Advanced Coach State
   const [coachData, setCoachData] = useState<CoachingData | null>(null);
-  const [isCoachThinking, setIsCoachThinking] = useState(false);
   const lastCoachedIndex = useRef<number>(-1);
   const lastValidUntilFetched = useRef<number>(-1);
   /** 프리페치가 동시에 여러 번 돌지 않도록 하는 재진입 가드 */
@@ -700,10 +691,6 @@ const App: React.FC = () => {
   /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
   const [mapBootstrapError, setMapBootstrapError] = useState<string | null>(null);
   const [mapRevealed, setMapRevealed] = useState(false);
-  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerHeight >= window.innerWidth;
-  });
   /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -1623,20 +1610,6 @@ const App: React.FC = () => {
     mapboxMapRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 14, duration: 0 });
   }, [isMapReady, userLocation]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const syncOrientation = () => {
-      setIsPortrait(window.innerHeight >= window.innerWidth);
-    };
-    syncOrientation();
-    window.addEventListener('resize', syncOrientation);
-    window.addEventListener('orientationchange', syncOrientation);
-    return () => {
-      window.removeEventListener('resize', syncOrientation);
-      window.removeEventListener('orientationchange', syncOrientation);
-    };
-  }, []);
-
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
     if (originSetFromMapClickRef.current) {
@@ -2330,7 +2303,7 @@ const App: React.FC = () => {
         const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
         mapboxMapRef.current.easeTo({ center: [plng, plat], duration: 0 });
       }
-      return () => clearTimeout(0);
+      return;
     }
 
     // 주행 중: 코칭 등
@@ -2345,7 +2318,7 @@ const App: React.FC = () => {
       setAppPhase('IDLE');
       lastSpokenValidUntilPathIndex.current = null;
       getRideEncouragement(routeData, { distance: routeData.distance, duration: routeData.duration }).then(speak);
-      return () => clearTimeout(0);
+      return;
     }
 
     if (mapboxMapRef.current) {
@@ -2414,7 +2387,6 @@ const App: React.FC = () => {
           }
           if (segmentSize >= MIN_SLICE_POINTS) {
             const upcomingSlice = elevation.slice(sliceStartIdx, sliceStartIdx + segmentSize);
-            setIsCoachThinking(true);
             getPredictiveCoaching(upcomingSlice, pathLen, elevLen, startPathIdx, effectiveSpeedKmHRef.current, coachData?.resistance)
               .then(({ coaching, validUntilPathIndex }) => {
                 // 방어: 새 validUntil 이 lastValid 보다 크지 않으면 무한 루프 방지를 위해 append 생략
@@ -2423,7 +2395,6 @@ const App: React.FC = () => {
                 }
               })
               .finally(() => {
-                setIsCoachThinking(false);
                 isPrefetchingCoachRef.current = false;
               });
           } else {
@@ -2450,13 +2421,11 @@ const App: React.FC = () => {
             sliceEnd = elevLen;
           }
           const upcoming = elevation.slice(sliceStart, sliceEnd);
-          setIsCoachThinking(true);
           try {
             const newCoaching = await getAdvancedCoaching(currentElev, upcoming, effectiveSpeedKmHRef.current, coachData?.resistance);
             setCoachData(newCoaching);
             speak(newCoaching.tip);
           } finally {
-            setIsCoachThinking(false);
             lastCoachedIndex.current = currentIdx;
           }
         })();
@@ -2876,7 +2845,6 @@ const App: React.FC = () => {
       };
       try {
         if (speechRequestIdRef.current !== requestId) return;
-        setIsSpeaking(true);
         await run('en-US');
       } catch (e) {
         console.warn(`[SpeechGuard] native fallback failed (${reason}, en-US)`, e);
@@ -2885,10 +2853,6 @@ const App: React.FC = () => {
           await run('ko-KR');
         } catch (e2) {
           console.warn(`[SpeechGuard] native fallback failed (${reason}, ko-KR)`, e2);
-        }
-      } finally {
-        if (speechRequestIdRef.current === requestId) {
-          setIsSpeaking(false);
         }
       }
     };
@@ -2933,16 +2897,10 @@ const App: React.FC = () => {
           clearTimeout(speechStartTimeoutRef.current);
           speechStartTimeoutRef.current = null;
         }
-        setIsSpeaking(true);
-      };
-      utterance.onend = () => {
-        if (speechRequestIdRef.current !== requestId) return;
-        setIsSpeaking(false);
       };
       utterance.onerror = (e) => {
         if (speechRequestIdRef.current !== requestId) return;
         console.warn('[SpeechGuard] web speech error', e);
-        setIsSpeaking(false);
         fallbackToNative('web_error');
       };
       try {
@@ -2972,9 +2930,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!coachingOn) {
       safeSpeechCancel();
-      setIsSpeaking(false);
     }
-  }, [coachingOn]);
+  }, [coachingOn, safeSpeechCancel]);
 
   // Speech Synthesis voices 로드 촉진 (Chrome 등에서 getVoices()가 초기에 빈 배열인 문제 완화)
   useEffect(() => {
@@ -3307,7 +3264,6 @@ const App: React.FC = () => {
     lastSpokenResistanceRef.current = null;
     lastSpokenTipIndexRef.current = null;
 
-    setIsCoachThinking(false);
     setCoachData(null);
     setAverageRpm(0);
     rpmSampleSumRef.current = 0;
@@ -3722,7 +3678,6 @@ const App: React.FC = () => {
     setRideLimitMessage(null);
     setMaxRideLimitMessage(null);
     setRewardOfferModalStage(null);
-    setIsCoachThinking(false);
 
     setElapsedTime(0);
     setCoveredDistance(0);
@@ -3753,24 +3708,19 @@ const App: React.FC = () => {
     const segmentSize = Math.min(20, elevLen);
     const upcomingSlice = currentRoute.elevation.slice(0, segmentSize);
     if (upcomingSlice.length > 0) {
-      setIsCoachThinking(true);
-      try {
-        const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
-        // 메인 effect 가 setRoute 이후 flush 시점에 같은 세그먼트로 중복 speak 하지 않도록
-        // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
-        lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
-        // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점.
-        lastSpokenResistanceRef.current = coaching.resistance;
-        setCoachData(coaching);
-        setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
-        // 첫 코칭은 주행 시작 직후 바로 발화한다.
-        // 이전처럼 briefing 후 setTimeout 으로 tip 을 미루면 ref 갱신 타이밍에 따라 첫 tip 이 누락되고,
-        // 사용자에게는 30초 주기 재발화가 첫 코칭처럼 들릴 수 있다.
-        if (coaching.tip) speak(coaching.tip);
-        lastCoachSpeakAtMsRef.current = Date.now();
-      } finally {
-        setIsCoachThinking(false);
-      }
+      const { coaching, validUntilPathIndex } = await getPredictiveCoaching(upcomingSlice, pathLen, elevLen, 0, speedKmH);
+      // 메인 effect 가 setRoute 이후 flush 시점에 같은 세그먼트로 중복 speak 하지 않도록
+      // state 변경 이전에 먼저 마킹한다. (cancel-speak-cancel 로 인한 Android TTS 멈춤 방지)
+      lastSpokenValidUntilPathIndex.current = validUntilPathIndex;
+      // 메인 effect 의 주기 발화 트리거가 첫 tick 에 곧바로 터지지 않도록 발화 이력 선점.
+      lastSpokenResistanceRef.current = coaching.resistance;
+      setCoachData(coaching);
+      setRoute((prev) => (prev ? { ...prev, cachedCoaching: [{ coaching, validUntilPathIndex }] } : null));
+      // 첫 코칭은 주행 시작 직후 바로 발화한다.
+      // 이전처럼 briefing 후 setTimeout 으로 tip 을 미루면 ref 갱신 타이밍에 따라 첫 tip 이 누락되고,
+      // 사용자에게는 30초 주기 재발화가 첫 코칭처럼 들릴 수 있다.
+      if (coaching.tip) speak(coaching.tip);
+      lastCoachSpeakAtMsRef.current = Date.now();
     }
     lastCoachedIndex.current = 0;
   }, [speedKmH]);
@@ -5169,7 +5119,6 @@ const App: React.FC = () => {
         <MenuPanel
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
-          onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
         />,

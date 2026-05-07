@@ -385,7 +385,6 @@ export type MenuView =
 interface MenuPanelProps {
   open: boolean;
   onClose: () => void;
-  onOpenAbout: () => void;
   menuView: MenuView;
   setMenuView: (v: MenuView) => void;
 }
@@ -398,7 +397,6 @@ const appInfoBottomStyle = () =>
 export default function MenuPanel({
   open,
   onClose,
-  onOpenAbout,
   menuView,
   setMenuView,
 }: MenuPanelProps) {
