@@ -586,7 +586,7 @@ const App: React.FC = () => {
     }, 5000);
   }, []);
   const [routeSource, setRouteSource] = useState<'OSRM' | null>(null);
-  const [mapType, setMapType] = useState<'streets' | 'outdoors' | 'light' | 'satellite'>('streets');
+  const [mapType, setMapType] = useState<'streets' | 'outdoors' | 'satellite' | 'hybrid'>('streets');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
   const [mapStyleDropdownOpen, setMapStyleDropdownOpen] = useState(false);
@@ -4107,7 +4107,7 @@ const App: React.FC = () => {
     clearPlaceSearchMarker();
   };
 
-  const applyMapStyle = (next: 'streets' | 'outdoors' | 'light' | 'satellite') => {
+  const applyMapStyle = (next: 'streets' | 'outdoors' | 'satellite' | 'hybrid') => {
     setMapStyleDropdownOpen(false);
     setMapType(next);
     const mmap = mapboxMapRef.current;
@@ -4496,7 +4496,7 @@ const App: React.FC = () => {
               [
                 { id: 'streets', label: '일반 지도 (Streets)' },
                 { id: 'outdoors', label: '아웃도어 (Outdoors)' },
-                { id: 'light', label: '라이트 (Light)' },
+                { id: 'hybrid', label: '위성 + 도로 (Satellite Streets)' },
                 { id: 'satellite', label: '위성 (Satellite)' },
               ] as const
             ).map((item) => {

@@ -4,9 +4,20 @@ export const ROUTE_SOURCE = 'cycle-route-src';
 export const ROUTE_LAYER = 'cycle-route-line';
 
 export function mapStyleUrl(mapType: string): string {
-  return mapType === 'hybrid'
-    ? 'mapbox://styles/mapbox/satellite-streets-v12'
-    : 'mapbox://styles/mapbox/streets-v12';
+  switch (mapType) {
+    case 'outdoors':
+      return 'mapbox://styles/mapbox/outdoors-v12';
+    case 'satellite':
+      return 'mapbox://styles/mapbox/satellite-v9';
+    case 'hybrid':
+      return 'mapbox://styles/mapbox/satellite-streets-v12';
+    case 'light':
+      return 'mapbox://styles/mapbox/light-v11';
+    case 'roadmap':
+    case 'streets':
+    default:
+      return 'mapbox://styles/mapbox/streets-v12';
+  }
 }
 
 export function pathToLineCoords(path: any[]): [number, number][] {
