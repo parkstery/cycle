@@ -82,6 +82,7 @@ const ROUTE_PHASE_SLOW_MODAL_MS = 500;
 const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 /** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
 const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
+const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -1514,6 +1515,36 @@ const App: React.FC = () => {
           map.on('style.load', () => {
             try {
               ensureRouteLineLayer(map);
+              // style 변경 후 road coverage 오버레이 재부착
+              const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
+              if (!hasOverlay) {
+                map.addLayer(
+                  {
+                    id: ROUTABLE_ROAD_LAYER_ID,
+                    type: 'line',
+                    source: 'composite',
+                    'source-layer': 'road',
+                    filter: [
+                      'in',
+                      ['coalesce', ['get', 'class'], ''],
+                      ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'street', 'street_limited', 'service', 'track', 'path', 'cycleway']],
+                    ],
+                    layout: {
+                      visibility: routeCoverageVisible ? 'visible' : 'none',
+                      'line-cap': 'round',
+                      'line-join': 'round',
+                    },
+                    paint: {
+                      'line-color': '#22d3ee',
+                      'line-opacity': 0.9,
+                      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 13, 2.2, 16, 4],
+                    },
+                  },
+                  map.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
+                );
+              } else {
+                map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
+              }
               if (routeLinePathRef.current.length) {
                 setRouteLineGeometry(map, routeLinePathRef.current);
               } else {
@@ -2191,8 +2222,47 @@ const App: React.FC = () => {
     if (!map?.getLayer(ROUTE_LAYER)) return;
     map.setPaintProperty(ROUTE_LAYER, 'line-color', '#ff3020');
     map.setPaintProperty(ROUTE_LAYER, 'line-width', 5);
-    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', routeCoverageVisible ? 1 : 0);
-  }, [route, isMapReady, routeCoverageVisible, mapType]);
+    map.setPaintProperty(ROUTE_LAYER, 'line-opacity', 1);
+  }, [route, isMapReady, mapType]);
+
+  // Mapbox 도로 coverage 오버레이 (프로토타입 app.js와 동일한 composite/road 레이어)
+  useEffect(() => {
+    const map = mapboxMapRef.current;
+    if (!map) return;
+    try {
+      const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
+      if (!hasOverlay) {
+        map.addLayer(
+          {
+            id: ROUTABLE_ROAD_LAYER_ID,
+            type: 'line',
+            source: 'composite',
+            'source-layer': 'road',
+            filter: [
+              'in',
+              ['coalesce', ['get', 'class'], ''],
+              ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'street', 'street_limited', 'service', 'track', 'path', 'cycleway']],
+            ],
+            layout: {
+              visibility: routeCoverageVisible ? 'visible' : 'none',
+              'line-cap': 'round',
+              'line-join': 'round',
+            },
+            paint: {
+              'line-color': '#22d3ee',
+              'line-opacity': 0.9,
+              'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 13, 2.2, 16, 4],
+            },
+          },
+          map.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
+        );
+      } else {
+        map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
+      }
+    } catch (e) {
+      console.warn('[Mapbox] road coverage overlay', e);
+    }
+  }, [isMapReady, mapType, routeCoverageVisible]);
 
   // 카운트다운 4초 (3 → 2 → 1 → Start! 각 1초) 후 콜백 실행
   useEffect(() => {
@@ -4525,7 +4595,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      {/* Route coverage toggle (legacy Street View Coverage position) */}
+      {/* 도로 보기(Mapbox road coverage) toggle */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
@@ -4539,8 +4609,8 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCoverageVisible((prev) => !prev))}
           onClick={() => setRouteCoverageVisible((prev) => !prev)}
-          title={routeCoverageVisible ? 'Street View Coverage Off' : 'Street View Coverage On'}
-          aria-label={routeCoverageVisible ? 'Hide route coverage' : 'Show route coverage'}
+          title={routeCoverageVisible ? '도로 보기 Off' : '도로 보기 On'}
+          aria-label={routeCoverageVisible ? 'Hide road coverage' : 'Show road coverage'}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
             routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
           }`}
