@@ -80,8 +80,6 @@ const ROUTE_DENSIFY_INTERVAL_M = 10;
 const ROUTE_PHASE_SLOW_MODAL_MS = 500;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
 const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
-/** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
-const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
 const BUILDING_LAYER_ID = '3d-buildings';
@@ -601,9 +599,6 @@ const App: React.FC = () => {
   const SENSOR_HARD_ZERO_MS = 2500;
   const [mode, setMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [loading, setLoading] = useState(false);
-  /** While route calculation runs, bump periodically so debug overlay can show elapsed time */
-  const [routeCalcLiveTick, setRouteCalcLiveTick] = useState(0);
-  const routeCalcWallStartRef = useRef(0);
   const routeCalcSessionRef = useRef(0);
   const routeCalcActiveRef = useRef(false);
   const routePhaseDoneRef = useRef(false);
@@ -614,12 +609,6 @@ const App: React.FC = () => {
   const [explorePickerOpen, setExplorePickerOpen] = useState(false);
   const slowModalVisibleSinceRef = useRef<number | null>(null);
   const accumulatedSlowModalMsRef = useRef(0);
-  const [routeTimingDebug, setRouteTimingDebug] = useState<{
-    searchMs: number | null;
-    elevationMs: number | null;
-    totalMs: number | null;
-    slowModalMs: number | null;
-  } | null>(null);
   /**
    * Elevation 데이터 상태 표시:
    *  - kind 'ok': 표고 정상, provider 표시(디버그 배지)
@@ -693,13 +682,6 @@ const App: React.FC = () => {
     setRouteSlowModalOpen(false);
     setExplorePickerOpen(true);
   }, [absorbRouteSlowModalVisibleTime]);
-  useEffect(() => {
-    if (!loading) return undefined;
-    const id = window.setInterval(() => {
-      setRouteCalcLiveTick((n) => n + 1);
-    }, 250);
-    return () => clearInterval(id);
-  }, [loading]);
   const [coachingOn, setCoachingOn] = useState(true);
   const [coachingMentVisible, setCoachingMentVisible] = useState(true); // 화면 상단 코칭 멘트 텍스트 표시 여부
   const [musicOn, setMusicOn] = useState(true);
@@ -3113,7 +3095,6 @@ const App: React.FC = () => {
     const payload = saved.routePayload;
     if (!payload?.fullGeometry?.length) return;
     setLoading(true);
-    routeCalcWallStartRef.current = Date.now();
     try {
       const canOffline = USE_OFFLINE_ROUTE_RESTORE && isOfflineRestorablePayload(payload);
 
@@ -3455,9 +3436,6 @@ const App: React.FC = () => {
     };
     console.log('[CALCULATE_ROUTE_CALL]', JSON.stringify(routeCallInfo, null, 2));
 
-    const perfStart = performance.now();
-    let searchMsVal: number | null = null;
-    let elevationMsVal: number | null = null;
 
     routeCalcSessionRef.current += 1;
     const calcSession = routeCalcSessionRef.current;
@@ -3483,8 +3461,6 @@ const App: React.FC = () => {
       }
       setRouteSlowModalOpen(true);
     }, ROUTE_PHASE_SLOW_MODAL_MS);
-    routeCalcWallStartRef.current = Date.now();
-
     setLoading(true);
     setCoachData(null);
     setRouteSource(null);
@@ -3593,7 +3569,6 @@ const App: React.FC = () => {
         setLoading(false);
         return;
       } finally {
-        searchMsVal = performance.now() - perfStart;
         routePhaseDoneRef.current = true;
         if (routeSlowModalTimer1Ref.current) {
           clearTimeout(routeSlowModalTimer1Ref.current);
@@ -3660,7 +3635,6 @@ const App: React.FC = () => {
             }))
           };
         } finally {
-          elevationMsVal = performance.now() - tElev0;
           elevationPhaseDoneRef.current = true;
           if (routeSlowModalTimer2Ref.current) {
             clearTimeout(routeSlowModalTimer2Ref.current);
@@ -3794,14 +3768,6 @@ const App: React.FC = () => {
         routeSlowModalTimer2Ref.current = null;
       }
       routeCalcActiveRef.current = false;
-      const totalMs = performance.now() - perfStart;
-      const slowMs = accumulatedSlowModalMsRef.current > 0 ? accumulatedSlowModalMsRef.current : null;
-      setRouteTimingDebug({
-        searchMs: searchMsVal,
-        elevationMs: elevationMsVal,
-        totalMs,
-        slowModalMs: slowMs,
-      });
       setLoading(false);
     }
   }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, updateFavoriteRoutePayload, showElevationFlatToast]);
@@ -4559,38 +4525,6 @@ const App: React.FC = () => {
         ref={mapRef}
         className={`bg-slate-900 absolute inset-0 z-10 min-h-0 h-full w-full ${!mapRevealed ? 'invisible pointer-events-none' : ''}`}
       />
-      {SHOW_ROUTE_TIMING_DEBUG_OVERLAY && mapRevealed && (
-        <div
-          className="fixed z-[1006] pointer-events-none max-w-[min(92vw,280px)] rounded-md border border-white/15 bg-black/70 px-2 py-1.5 font-mono text-[10px] leading-tight text-white/95 shadow-lg"
-          style={{ left: SAFE_LEFT_1REM, top: SAFE_TOP_4_25REM }}
-        >
-          <div className="text-white/70 border-b border-white/10 pb-0.5 mb-0.5">
-            Slow modal: {ROUTE_PHASE_SLOW_MODAL_MS}ms (route phase) / {ELEVATION_PHASE_SLOW_MODAL_MS}ms (elevation phase)
-          </div>
-          {loading && routeCalcLiveTick >= 0 && (
-            <div className="text-amber-200/95">
-              Running: {((Date.now() - routeCalcWallStartRef.current) / 1000).toFixed(1)}s (geocode + OSRM + elevation…)
-            </div>
-          )}
-          {routeTimingDebug && (
-            <div className="mt-0.5 space-y-0.5 text-white/90">
-              <div>
-                Last route search:{' '}
-                {routeTimingDebug.searchMs != null ? `${routeTimingDebug.searchMs.toFixed(0)} ms` : '—'}
-              </div>
-              <div>
-                Last elevation fetch:{' '}
-                {routeTimingDebug.elevationMs != null ? `${routeTimingDebug.elevationMs.toFixed(0)} ms` : '—'}
-              </div>
-              <div>Last total: {routeTimingDebug.totalMs != null ? `${routeTimingDebug.totalMs.toFixed(0)} ms` : '—'}</div>
-              <div>
-                Slow-route dialog visible:{' '}
-                {routeTimingDebug.slowModalMs != null ? `${routeTimingDebug.slowModalMs.toFixed(0)} ms` : '—'}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
           <span className="text-white font-bold text-sm text-glow-black">{coachData.tip}</span>
