@@ -4615,7 +4615,11 @@ const App: React.FC = () => {
             routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
           }`}
         >
-          <MapPin size={16} className="pointer-events-none" />
+          <img
+            src="/cycle_road.png"
+            alt=""
+            className={`pointer-events-none w-[1.05rem] h-[1.05rem] object-contain ${routeCoverageVisible ? 'opacity-100' : 'opacity-70 grayscale'}`}
+          />
         </button>
       </div>
 
