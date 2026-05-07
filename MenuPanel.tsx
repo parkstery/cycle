@@ -388,8 +388,6 @@ interface MenuPanelProps {
   onOpenAbout: () => void;
   menuView: MenuView;
   setMenuView: (v: MenuView) => void;
-  legalExpanded?: boolean;
-  setLegalExpanded?: (v: boolean) => void;
 }
 
 const appInfoBottomStyle = () =>

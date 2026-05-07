@@ -6,7 +6,6 @@ export default {
     "./index.tsx",
     "./About.tsx",
     "./MenuPanel.tsx",
-    "./MenuPanel-cur3.tsx",
     "./ElevationChartView.tsx",
     "./SensorsModal.tsx",
     "./BikeProfileModal.tsx",

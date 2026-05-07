@@ -17,8 +17,8 @@ export interface RouteInfo {
   cachedCoaching?: CachedCoachingItem[];
 }
 
-/** App phase for traffic control: PREPARING = API allowed, RUNNING = cache only */
-export type AppPhase = 'IDLE' | 'PREPARING' | 'RUNNING';
+/** App phase for traffic optimization: IDLE = no active ride segment, RUNNING = ride/session active (코칭 캐시 전략 등). */
+export type AppPhase = 'IDLE' | 'RUNNING';
 
 export interface ElevationPoint {
   elevation: number;

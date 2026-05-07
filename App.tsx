@@ -61,7 +61,6 @@ import type { BikeProfile } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
 logEvent(analytics, "app_open");
-logEvent(analytics, "test_event");
 
 const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
@@ -706,12 +705,10 @@ const App: React.FC = () => {
   /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Traffic optimization: phase (PREPARING = API allowed, RUNNING = cache only)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
   const [admobReady, setAdmobReady] = useState(false);
-  const lastAppPhaseRef = useRef<AppPhase>(appPhase);
   const lastSimulationActiveRef = useRef<boolean>(simulation.isActive);
   const interstitialShownRef = useRef(false);
   const interstitialPreparedRef = useRef(false);
@@ -1200,8 +1197,8 @@ const App: React.FC = () => {
     return (p === 'opentopodata' || p === 'open-elevation') ? p : undefined;
   })() : undefined;
 
-  /** A안: OSRM 경로 유지, 표고만 Valhalla. 메뉴 토글 + localStorage; URL `?elevation_engine=valhalla|open` 이 최초 로드 시 우선. */
-  const [elevationEngine, setElevationEngine] = useState<'open' | 'valhalla'>(() => {
+  /** OSRM 경로 유지, 표고만 Valhalla 옵션. URL `?elevation_engine=valhalla|open` 과 localStorage(과거 저장값 읽기)로 초기값 결정. */
+  const [elevationEngine] = useState<'open' | 'valhalla'>(() => {
     if (typeof window === 'undefined') return 'open';
     const q = new URLSearchParams(window.location.search).get('elevation_engine');
     if (q === 'valhalla') return 'valhalla';
@@ -1214,15 +1211,6 @@ const App: React.FC = () => {
     }
     return 'open';
   });
-
-  const persistElevationEngine = useCallback((v: 'open' | 'valhalla') => {
-    setElevationEngine(v);
-    try {
-      localStorage.setItem(ELEVATION_ENGINE_STORAGE_KEY, v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const fetchElevationAlongOsrmPath = async (
     path: any[],
@@ -2079,7 +2067,6 @@ const App: React.FC = () => {
 
     const prevSimActive = lastSimulationActiveRef.current;
     lastSimulationActiveRef.current = simulation.isActive;
-    lastAppPhaseRef.current = appPhase;
 
     // Session start: prepare (주행 시작 시)
     if (simulation.isActive && !prevSimActive) {
@@ -3013,7 +3000,7 @@ const App: React.FC = () => {
   /** 저장된 payload 로 경로 복원.
    *  v2 (USE_OFFLINE_ROUTE_RESTORE=true): OSRM/Elevation 재호출 없이 densifiedGeometry + elevationSamples 사용 → 네트워크 없어도 주행 가능.
    *  v1 또는 오프라인 복원 실패: Open-Elevation 재요청 후 self-heal (payload v2 로 승격).
-   *  Street View prefetch 는 별도 백그라운드 단계로, 경로 복원 자체를 블로킹하지 않는다.
+   *  경로 복원만 수행한다(네트워크 표고 재요청 등은 선택적).
    */
   const restoreRouteFromSavedGeometry = useCallback(async (saved: SavedRoute) => {
     const payload = saved.routePayload;
@@ -3725,7 +3712,7 @@ const App: React.FC = () => {
     // 이전 ride 의 coachData 가 isActive=true 전환 직후 잠깐 표시되는 문제 방지.
     // 새 coachData 는 getPredictiveCoaching 완료 후 아래에서 세팅된다.
     setCoachData(null);
-    // 이전 ride 의 캐시된 코칭/pano 데이터가 새 세그먼트에 섞여 들어오지 않도록 비움.
+    // 이전 ride 의 캐시된 코칭이 새 세그먼트에 섞여 들어오지 않도록 비움.
     setRoute((prev) => (prev ? { ...prev, cachedCoaching: [] } : prev));
     rideStoppedByLimitRef.current = false;
     lastCoachedIndex.current = -1;
@@ -5167,9 +5154,6 @@ const App: React.FC = () => {
           onOpenAbout={() => setShowAbout(true)}
           menuView={menuView}
           setMenuView={setMenuView}
-          elevationEngine={elevationEngine}
-          onElevationEngineChange={persistElevationEngine}
-          valhallaElevationConfigured={isValhallaElevationConfigured()}
         />,
         document.body
       )}
