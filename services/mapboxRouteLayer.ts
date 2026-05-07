@@ -1,4 +1,4 @@
-import mapboxgl, { type Map } from 'mapbox-gl';
+import type { Map, GeoJSONSource } from 'mapbox-gl';
 
 export const ROUTE_SOURCE = 'cycle-route-src';
 export const ROUTE_LAYER = 'cycle-route-line';
@@ -41,7 +41,7 @@ export function ensureRouteLineLayer(map: Map): void {
 }
 
 export function setRouteLineGeometry(map: Map, path: any[]): void {
-  const src = map.getSource(ROUTE_SOURCE) as mapboxgl.GeoJSONSource | undefined;
+  const src = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined;
   if (!src) return;
   const coordinates = pathToLineCoords(path);
   src.setData({
@@ -52,7 +52,7 @@ export function setRouteLineGeometry(map: Map, path: any[]): void {
 }
 
 export function clearRouteLineGeometry(map: Map): void {
-  const src = map.getSource(ROUTE_SOURCE) as mapboxgl.GeoJSONSource | undefined;
+  const src = map.getSource(ROUTE_SOURCE) as GeoJSONSource | undefined;
   if (!src) return;
   src.setData({
     type: 'Feature',
@@ -63,14 +63,27 @@ export function clearRouteLineGeometry(map: Map): void {
 
 export function fitMapToPath(map: Map, path: any[], padding = 48): void {
   if (!path.length) return;
-  const b = new mapboxgl.LngLatBounds();
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
   for (const p of path) {
     const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
     const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
-    b.extend([lng, lat]);
+    if (lng < minLng) minLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lng > maxLng) maxLng = lng;
+    if (lat > maxLat) maxLat = lat;
   }
+  if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return;
   try {
-    map.fitBounds(b, { padding, duration: 600, maxZoom: 16 });
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding, duration: 600, maxZoom: 16 }
+    );
   } catch {
     /* ignore */
   }

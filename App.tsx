@@ -705,6 +705,7 @@ const App: React.FC = () => {
   /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Session / ads: phase (IDLE vs RUNNING for interstitial timing)
   const [appPhase, setAppPhase] = useState<AppPhase>('IDLE');
 
   // AdMob state (Android only). Rewarded ad insertion은 추후 진행.
