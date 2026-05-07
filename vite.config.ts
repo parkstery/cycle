@@ -208,9 +208,12 @@ export default defineConfig(({ mode }) => {
           // Add hash to filenames to force cache busting
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: 'assets/[name]-[hash].[ext]'
-        }
-      }
+          assetFileNames: 'assets/[name]-[hash].[ext]',
+          manualChunks(id) {
+            if (id.includes('node_modules/mapbox-gl')) return 'mapbox-gl';
+          },
+        },
+      },
     },
     define: {
       // Mapbox GL — loadEnv 로 .env.local 까지 읽어 클라이언트에 고정 주입 (일부 환경에서 import.meta.env 만으로 누락될 때 보강)

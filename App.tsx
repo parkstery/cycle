@@ -39,9 +39,9 @@ import {
   getLatLngAtDistanceAlongPath,
   headingChangeSumAlongPath
 } from './services/geoUtils';
-import mapboxgl, { type Map as MapboxMap } from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
 import { MAPBOX_ACCESS_TOKEN } from './mapboxToken';
+import { loadMapboxGl } from './services/mapboxGlLazy';
 import {
   ROUTE_LAYER,
   clearRouteLineGeometry,
@@ -447,15 +447,17 @@ const App: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
 
   const mapboxMapRef = useRef<MapboxMap | null>(null);
+  /** 동적 import 로 로드된 mapbox-gl 기본 export (Map/Marker 생성용) */
+  const mapboxGlRef = useRef<typeof import('mapbox-gl').default | null>(null);
   /** OSRM/복원 경로를 GeoJSON 라인으로 그릴 때 최신 path 보관 (style.load 시 재적용) */
   const routeLinePathRef = useRef<any[]>([]);
-  const mapMarkersRef = useRef<mapboxgl.Marker[]>([]);
-  const simulationMarker = useRef<mapboxgl.Marker | null>(null);
-  const startMarker = useRef<mapboxgl.Marker | null>(null);
-  const endMarker = useRef<mapboxgl.Marker | null>(null);
-  const waypointMarkers = useRef<mapboxgl.Marker[]>([]);
-  const tempMarker = useRef<mapboxgl.Marker | null>(null);
-  const searchMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapMarkersRef = useRef<MapboxMarker[]>([]);
+  const simulationMarker = useRef<MapboxMarker | null>(null);
+  const startMarker = useRef<MapboxMarker | null>(null);
+  const endMarker = useRef<MapboxMarker | null>(null);
+  const waypointMarkers = useRef<MapboxMarker[]>([]);
+  const tempMarker = useRef<MapboxMarker | null>(null);
+  const searchMarkerRef = useRef<MapboxMarker | null>(null);
 
   // Exact Coordinate References (Fix for Road Snapping)
   const originLocationRef = useRef<any>(null);
@@ -1507,13 +1509,13 @@ const App: React.FC = () => {
     let attempts = 0;
     const maxAttempts = 180;
 
-    const tryCreateMap = () => {
+    const tryCreateMap = (mb: typeof import('mapbox-gl').default) => {
       if (cancelled || mapboxMapRef.current) return;
       const el = mapRef.current;
       if (el) {
         try {
-          mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
-          const map = new mapboxgl.Map({
+          mb.accessToken = MAPBOX_ACCESS_TOKEN;
+          const map = new mb.Map({
             container: el,
             style: mapStyleUrl(mapTypeRef.current),
             center: [126.9882, 37.5512],
@@ -1577,14 +1579,26 @@ const App: React.FC = () => {
         }
         return;
       }
-      retryRafId = window.requestAnimationFrame(tryCreateMap);
+      retryRafId = window.requestAnimationFrame(() => tryCreateMap(mb));
     };
 
-    bootRaf1 = window.requestAnimationFrame(() => {
-      bootRaf2 = window.requestAnimationFrame(() => {
-        tryCreateMap();
+    void loadMapboxGl()
+      .then((mb) => {
+        if (cancelled) return;
+        mapboxGlRef.current = mb;
+        bootRaf1 = window.requestAnimationFrame(() => {
+          bootRaf2 = window.requestAnimationFrame(() => {
+            tryCreateMap(mb);
+          });
+        });
+      })
+      .catch((err) => {
+        console.error('[Mapbox] mapbox-gl 로드 실패', err);
+        if (!cancelled) {
+          setMapBootstrapError((prev) => prev ?? 'Mapbox 지도 모듈을 불러오지 못했습니다. 네트워크를 확인하세요.');
+          setIsMapReady(true);
+        }
       });
-    });
 
     return () => {
       cancelled = true;
@@ -2287,7 +2301,8 @@ const App: React.FC = () => {
       }
       return CYCLING_POSITION_MARKER_URL;
     })();
-    if (!simulationMarker.current && map) {
+    const mbGl = mapboxGlRef.current;
+    if (!simulationMarker.current && map && mbGl) {
       const el = document.createElement('div');
       el.style.width = '40px';
       el.style.height = '40px';
@@ -2299,7 +2314,7 @@ const App: React.FC = () => {
       img.src = cyclingIconUrl;
       img.style.display = 'block';
       el.appendChild(img);
-      simulationMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      simulationMarker.current = new mbGl.Marker({ element: el, anchor: 'center' })
         .setLngLat([lng, lat])
         .addTo(map);
     } else if (simulationMarker.current) {
@@ -2448,7 +2463,7 @@ const App: React.FC = () => {
       }
       // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, isMapReady]);
 
   // Simulation progression driver: runs continuously while simulation is active,
   // accumulates distance from live speed, and advances currentIndex by path segments.
@@ -2971,11 +2986,12 @@ const App: React.FC = () => {
     return () => synth.removeEventListener('voiceschanged', onVoicesChanged);
   }, []);
 
-  const createCustomMarker = (latLng: any, label: string, color: string): mapboxgl.Marker => {
+  const createCustomMarker = (latLng: any, label: string, color: string): MapboxMarker => {
     const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
     const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
+    const mb = mapboxGlRef.current;
     const map = mapboxMapRef.current;
-    if (!map) throw new Error('Map not ready');
+    if (!mb || !map) throw new Error('Map not ready');
     const el = document.createElement('div');
     el.style.width = '28px';
     el.style.height = '28px';
@@ -2993,7 +3009,7 @@ const App: React.FC = () => {
     span.setAttribute('data-m-label', '1');
     span.textContent = label;
     el.appendChild(span);
-    const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    const marker = new mb.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
     mapMarkersRef.current.push(marker);
     return marker;
   };
@@ -4068,7 +4084,8 @@ const App: React.FC = () => {
 
   const applyPlaceSearchOnMap = (lat: number, lng: number, recentLabel: string) => {
     const map = mapboxMapRef.current;
-    if (!map) return;
+    const mb = mapboxGlRef.current;
+    if (!map || !mb) return;
     map.jumpTo({ center: [lng, lat], zoom: 16 });
     clearPlaceSearchMarker();
     const el = document.createElement('div');
@@ -4092,7 +4109,7 @@ const App: React.FC = () => {
       ev.stopPropagation();
       clearPlaceSearchMarker();
     });
-    searchMarkerRef.current = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    searchMarkerRef.current = new mb.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
     mapMarkersRef.current.push(searchMarkerRef.current);
     setRecentPlaceSearches(prev => {
       const filtered = prev.filter(item => item !== recentLabel);
