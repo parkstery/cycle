@@ -619,7 +619,9 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
-  const [routeCoverageVisible, setRouteCoverageVisible] = useState(true);
+  const [routeCoverageVisible, setRouteCoverageVisible] = useState(false);
+  const routeCoverageVisibleRef = useRef(routeCoverageVisible);
+  routeCoverageVisibleRef.current = routeCoverageVisible;
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
   /** Right route list: user My Routes vs curated Explore Routes (cloud + local cache). */
   const [historyPanelTab, setHistoryPanelTab] = useState<'my_routes' | 'explore'>('my_routes');
@@ -1530,7 +1532,7 @@ const App: React.FC = () => {
                       ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'street', 'street_limited', 'service', 'track', 'path', 'cycleway']],
                     ],
                     layout: {
-                      visibility: routeCoverageVisible ? 'visible' : 'none',
+                      visibility: routeCoverageVisibleRef.current ? 'visible' : 'none',
                       'line-cap': 'round',
                       'line-join': 'round',
                     },
@@ -1543,7 +1545,7 @@ const App: React.FC = () => {
                   map.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
                 );
               } else {
-                map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
+                map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisibleRef.current ? 'visible' : 'none');
               }
               if (routeLinePathRef.current.length) {
                 setRouteLineGeometry(map, routeLinePathRef.current);
