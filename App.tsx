@@ -43,7 +43,6 @@ import {
   clearRouteLineGeometry,
   ensureRouteLineLayer,
   fitMapToPath,
-  type MapStyleType,
   mapStyleUrl,
   setRouteLineGeometry,
 } from './services/mapboxRouteLayer';
@@ -222,19 +221,6 @@ const modeFromProfile = (profile: 'cycling' | 'driving' | 'foot'): TravelMode =>
 const profileFromMode = (targetMode: TravelMode): SavedRoutePayload['profile'] => (
   targetMode === TravelMode.DRIVING ? 'driving' : targetMode === TravelMode.BICYCLING ? 'cycling' : 'foot'
 );
-
-const MAP_STYLE_ITEMS: Array<{
-  id: MapStyleType;
-  label: string;
-  shortLabel: string;
-  dx: number;
-  dy: number;
-}> = [
-  { id: 'streets', label: 'Streets', shortLabel: 'S', dx: -62, dy: 0 },
-  { id: 'outdoors', label: 'Outdoors', shortLabel: 'O', dx: -48, dy: -48 },
-  { id: 'satellite', label: 'Satellite', shortLabel: 'Sat', dx: 0, dy: -62 },
-  { id: 'light', label: 'Light', shortLabel: 'L', dx: 48, dy: -48 },
-];
 
 const hydrateBundledRoute = (route: SavedRoute, idx: number, now: number): SavedRoute => ({
   ...route,
@@ -600,10 +586,9 @@ const App: React.FC = () => {
     }, 5000);
   }, []);
   const [routeSource, setRouteSource] = useState<'OSRM' | null>(null);
-  const [mapType, setMapType] = useState<MapStyleType>('streets');
+  const [mapType, setMapType] = useState<string>('roadmap');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
-  const [mapStyleMenuOpen, setMapStyleMenuOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -4121,15 +4106,11 @@ const App: React.FC = () => {
     clearPlaceSearchMarker();
   };
 
-  const applyMapStyle = (next: MapStyleType) => {
-    setMapStyleMenuOpen(false);
+  const handleToggleMapType = () => {
+    const next = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
     setMapType(next);
     const mmap = mapboxMapRef.current;
     if (mmap) mmap.setStyle(mapStyleUrl(next));
-  };
-
-  const handleToggleMapStyleMenu = () => {
-    setMapStyleMenuOpen((prev) => !prev);
   };
 
   // Android WebView에서 일부 터치가 click으로 승격되지 않는 경우가 있어,
@@ -4481,7 +4462,7 @@ const App: React.FC = () => {
 
 
 
-      {/* Map Style Button + radial picker */}
+      {/* Map Style Button - Moved Left (80% size) */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
@@ -4493,42 +4474,13 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapStyleMenu)}
-          onClick={handleToggleMapStyleMenu}
+          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapType)}
+          onClick={handleToggleMapType}
           title="Change Map Style"
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapStyleMenuOpen ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapType === 'hybrid' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
         >
           <Layers size={19} className="pointer-events-none" />
         </button>
-        {mapStyleMenuOpen && (
-          <div className="absolute inset-0">
-            {MAP_STYLE_ITEMS.map((item) => {
-              const active = mapType === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onPointerDown={stopPointerPropagation}
-                  onTouchStart={stopPointerPropagation}
-                  onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(item.id))}
-                  onClick={() => applyMapStyle(item.id)}
-                  title={item.label}
-                  className={`absolute w-[2.1rem] h-[2.1rem] rounded-full border shadow-xl transition-all active:scale-95 flex items-center justify-center text-[11px] font-black touch-manipulation ${
-                    active
-                      ? 'bg-emerald-500 text-white border-emerald-300'
-                      : 'bg-white text-slate-700 border-slate-300'
-                  }`}
-                  style={{
-                    right: `${item.dx}px`,
-                    top: `${item.dy}px`,
-                  }}
-                >
-                  {item.shortLabel}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}

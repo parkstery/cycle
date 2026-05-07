@@ -3,22 +3,10 @@ import type { Map, GeoJSONSource } from 'mapbox-gl';
 export const ROUTE_SOURCE = 'cycle-route-src';
 export const ROUTE_LAYER = 'cycle-route-line';
 
-export type MapStyleType = 'streets' | 'satellite' | 'outdoors' | 'light';
-
-export function mapStyleUrl(mapType: MapStyleType | string): string {
-  switch (mapType) {
-    case 'satellite':
-    case 'hybrid':
-      return 'mapbox://styles/mapbox/satellite-streets-v12';
-    case 'outdoors':
-      return 'mapbox://styles/mapbox/outdoors-v12';
-    case 'light':
-      return 'mapbox://styles/mapbox/light-v11';
-    case 'streets':
-    case 'roadmap':
-    default:
-      return 'mapbox://styles/mapbox/streets-v12';
-  }
+export function mapStyleUrl(mapType: string): string {
+  return mapType === 'hybrid'
+    ? 'mapbox://styles/mapbox/satellite-streets-v12'
+    : 'mapbox://styles/mapbox/streets-v12';
 }
 
 export function pathToLineCoords(path: any[]): [number, number][] {
