@@ -83,6 +83,8 @@ const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 /** Temporary dev overlay: last route search / elevation / slow-dialog timings on map */
 const SHOW_ROUTE_TIMING_DEBUG_OVERLAY = true;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
+/** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
+const SIMULATION_PROGRESS_TICK_MS = 33;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -2563,7 +2565,7 @@ const App: React.FC = () => {
         if (idx === prev.currentIndex) return prev;
         return { ...prev, currentIndex: idx };
       });
-    }, 100);
+    }, SIMULATION_PROGRESS_TICK_MS);
     return () => clearInterval(interval);
   }, [simulation.isActive, route?.path]);
 
