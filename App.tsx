@@ -92,6 +92,11 @@ import {
   setMapillaryCoverageVisibility,
   stackMapillaryAboveRoutableRoads,
 } from './services/mapillaryCoverage';
+import {
+  fetchMapillaryStreetCandidates,
+  mapillaryEmbedUrl,
+  pickMapillaryStreetCandidate,
+} from './services/mapillaryStreetView';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -130,8 +135,14 @@ const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 const MAPBOX_COMPOSITE_SOURCE_ID = 'composite';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
 const BUILDING_LAYER_ID = '3d-buildings';
+const RIDE_CAMERA_REAR_OFFSET_M = 5;
+const RIDE_CAMERA_ZOOM = 18;
+const RIDE_CAMERA_PITCH = 62;
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
 const SIMULATION_PROGRESS_TICK_MS = 33;
+/** Mapillary Graph 거리뷰 조회: 과도한 호출 방지 */
+const MAPILLARY_STREET_MIN_FETCH_INTERVAL_MS = 3600;
+const MAPILLARY_STREET_MIN_MOVE_M = 44;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -610,6 +621,33 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const trackRiderCamera = useCallback((currentPos: any, nextPos?: any, duration = 0) => {
+    const map = mapboxMapRef.current;
+    if (!map || !currentPos) return;
+    const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
+    const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    let heading = Number.isFinite(map.getBearing()) ? map.getBearing() : 0;
+    if (nextPos) {
+      try {
+        const computedHeading = computeHeading(currentPos, nextPos);
+        if (Number.isFinite(computedHeading)) heading = computedHeading;
+      } catch {
+        // 경로 끝이나 좌표 형식 문제에서는 직전 bearing 을 유지한다.
+      }
+    }
+
+    const cameraPos = computeOffset({ lat, lng }, RIDE_CAMERA_REAR_OFFSET_M, heading + 180);
+    map.easeTo({
+      center: [cameraPos.lng, cameraPos.lat],
+      bearing: heading,
+      pitch: RIDE_CAMERA_PITCH,
+      zoom: Math.max(map.getZoom(), RIDE_CAMERA_ZOOM),
+      duration,
+    });
+  }, []);
+
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
@@ -706,6 +744,13 @@ const App: React.FC = () => {
   /** 터치 후 ghost click 으로 Mapillary/OSRM 도로 토글이 두 번 뒤집히는 것 방지 */
   const lastMapillaryUiToggleMsRef = useRef(0);
   const lastRouteCoverageUiToggleMsRef = useRef(0);
+  /** 주행 중 경로상 Mapillary 임베드 거리뷰(커버리지 있을 때만) */
+  const [rideMapillaryStreet, setRideMapillaryStreet] = useState<null | { imageKey: string }>(null);
+  const lastMapillaryStreetFetchAtRef = useRef(0);
+  const lastMapillaryStreetAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
+  const mapillaryStreetFetchGenRef = useRef(0);
+  /** 사용자가 닫은 프레임 — 같은 imageKey 가 다시 잡히면 자동 재오픈하지 않음 */
+  const lastMapillaryStreetDismissedKeyRef = useRef<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -2557,11 +2602,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (mapboxMapRef.current) {
-      const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
-      const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-      mapboxMapRef.current.easeTo({ center: [plng, plat], duration: 0 });
-    }
+    trackRiderCamera(currentPos, targetPosForHeading, 0);
 
       // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
       const elevation = routeData.elevation ?? [];
@@ -2668,7 +2709,7 @@ const App: React.FC = () => {
       }
       // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, isMapReady]);
+  }, [simulation.isActive, simulation.currentIndex, route?.path, isMapReady, trackRiderCamera]);
 
   // Simulation progression driver: runs continuously while simulation is active,
   // accumulates distance from live speed, and advances currentIndex by path segments.
@@ -2728,6 +2769,75 @@ const App: React.FC = () => {
     }, SIMULATION_PROGRESS_TICK_MS);
     return () => clearInterval(interval);
   }, [simulation.isActive, route?.path]);
+
+  // 주행 중: 경로상 위치에 Mapillary 이미지가 있으면 임베드 플로팅 패널 표시
+  useEffect(() => {
+    if (!mapillaryTokenConfigured || !simulation.isActive || !route?.path?.length) {
+      lastMapillaryStreetAnchorRef.current = null;
+      lastMapillaryStreetFetchAtRef.current = 0;
+      lastMapillaryStreetDismissedKeyRef.current = null;
+      mapillaryStreetFetchGenRef.current += 1;
+      setRideMapillaryStreet(null);
+      return;
+    }
+    const path = route.path;
+    const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
+    const p = path[idx];
+    if (!p) return;
+    const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
+    const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const now = Date.now();
+    const anchor = lastMapillaryStreetAnchorRef.current;
+    const movedM = anchor ? computeDistanceBetween({ lat, lng }, anchor) : Infinity;
+    const timeSince = lastMapillaryStreetFetchAtRef.current ? now - lastMapillaryStreetFetchAtRef.current : Infinity;
+    const shouldFetch = movedM >= MAPILLARY_STREET_MIN_MOVE_M || timeSince >= MAPILLARY_STREET_MIN_FETCH_INTERVAL_MS;
+    if (!shouldFetch) return;
+
+    if (movedM >= 130) {
+      lastMapillaryStreetDismissedKeyRef.current = null;
+    }
+
+    lastMapillaryStreetFetchAtRef.current = now;
+    lastMapillaryStreetAnchorRef.current = { lat, lng };
+
+    const lookIdx = Math.min(idx + 14, path.length - 1);
+    const look = path[lookIdx];
+    let driveHeading: number | null = null;
+    if (look && lookIdx > idx) {
+      try {
+        driveHeading = computeHeading(p, look);
+      } catch {
+        driveHeading = null;
+      }
+    }
+
+    const gen = ++mapillaryStreetFetchGenRef.current;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const candidates = await fetchMapillaryStreetCandidates(MAPILLARY_CLIENT_TOKEN, lat, lng, {
+          signal: ac.signal,
+        });
+        if (gen !== mapillaryStreetFetchGenRef.current) return;
+        const pick = pickMapillaryStreetCandidate(candidates, { lat, lng }, driveHeading);
+        if (!pick) {
+          lastMapillaryStreetDismissedKeyRef.current = null;
+          setRideMapillaryStreet(null);
+          return;
+        }
+        if (pick.id === lastMapillaryStreetDismissedKeyRef.current) return;
+        setRideMapillaryStreet({ imageKey: pick.id });
+      } catch {
+        if (gen !== mapillaryStreetFetchGenRef.current) return;
+      }
+    })();
+
+    return () => {
+      ac.abort();
+    };
+  }, [mapillaryTokenConfigured, simulation.isActive, simulation.currentIndex, route?.path]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -3408,7 +3518,7 @@ const App: React.FC = () => {
       if (prev.duration === next) return prev;
       return { ...prev, duration: next };
     });
-  }, [speedKmH]);
+  }, [speedKmH, trackRiderCamera]);
 
   const clearMapOverlays = () => {
     setLockedRouteProfile(null);
@@ -3480,6 +3590,7 @@ const App: React.FC = () => {
       setAverageRpm(0);
       rpmSampleSumRef.current = 0;
       rpmSampleCountRef.current = 0;
+      trackRiderCamera(route.path[0], route.path[1], 450);
 
       getCourseBriefing(route).then(speak);
     }
@@ -3511,6 +3622,10 @@ const App: React.FC = () => {
     setSimulation(prev => {
       const isActive = !prev.isActive;
       if (!isActive) console.log('[SIMULATION_STOP] reason=user_pause');
+      if (isActive && route?.path?.length) {
+        const currentIdx = Math.min(Math.max(0, prev.currentIndex), route.path.length - 1);
+        trackRiderCamera(route.path[currentIdx], route.path[Math.min(currentIdx + 10, route.path.length - 1)], 450);
+      }
       return { ...prev, isActive };
     });
   };
@@ -3923,6 +4038,7 @@ const App: React.FC = () => {
     simulationActiveRef.current = true;
     setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
     setAppPhase('RUNNING');
+    trackRiderCamera(currentRoute.path[0], currentRoute.path[1], 450);
 
     const elevLen = currentRoute.elevation.length;
     const segmentSize = Math.min(20, elevLen);
@@ -4075,14 +4191,24 @@ const App: React.FC = () => {
 
     setAppPhase('RUNNING');
     setSimulation(prev => ({ ...prev, isActive: true }));
-  }, [grantRideExtensionFromRewardedAd]);
+    const r = routeRef.current;
+    if (r?.path?.length) {
+      const idx = Math.min(Math.max(0, simulation.currentIndex), r.path.length - 1);
+      trackRiderCamera(r.path[idx], r.path[Math.min(idx + 10, r.path.length - 1)], 450);
+    }
+  }, [grantRideExtensionFromRewardedAd, simulation.currentIndex, trackRiderCamera]);
 
   const handleRewardDeclineSecond = useCallback(() => {
     setRewardOfferModalStage(null);
     rewardSecondDeclinedRef.current = true;
     setAppPhase('RUNNING');
     setSimulation(prev => ({ ...prev, isActive: true }));
-  }, []);
+    const r = routeRef.current;
+    if (r?.path?.length) {
+      const idx = Math.min(Math.max(0, simulation.currentIndex), r.path.length - 1);
+      trackRiderCamera(r.path[idx], r.path[Math.min(idx + 10, r.path.length - 1)], 450);
+    }
+  }, [simulation.currentIndex, trackRiderCamera]);
 
   const handleSetStart = () => {
     if (clickedLocation) {
@@ -4656,6 +4782,48 @@ const App: React.FC = () => {
         ref={mapRef}
         className={`bg-slate-900 absolute inset-0 z-10 min-h-0 h-full w-full ${!mapRevealed ? 'invisible pointer-events-none' : ''}`}
       />
+      {simulation.isActive && rideMapillaryStreet && (
+        <div
+          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(42vh,300px)]"
+          style={{
+            left: SAFE_LEFT_1REM,
+            top: SAFE_TOP_SPEED_PANEL,
+            width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 360px)',
+          }}
+          role="dialog"
+          aria-label="Mapillary 거리뷰"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1 shrink-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/90">Mapillary</span>
+            <button
+              type="button"
+              onClick={() => {
+                lastMapillaryStreetDismissedKeyRef.current = rideMapillaryStreet.imageKey;
+                setRideMapillaryStreet(null);
+              }}
+              className="rounded-md p-1 text-white/80 hover:bg-white/10 hover:text-white touch-manipulation"
+              title="닫기"
+              aria-label="Mapillary 거리뷰 닫기"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="relative w-full aspect-video bg-black shrink-0">
+            <iframe
+              key={rideMapillaryStreet.imageKey}
+              title="Mapillary"
+              src={mapillaryEmbedUrl(rideMapillaryStreet.imageKey, 'photo')}
+              className="absolute inset-0 h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allow="fullscreen"
+            />
+          </div>
+          <p className="text-[9px] text-white/55 px-2 py-1 border-t border-white/10 shrink-0 leading-tight">
+            Imagery © Mapillary contributors
+          </p>
+        </div>
+      )}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
           <span className="text-white font-bold text-sm text-glow-black">{coachData.tip}</span>
