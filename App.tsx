@@ -38,6 +38,8 @@ import {
   Box,
   Route,
   Camera,
+  LocateFixed,
+  Move,
   type LucideIcon,
 } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
@@ -123,11 +125,11 @@ const USE_OFFLINE_ROUTE_RESTORE = true;
 const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
-const ROUTE_DENSIFY_INTERVAL_M = 2;
+const ROUTE_DENSIFY_INTERVAL_M = 1;
 /** Slow-route dialog if geocode+OSRM not finished by this time (per-phase; calculation keeps running). */
-const ROUTE_PHASE_SLOW_MODAL_MS = 500;
+const ROUTE_PHASE_SLOW_MODAL_MS = 5000;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
-const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
+const ELEVATION_PHASE_SLOW_MODAL_MS = 5000;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 const MAPBOX_COMPOSITE_SOURCE_ID = 'composite';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
@@ -137,12 +139,15 @@ const RIDE_CAMERA_ZOOM = 18;
 const RIDE_CAMERA_PITCH = 62;
 const SIMULATION_MARKER_SIZE_PX = 120;
 const RIDE_CAMERA_TRACK_DURATION_MS = 160;
+const RIDE_CAMERA_SMOOTHING_MS = 260;
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
 const SIMULATION_PROGRESS_TICK_MS = 33;
 /** 전방 최대 300m 구간을 샘플로 스캔해 Mapillary 유무 확인 */
-const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M = [0, 70, 140, 210, 280, 300] as const;
+const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M = [0, 35, 70, 105, 140, 190, 240, 300] as const;
 const MAPILLARY_STREET_FETCH_THROTTLE_MS = 780;
 const MAPILLARY_STREET_FETCH_MIN_MOVE_M = 24;
+const MAPILLARY_STREET_MIN_HOLD_MS = 4500;
+const MAPILLARY_STREET_NO_HIT_GRACE_MS = 9000;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -621,7 +626,78 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const rideCameraTargetRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number; zoom: number }>(null);
+  const rideCameraStateRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number; zoom: number }>(null);
+  const rideCameraRafRef = useRef<number | null>(null);
+  const rideCameraLastFrameMsRef = useRef(0);
+  /** 주행 중 후방 추적 카메라 — off 시 RAF 중단·맵은 사용자(마우스·터치) 조작 */
+  const [rideRearCameraFollow, setRideRearCameraFollow] = useState(true);
+  const rideRearCameraFollowRef = useRef(true);
+  rideRearCameraFollowRef.current = rideRearCameraFollow;
+  const rideRearCameraFollowPrevRef = useRef(true);
+
+  const startRideCameraLoop = useCallback(() => {
+    if (rideCameraRafRef.current != null) return;
+
+    const step = (now: number) => {
+      rideCameraRafRef.current = null;
+      const map = mapboxMapRef.current;
+      const target = rideCameraTargetRef.current;
+      if (!map || !target) {
+        rideCameraLastFrameMsRef.current = 0;
+        return;
+      }
+      if (!rideRearCameraFollowRef.current) {
+        rideCameraLastFrameMsRef.current = 0;
+        return;
+      }
+
+      const currentCenter = map.getCenter();
+      const currentState = rideCameraStateRef.current ?? {
+        lng: currentCenter.lng,
+        lat: currentCenter.lat,
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+        zoom: map.getZoom(),
+      };
+      const lastFrameMs = rideCameraLastFrameMsRef.current || now;
+      const dt = Math.max(1, Math.min(80, now - lastFrameMs));
+      rideCameraLastFrameMsRef.current = now;
+      const t = 1 - Math.exp(-dt / RIDE_CAMERA_SMOOTHING_MS);
+      const bearingDelta = ((target.bearing - currentState.bearing + 540) % 360) - 180;
+      const nextState = {
+        lng: currentState.lng + (target.lng - currentState.lng) * t,
+        lat: currentState.lat + (target.lat - currentState.lat) * t,
+        bearing: currentState.bearing + bearingDelta * t,
+        pitch: currentState.pitch + (target.pitch - currentState.pitch) * t,
+        zoom: currentState.zoom + (target.zoom - currentState.zoom) * t,
+      };
+
+      rideCameraStateRef.current = nextState;
+      map.jumpTo({
+        center: [nextState.lng, nextState.lat],
+        bearing: nextState.bearing,
+        pitch: nextState.pitch,
+        zoom: nextState.zoom,
+      });
+
+      const nearTarget =
+        computeDistanceBetween({ lat: nextState.lat, lng: nextState.lng }, { lat: target.lat, lng: target.lng }) < 0.15 &&
+        Math.abs(bearingDelta) < 0.2 &&
+        Math.abs(nextState.zoom - target.zoom) < 0.01 &&
+        Math.abs(nextState.pitch - target.pitch) < 0.1;
+      if (rideRearCameraFollowRef.current && (simulationActiveRef.current || !nearTarget)) {
+        rideCameraRafRef.current = window.requestAnimationFrame(step);
+      } else {
+        rideCameraLastFrameMsRef.current = 0;
+      }
+    };
+
+    rideCameraRafRef.current = window.requestAnimationFrame(step);
+  }, []);
+
   const trackRiderCamera = useCallback((currentPos: any, nextPos?: any, duration = 0) => {
+    if (!rideRearCameraFollowRef.current) return;
     const map = mapboxMapRef.current;
     if (!map || !currentPos) return;
     const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
@@ -639,19 +715,58 @@ const App: React.FC = () => {
     }
 
     const cameraPos = computeOffset({ lat, lng }, RIDE_CAMERA_REAR_OFFSET_M, heading + 180);
-    map.easeTo({
-      center: [cameraPos.lng, cameraPos.lat],
+    if (duration >= 400) {
+      rideCameraStateRef.current = null;
+      rideCameraLastFrameMsRef.current = 0;
+    }
+    rideCameraTargetRef.current = {
+      lng: cameraPos.lng,
+      lat: cameraPos.lat,
       bearing: heading,
       pitch: RIDE_CAMERA_PITCH,
       zoom: Math.max(map.getZoom(), RIDE_CAMERA_ZOOM),
-      duration,
-    });
-  }, []);
+    };
+    startRideCameraLoop();
+  }, [startRideCameraLoop]);
 
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
+
+  useEffect(() => {
+    if (rideRearCameraFollow) return;
+    if (rideCameraRafRef.current != null) {
+      window.cancelAnimationFrame(rideCameraRafRef.current);
+      rideCameraRafRef.current = null;
+    }
+    rideCameraTargetRef.current = null;
+    rideCameraStateRef.current = null;
+    rideCameraLastFrameMsRef.current = 0;
+    const map = mapboxMapRef.current;
+    if (map) {
+      try {
+        map.scrollZoom.enable();
+        map.dragPan.enable();
+        map.touchZoomRotate.enable();
+        map.doubleClickZoom.enable();
+        map.boxZoom.enable();
+        map.keyboard.enable();
+      } catch {
+        /* 일부 핸들러 미지원 환경 */
+      }
+    }
+  }, [rideRearCameraFollow]);
+
+  useEffect(() => {
+    const turnedOn = rideRearCameraFollow && !rideRearCameraFollowPrevRef.current;
+    rideRearCameraFollowPrevRef.current = rideRearCameraFollow;
+    if (!turnedOn) return;
+    if (!simulation.isActive || !route?.path?.length) return;
+    const path = route.path;
+    const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
+    trackRiderCamera(path[idx], path[Math.min(idx + 10, path.length - 1)], 450);
+  }, [rideRearCameraFollow, simulation.isActive, simulation.currentIndex, route?.path, trackRiderCamera]);
   const [speedKmH, setSpeedKmH] = useState(20);
   const [sensorPrefs, setSensorPrefs] = useState(() => loadIndoorSensorPrefs());
   const [sensorsModalOpen, setSensorsModalOpen] = useState(false);
@@ -745,7 +860,7 @@ const App: React.FC = () => {
   const lastMapillaryUiToggleMsRef = useRef(0);
   const lastRouteCoverageUiToggleMsRef = useRef(0);
   /** 주행 중 경로상 Mapillary 임베드 거리뷰(커버리지 있을 때만) */
-  const [rideMapillaryStreet, setRideMapillaryStreet] = useState<null | { imageKey: string }>(null);
+  const [rideMapillaryStreet, setRideMapillaryStreet] = useState<null | { imageKey: string; shownAtMs: number }>(null);
   const lastMapillaryStreetFetchAtRef = useRef(0);
   const lastMapillaryStreetAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
   const mapillaryStreetFetchGenRef = useRef(0);
@@ -1804,6 +1919,13 @@ const App: React.FC = () => {
       if (bootRaf1) window.cancelAnimationFrame(bootRaf1);
       if (bootRaf2) window.cancelAnimationFrame(bootRaf2);
       if (retryRafId) window.cancelAnimationFrame(retryRafId);
+      if (rideCameraRafRef.current != null) {
+        window.cancelAnimationFrame(rideCameraRafRef.current);
+        rideCameraRafRef.current = null;
+      }
+      rideCameraTargetRef.current = null;
+      rideCameraStateRef.current = null;
+      rideCameraLastFrameMsRef.current = 0;
       if (mapboxMapRef.current) {
         try {
           mapboxMapRef.current.remove();
@@ -2857,10 +2979,19 @@ const App: React.FC = () => {
         if (!chosenKey) {
           const anyHit = sorted.some((r) => r.pick);
           if (!anyHit) lastMapillaryStreetDismissedKeyRef.current = null;
-          setRideMapillaryStreet(null);
+          setRideMapillaryStreet((prev) => {
+            if (!prev) return null;
+            const visibleMs = Date.now() - prev.shownAtMs;
+            return visibleMs >= MAPILLARY_STREET_NO_HIT_GRACE_MS ? null : prev;
+          });
           return;
         }
-        setRideMapillaryStreet({ imageKey: chosenKey });
+        setRideMapillaryStreet((prev) => {
+          const visibleMs = prev ? Date.now() - prev.shownAtMs : Infinity;
+          if (prev?.imageKey === chosenKey) return prev;
+          if (prev && visibleMs < MAPILLARY_STREET_MIN_HOLD_MS) return prev;
+          return { imageKey: chosenKey, shownAtMs: Date.now() };
+        });
       } catch {
         if (gen !== mapillaryStreetFetchGenRef.current) return;
       }
@@ -3586,6 +3717,7 @@ const App: React.FC = () => {
     setRoute(null);
     lastRouteRequestRef.current = null;
     console.log('[SIMULATION_STOP] reason=clear_map');
+    setRideRearCameraFollow(true);
     setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
     setCoachData(null);
     setRouteSource(null);
@@ -3630,6 +3762,7 @@ const App: React.FC = () => {
 
   const handleStopSimulation = () => {
     console.log('[SIMULATION_STOP] reason=user_stop');
+    setRideRearCameraFollow(true);
     setRewardOfferModalStage(null);
     setRewardOfferTargetKm(0);
     setRideLimitMessage(null);
@@ -4992,6 +5125,37 @@ const App: React.FC = () => {
         >
           <Camera size={18} className="pointer-events-none" />
         </button>
+        {simulation.isActive && (
+          <button
+            type="button"
+            onPointerDown={stopPointerPropagation}
+            onTouchStart={stopPointerPropagation}
+            onTouchEnd={(e) =>
+              activateFromTouchEnd(e, () => setRideRearCameraFollow((v) => !v))
+            }
+            onClick={() => setRideRearCameraFollow((v) => !v)}
+            title={
+              rideRearCameraFollow
+                ? '후방 추적 카메라 끄기 — 맵을 마우스·터치로 움직일 수 있습니다'
+                : '후방 추적 카메라 켜기 — 라이더 뒤에서 맵이 따라갑니다'
+            }
+            aria-pressed={rideRearCameraFollow}
+            aria-label={
+              rideRearCameraFollow ? '후방 추적 카메라 끄기' : '후방 추적 카메라 켜기'
+            }
+            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+              rideRearCameraFollow
+                ? 'bg-violet-600 text-white border-2 border-violet-700'
+                : 'bg-white text-slate-600 border-2 border-slate-200'
+            }`}
+          >
+            {rideRearCameraFollow ? (
+              <LocateFixed size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
+            ) : (
+              <Move size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
+            )}
+          </button>
+        )}
       </div>
       <div
         className="fixed z-[1000] pointer-events-auto"
