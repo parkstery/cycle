@@ -92,9 +92,8 @@ import {
   setMapillaryCoverageVisibility,
   stackMapillaryBelowRoutableRoads,
 } from './services/mapillaryCoverage';
-import { queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
+import { mapillaryEmbedUrl, queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
 import { snapRoutingChainToMapillaryParallel } from './services/mapillaryRouteSnap';
-import MapillaryRideViewer from './MapillaryRideViewer';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -142,8 +141,6 @@ const RIDE_CAMERA_TRACK_DURATION_MS = 160;
 const SIMULATION_PROGRESS_TICK_MS = 33;
 /** 전방 최대 300m 구간을 샘플로 스캔해 Mapillary 유무 확인 */
 const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M = [0, 70, 140, 210, 280, 300] as const;
-/** 이 거리 이하 전방 샘플에서 맞은 프레임이면 패널을 미리 띄움(늦지 않게) */
-const MAPILLARY_STREET_SHOW_LEAD_MAX_M = 102;
 const MAPILLARY_STREET_FETCH_THROTTLE_MS = 780;
 const MAPILLARY_STREET_FETCH_MIN_MOVE_M = 24;
 
@@ -1672,6 +1669,19 @@ const App: React.FC = () => {
               ? { compact: true, customAttribution: 'Imagery © Mapillary' }
               : true,
           });
+          const ensureMapInteractionsEnabled = () => {
+            try {
+              map.scrollZoom.enable();
+              map.dragPan.enable();
+              map.touchZoomRotate.enable();
+              map.doubleClickZoom.enable();
+              map.boxZoom.enable();
+              map.keyboard.enable();
+            } catch {
+              /* 일부 핸들러 미지원 환경 */
+            }
+          };
+          ensureMapInteractionsEnabled();
           map.on('style.load', () => {
             try {
               ensureRouteLineLayer(map);
@@ -1718,6 +1728,7 @@ const App: React.FC = () => {
                 stackMapillaryBelowRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
                 setMapillaryCoverageVisibility(map, mapillaryCoverageVisibleRef.current);
               }
+              ensureMapInteractionsEnabled();
               map.resize();
             } catch (e) {
               console.warn('[Mapbox] style.load route layer', e);
@@ -2838,7 +2849,7 @@ const App: React.FC = () => {
         for (const { sampleM, pick } of sorted) {
           if (!pick) continue;
           if (pick.id === dismissed) continue;
-          if (sampleM === 0 || sampleM <= MAPILLARY_STREET_SHOW_LEAD_MAX_M) {
+          if (sampleM <= 300) {
             chosenKey = pick.id;
             break;
           }
@@ -4855,7 +4866,15 @@ const App: React.FC = () => {
             </button>
           </div>
           <div className="relative w-full aspect-video bg-black shrink-0">
-            <MapillaryRideViewer accessToken={MAPILLARY_CLIENT_TOKEN} imageId={rideMapillaryStreet.imageKey} />
+            <iframe
+              key={rideMapillaryStreet.imageKey}
+              title="Mapillary"
+              src={mapillaryEmbedUrl(rideMapillaryStreet.imageKey, 'photo')}
+              className="absolute inset-0 h-full w-full border-0"
+              loading="eager"
+              referrerPolicy="no-referrer-when-downgrade"
+              allow="fullscreen; autoplay"
+            />
           </div>
           <p className="text-[9px] text-white/55 px-2 py-1 border-t border-white/10 shrink-0 leading-tight">
             Imagery © Mapillary contributors
