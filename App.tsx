@@ -367,12 +367,10 @@ const SAFE_TOP_INSET = IS_ANDROID_NATIVE ? '0px' : 'env(safe-area-inset-top, 0px
 /** 네이티브 WebView 패딩 없음 — safe-area는 CSS env()만 사용 (viewport-fit=cover) */
 const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
 const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
-/** OSRM·Mapillary 기본·360(3×2.4+gap) + 3D(2.4) 아래 — 우측 1rem 열과 겹치지 않게 */
-const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 14rem)`;
+/** 우측 아이콘 스택(맵 스타일 + OSRM/Mapillary/3D) 아래 — 동일 열·gap 기준으로 여백 */
+const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 15rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
-/** OSRM·Mapillary 기본·360 세로 스택(gap-0.5) 아래 3D 버튼 상단 */
-const SAFE_TOP_3D_BTN = `calc(${SAFE_TOP_INSET} + 11.1rem)`;
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
 const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
 
@@ -5153,47 +5151,39 @@ const App: React.FC = () => {
 
 
 
-      {/* 지도 스타일 4종 */}
+      {/* 우측 상단: 맵 스타일(안쪽 열) + OSRM/Mapillary/3D(바깥 열) — 가로·세로 gap 통일 */}
       <div
-        className="fixed z-[1000] pointer-events-auto flex flex-col gap-1.5 items-center"
-        style={{
-          right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
-          top: SAFE_TOP_1REM,
-        }}
-        role="radiogroup"
-        aria-label="Map style"
-      >
-        {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
-          const active = mapType === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onPointerDown={stopPointerPropagation}
-              onTouchStart={stopPointerPropagation}
-              onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(id))}
-              onClick={() => applyMapStyle(id)}
-              title={title}
-              aria-label={title}
-              aria-checked={active}
-              role="radio"
-              className={`w-[2.35rem] h-[2.35rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border-2 ${
-                active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
-              }`}
-            >
-              <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
-            </button>
-          );
-        })}
-      </div>
-      {/* OSRM 맵 도로(Mapbox composite) + Mapillary — 나란히 비교, 아래에 3D */}
-      <div
-        className="fixed z-[1000] pointer-events-auto flex flex-col gap-0.5 items-center"
+        className="fixed z-[1000] pointer-events-auto flex flex-row-reverse items-start gap-2"
         style={{
           right: SAFE_RIGHT_1REM,
           top: SAFE_TOP_1REM,
         }}
       >
+        <div className="flex flex-col gap-1.5 items-center" role="radiogroup" aria-label="Map style">
+          {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
+            const active = mapType === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onPointerDown={stopPointerPropagation}
+                onTouchStart={stopPointerPropagation}
+                onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(id))}
+                onClick={() => applyMapStyle(id)}
+                title={title}
+                aria-label={title}
+                aria-checked={active}
+                role="radio"
+                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border-2 ${
+                  active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-col gap-1.5 items-center">
         <button
           type="button"
           onPointerDown={stopPointerPropagation}
@@ -5298,14 +5288,6 @@ const App: React.FC = () => {
             )}
           </button>
         )}
-      </div>
-      <div
-        className="fixed z-[1000] pointer-events-auto"
-        style={{
-          right: SAFE_RIGHT_1REM,
-          top: SAFE_TOP_3D_BTN,
-        }}
-      >
         <button
           type="button"
           onPointerDown={stopPointerPropagation}
@@ -5320,13 +5302,14 @@ const App: React.FC = () => {
         >
           <Box size={16} className="pointer-events-none" />
         </button>
+        </div>
       </div>
 
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
       <div
         className="fixed z-[1000] flex flex-col items-end leading-none select-none"
         style={{
-          right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
+          right: SAFE_RIGHT_1REM,
           top: SAFE_TOP_SPEED_PANEL,
           pointerEvents: 'none',
         }}
