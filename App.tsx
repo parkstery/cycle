@@ -75,6 +75,8 @@ import {
   computeDistanceBetween,
   computeHeading,
   computeOffset,
+  densifyPolylineFixedIntervalM,
+  indexAtOrBeforeCumulativeDistance,
 } from './services/geoUtils';
 import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
 import { MAPBOX_ACCESS_TOKEN } from './mapboxToken';
@@ -132,8 +134,13 @@ const USE_OFFLINE_ROUTE_RESTORE = true;
 /** 저장 payload 의 현재 스키마 버전. */
 const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
-/** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
-const ROUTE_DENSIFY_INTERVAL_M = 1;
+/**
+ * 맵·시뮬·저장용 주행 경로 샘플 간격(m). OSRM 꼭짓점 폴리라인을 따라 누적거리 보간(densifyPolylineFixedIntervalM).
+ * Mapillary 전용 더 촘촘한 경로는 MAPILLARY_QUERY_PATH_INTERVAL_M + fullGeometry 로 별도 생성.
+ */
+const ROUTE_RENDER_DENSIFY_INTERVAL_M = 18;
+/** Mapillary 조회: OSRM 원본(fullGeometry) 기준 12m — 렌더 경로보다 촘촘히 옆도로 nearest 오인 방지 */
+const MAPILLARY_QUERY_PATH_INTERVAL_M = 12;
 /** Slow-route dialog if geocode+OSRM not finished by this time (per-phase; calculation keeps running). */
 const ROUTE_PHASE_SLOW_MODAL_MS = 10000;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
@@ -194,32 +201,11 @@ const parseSavedRoutes = (raw: string | null): SavedRoute[] => {
   }
 };
 
-/** [lat,lng] 배열을 densify 간격으로 보간 (calculateRoute 의 densifiedPath 와 동일 로직) */
+/** [lat,lng] 배열을 폴리라인 누적거리 기준으로 보간 (calculateRoute·오프라인 복원과 동일) */
 const densifyLatLngPath = (
   latLngs: [number, number][],
-  intervalM: number = ROUTE_DENSIFY_INTERVAL_M
-): [number, number][] => {
-  if (latLngs.length < 2) return latLngs.slice();
-  const out: [number, number][] = [];
-  for (let i = 0; i < latLngs.length - 1; i++) {
-    const p1 = latLngs[i];
-    const p2 = latLngs[i + 1];
-    out.push(p1);
-    const a = { lat: p1[0], lng: p1[1] };
-    const b = { lat: p2[0], lng: p2[1] };
-    const dist = computeDistanceBetween(a, b);
-    if (dist > intervalM) {
-      const steps = Math.floor(dist / intervalM);
-      const heading = computeHeading(a, b);
-      for (let j = 1; j <= steps; j++) {
-        const pt = computeOffset(a, j * intervalM, heading);
-        out.push([pt.lat, pt.lng]);
-      }
-    }
-  }
-  out.push(latLngs[latLngs.length - 1]);
-  return out;
-};
+  intervalM: number = ROUTE_RENDER_DENSIFY_INTERVAL_M
+): [number, number][] => densifyPolylineFixedIntervalM(latLngs, intervalM);
 
 /** 누적 거리 배열 계산 (미터) */
 const computeCumulativeDistances = (latLngs: [number, number][]): number[] => {
@@ -888,8 +874,13 @@ const App: React.FC = () => {
   const mapillaryStreetFetchGenRef = useRef(0);
   /** 사용자가 닫은 프레임 — 같은 imageKey 가 다시 잡히면 자동 재오픈하지 않음 */
   const lastMapillaryStreetDismissedKeyRef = useRef<string | null>(null);
-  /** 직전에 표시한 촬영점 좌표 — 다음 선택 시 연속 구간을 우선 */
-  const lastMapillaryStreetPickRef = useRef<{ id: string; lat: number; lng: number } | null>(null);
+  /** 직전에 표시한 촬영점 — 다음 선택 시 연속·시퀀스 우선 */
+  const lastMapillaryStreetPickRef = useRef<{
+    id: string;
+    lat: number;
+    lng: number;
+    sequenceId?: string;
+  } | null>(null);
   /** 일시정지 시에는 거리뷰 유지 — 완전 종료·경로 제거·재탐색 시에만 호출 */
   const resetRideMapillaryStreetState = useCallback(() => {
     lastMapillaryStreetAnchorRef.current = null;
@@ -899,20 +890,44 @@ const App: React.FC = () => {
     lastMapillaryStreetPickRef.current = null;
     setRideMapillaryStreet(null);
   }, []);
-  /** Mapillary 뷰어 시야: 경로 전방점 + 주행 방위 */
+  /** Mapillary Graph 샘플링: OSRM fullGeometry 기준 촘촘한 경로(렌더 path 와 분리) */
+  const mapillaryStreetDensePathChunks = useMemo(() => {
+    if (!route?.path?.length) return null;
+    const sparseLatLng: [number, number][] = route.path.map(
+      (p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]
+    );
+    const cumSparse = computeCumulativeDistances(sparseLatLng);
+    const src =
+      lastOsrmDecodedPathRef.current && lastOsrmDecodedPathRef.current.length >= 2
+        ? lastOsrmDecodedPathRef.current
+        : sparseLatLng;
+    const denseLatLng = densifyPolylineFixedIntervalM(src, MAPILLARY_QUERY_PATH_INTERVAL_M);
+    const densePath = denseLatLng.map(([lat, lng]) => ({ lat, lng }));
+    const cumDense = computeCumulativeDistances(denseLatLng);
+    return { densePath, cumDense, cumSparse };
+  }, [route?.path]);
+  /** Mapillary 뷰어 시야: 촘촘 경로 기준 전방점 + 주행 방위 */
   const mapillaryRideSync = useMemo(() => {
     if (!route?.path?.length) {
       return { lookAt: null as { lat: number; lng: number } | null, driveHeadingDeg: null as number | null };
     }
     const path = route.path;
     const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
-    const ahead = pathPointAhead(path, idx, 52);
-    const driveH = driveHeadingAtPathIndex(path, idx);
+    const chunks = mapillaryStreetDensePathChunks;
+    let ahead = pathPointAhead(path, idx, 52);
+    let driveH = driveHeadingAtPathIndex(path, idx);
+    if (chunks) {
+      const d = chunks.cumSparse[Math.min(idx, chunks.cumSparse.length - 1)] ?? 0;
+      const denseIdx = indexAtOrBeforeCumulativeDistance(chunks.cumDense, d);
+      const a = pathPointAhead(chunks.densePath, denseIdx, 52);
+      if (a) ahead = a;
+      driveH = driveHeadingAtPathIndex(chunks.densePath, denseIdx) ?? driveH;
+    }
     return {
       lookAt: ahead ? { lat: ahead.lat, lng: ahead.lng } : null,
       driveHeadingDeg: driveH,
     };
-  }, [route?.path, simulation.currentIndex]);
+  }, [route?.path, simulation.currentIndex, mapillaryStreetDensePathChunks]);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -2986,6 +3001,7 @@ const App: React.FC = () => {
       return;
     }
     const path = route.path;
+    const chunks = mapillaryStreetDensePathChunks;
     const ac = new AbortController();
 
     const tryFetch = () => {
@@ -3014,12 +3030,19 @@ const App: React.FC = () => {
       const gen = ++mapillaryStreetFetchGenRef.current;
       void (async () => {
         try {
+          const queryPath = chunks?.densePath ?? path;
+          const queryIdx = chunks
+            ? indexAtOrBeforeCumulativeDistance(
+                chunks.cumDense,
+                chunks.cumSparse[Math.min(idx, chunks.cumSparse.length - 1)] ?? 0
+              )
+            : idx;
           const rows = await queryMapillaryAlongPathSamples(
             MAPILLARY_CLIENT_TOKEN,
-            path,
-            idx,
+            queryPath,
+            queryIdx,
             [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_DENSE_M],
-            { signal: ac.signal }
+            { signal: ac.signal, speedKmH: effectiveSpeedKmHRef.current }
           );
           if (gen !== mapillaryStreetFetchGenRef.current) return;
           const dismissed = lastMapillaryStreetDismissedKeyRef.current;
@@ -3061,6 +3084,7 @@ const App: React.FC = () => {
               id: chosenPick.id,
               lat: chosenPick.lat,
               lng: chosenPick.lng,
+              sequenceId: chosenPick.sequenceId,
             };
           }
         } catch {
@@ -3077,7 +3101,7 @@ const App: React.FC = () => {
       clearInterval(intervalId);
       ac.abort();
     };
-  }, [mapillaryTokenConfigured, simulation.isActive, route?.path, resetRideMapillaryStreetState]);
+  }, [mapillaryTokenConfigured, simulation.isActive, route?.path, mapillaryStreetDensePathChunks, resetRideMapillaryStreetState]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -3572,7 +3596,7 @@ const App: React.FC = () => {
       // 1) densifiedGeometry 결정 — v2 이면 저장된 것, 아니면 fullGeometry 를 즉석 densify
       const densifiedLatLng: [number, number][] = canOffline && payload.densifiedGeometry?.length
         ? payload.densifiedGeometry
-        : densifyLatLngPath(payload.fullGeometry, ROUTE_DENSIFY_INTERVAL_M);
+        : densifyLatLngPath(payload.fullGeometry, ROUTE_RENDER_DENSIFY_INTERVAL_M);
       const path = densifiedLatLng.map(([lat, lng]) => ({ lat, lng }));
       if (path.length < 2) throw new Error('Restored path too short');
 
@@ -4154,23 +4178,9 @@ const App: React.FC = () => {
           }
         }
 
-        const densifiedPath = [];
-        const segmentLength = ROUTE_DENSIFY_INTERVAL_M;
-        for (let i = 0; i < path.length - 1; i++) {
-          const p1 = path[i];
-          const p2 = path[i + 1];
-          densifiedPath.push(p1);
-          const dist = computeDistanceBetween(p1, p2);
-          if (dist > segmentLength) {
-            const stepCount = Math.floor(dist / segmentLength);
-            const heading = computeHeading(p1, p2);
-            for (let j = 1; j <= stepCount; j++) {
-              const nextPt = computeOffset(p1, j * segmentLength, heading);
-              densifiedPath.push({ lat: nextPt.lat, lng: nextPt.lng });
-            }
-          }
-        }
-        densifiedPath.push(path[path.length - 1]);
+        const osrmPairs: [number, number][] = path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]);
+        const densifiedPairs = densifyPolylineFixedIntervalM(osrmPairs, ROUTE_RENDER_DENSIFY_INTERVAL_M);
+        const densifiedPath = densifiedPairs.map(([lat, lng]) => ({ lat, lng }));
         const oldMarkers = [startMarker.current, endMarker.current, ...waypointMarkers.current].filter(Boolean);
         oldMarkers.forEach((m) => m.remove());
         mapMarkersRef.current = mapMarkersRef.current.filter((m) => !oldMarkers.includes(m));

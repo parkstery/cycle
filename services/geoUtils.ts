@@ -199,3 +199,63 @@ export function getLatLngAtDistanceAlongPath(
   };
 }
 
+/**
+ * 누적 거리 배열(단조 비감소)에서 `distanceM` 이하인 마지막 꼭짓점 인덱스.
+ */
+export function indexAtOrBeforeCumulativeDistance(cumDist: number[], distanceM: number): number {
+  if (!cumDist.length) return 0;
+  const target = Math.max(0, Math.min(distanceM, cumDist[cumDist.length - 1] ?? 0));
+  let lo = 0;
+  let hi = cumDist.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (cumDist[mid]! <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/**
+ * [[lat,lng], ...] 폴리라인을 **꼭짓점 사이 위·경도 선형 보간**으로 따라 `intervalM` 간격 샘플.
+ * (세그먼트마다 구대권 offset 보간 대신 누적 거리 기준으로 도로 곡선에 더 잘 붙음)
+ */
+export function densifyPolylineFixedIntervalM(
+  latLngs: [number, number][],
+  intervalM: number
+): [number, number][] {
+  if (!latLngs.length) return [];
+  if (latLngs.length === 1) {
+    const a = latLngs[0]!;
+    return [[a[0], a[1]]];
+  }
+  const step = Math.max(0.5, intervalM);
+  const path = latLngs.map(([lat, lng]) => ({ lat, lng }));
+  const cum: number[] = [0];
+  for (let i = 1; i < path.length; i++) {
+    cum.push(cum[i - 1]! + computeDistanceBetween(path[i - 1]!, path[i]!));
+  }
+  const total = cum[cum.length - 1] ?? 0;
+  if (!Number.isFinite(total) || total <= 0) {
+    const a = latLngs[0]!;
+    const b = latLngs[latLngs.length - 1]!;
+    return [
+      [a[0], a[1]],
+      [b[0], b[1]],
+    ];
+  }
+  const out: [number, number][] = [];
+  for (let d = 0; d < total; d += step) {
+    const p = getLatLngAtDistanceAlongPath(path, cum, d);
+    out.push([p.lat, p.lng]);
+  }
+  const last = latLngs[latLngs.length - 1]!;
+  const lastOut = out[out.length - 1];
+  if (lastOut) {
+    const gap = computeDistanceBetween({ lat: lastOut[0], lng: lastOut[1] }, { lat: last[0], lng: last[1] });
+    if (gap > 0.35) out.push([last[0], last[1]]);
+  } else {
+    out.push([last[0], last[1]]);
+  }
+  return out;
+}
+

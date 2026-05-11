@@ -1,4 +1,8 @@
-import { computeDistanceBetween, computeHeading, computeOffset, type LatLngLike } from './geoUtils';
+import {
+  computeDistanceBetween,
+  computeHeading,
+  type LatLngLike,
+} from './geoUtils';
 
 export type MapillaryStreetCandidate = {
   id: string;
@@ -6,6 +10,8 @@ export type MapillaryStreetCandidate = {
   lng: number;
   lat: number;
   compassAngle?: number;
+  /** Graph API `sequence` — 같은 시퀀스 우선 시 연속성에 사용 */
+  sequenceId?: string;
   isPano: boolean;
 };
 
@@ -20,12 +26,19 @@ function pointFromGeometry(g: GeoJsonPoint | undefined): { lng: number; lat: num
   return { lng, lat };
 }
 
+/** Graph `images` 검색 반경: 넓으면 옆 도로 후보가 섞임 — 10~50m 로 클램프 */
+export function mapillaryStreetSearchRadiusM(speedKmH?: number | null): number {
+  const v = speedKmH != null && Number.isFinite(speedKmH) ? speedKmH : 25;
+  const r = v < 20 ? 16 : 28;
+  return Math.min(50, Math.max(10, r));
+}
+
 /** 반경 검색(radius 최대 50m). 주행 위치 근처 Mapillary 이미지 후보. */
 export async function fetchMapillaryStreetCandidates(
   accessToken: string,
   lat: number,
   lng: number,
-  init?: { signal?: AbortSignal }
+  init?: { signal?: AbortSignal; radiusM?: number }
 ): Promise<MapillaryStreetCandidate[]> {
   const token = accessToken.trim();
   if (!token) return [];
@@ -36,13 +49,15 @@ export async function fetchMapillaryStreetCandidates(
     'computed_geometry',
     'compass_angle',
     'computed_compass_angle',
+    'sequence',
     'is_pano',
   ].join(',');
   const url = new URL('https://graph.mapillary.com/images');
   url.searchParams.set('access_token', token);
   url.searchParams.set('lat', String(lat));
   url.searchParams.set('lng', String(lng));
-  url.searchParams.set('radius', '50');
+  const radius = Math.min(50, Math.max(10, Math.round(init?.radiusM ?? 22)));
+  url.searchParams.set('radius', String(radius));
   url.searchParams.set('limit', '12');
   url.searchParams.set('fields', fields);
   const res = await fetch(url.toString(), { signal: init?.signal, referrerPolicy: 'no-referrer' });
@@ -71,9 +86,16 @@ export async function fetchMapillaryStreetCandidates(
         : typeof row.compass_angle === 'number' && Number.isFinite(row.compass_angle)
           ? row.compass_angle
           : undefined;
+    let sequenceId: string | undefined;
+    const seq = (row as { sequence?: unknown }).sequence;
+    if (typeof seq === 'string' && seq.length) sequenceId = seq;
+    else if (seq && typeof seq === 'object' && seq !== null && 'id' in seq) {
+      const sid = (seq as { id?: unknown }).id;
+      if (sid != null && String(sid).length) sequenceId = String(sid);
+    }
     const thumb1024Url = typeof row.thumb_1024_url === 'string' ? row.thumb_1024_url : undefined;
     const isPano = row.is_pano === true;
-    out.push({ id, lng: pt.lng, lat: pt.lat, compassAngle, thumb1024Url, isPano });
+    out.push({ id, lng: pt.lng, lat: pt.lat, compassAngle, thumb1024Url, sequenceId, isPano });
   }
   return out;
 }
@@ -99,7 +121,7 @@ export function chooseMapillaryPickAlongPath(
   rows: Array<{ sampleM: number; pick: MapillaryStreetCandidate | null }>,
   options: {
     dismissedId: string | null;
-    prevPick: { id: string; lat: number; lng: number } | null;
+    prevPick: { id: string; lat: number; lng: number; sequenceId?: string } | null;
     /** 이전 프레임과의 허용 최대 거리(m) — 초과 시 큰 패널티 */
     maxGpsJumpM: number;
     /** 라이더가 이전 촬영점에서 이 거리(m) 이상 떨어지면 연속성 가중을 끈다 */
@@ -149,9 +171,13 @@ export function chooseMapillaryPickAlongPath(
   const MAX = options.maxGpsJumpM;
   const RELAX = Math.min(125, MAX * 2.25);
 
+  const prevSeq = prev.sequenceId;
+
   const score = (r: { sampleM: number; pick: MapillaryStreetCandidate }): number => {
     const p = r.pick;
     const sameId = p.id === prev.id;
+    const sameSeq =
+      !!prevSeq && !!p.sequenceId && p.sequenceId === prevSeq ? 1 : 0;
     let dPrev = 9999;
     try {
       dPrev = computeDistanceBetween({ lat: prev.lat, lng: prev.lng }, { lat: p.lat, lng: p.lng });
@@ -164,11 +190,14 @@ export function chooseMapillaryPickAlongPath(
       else if (dPrev <= RELAX) jumpPenalty = MAX * 0.22 + (dPrev - MAX) * 1.65;
       else jumpPenalty = 4000 + dPrev;
     }
-    return r.sampleM * 1.85 + jumpPenalty - (sameId ? 380 : 0);
+    return r.sampleM * 1.85 + jumpPenalty - (sameId ? 380 : 0) - sameSeq * 95;
   };
 
   return [...sorted].sort((a, b) => score(a) - score(b))[0]!.pick;
 }
+
+/** 촬영 방향(compass)이 진행 방향과 크게 어긋나면 옆 도로·역주행 프레임일 가능성이 큼 */
+const MAX_HEADING_DIFF_DEG = 45;
 
 export function pickMapillaryStreetCandidate(
   candidates: MapillaryStreetCandidate[],
@@ -184,16 +213,23 @@ export function pickMapillaryStreetCandidate(
         computeDistanceBetween(current, { lat: b.lat, lng: b.lng })
     )[0]!;
   }
-  let best = candidates[0]!;
+
+  const withCompass = candidates.filter((c) => c.compassAngle != null && Number.isFinite(c.compassAngle));
+  const headingAligned = withCompass.filter(
+    (c) => smallestAngleDiffDeg(driveHeadingDeg, c.compassAngle!) <= MAX_HEADING_DIFF_DEG
+  );
+  const pool = headingAligned.length ? headingAligned : withCompass.length ? withCompass : candidates;
+
+  let best = pool[0]!;
   let bestScore = Infinity;
-  for (const c of candidates) {
+  for (const c of pool) {
     const d = computeDistanceBetween(current, { lat: c.lat, lng: c.lng });
     const bearingToImage = computeHeading(current, { lat: c.lat, lng: c.lng });
     const forwardAlign = smallestAngleDiffDeg(driveHeadingDeg, bearingToImage);
     const compass = c.compassAngle;
     const facingAlign =
       compass != null && Number.isFinite(compass) ? smallestAngleDiffDeg(driveHeadingDeg, compass) : 50;
-    const score = d + forwardAlign * 0.45 + facingAlign * 0.2;
+    const score = d + forwardAlign * 0.45 + facingAlign * 0.35;
     if (score < bestScore) {
       bestScore = score;
       best = c;
@@ -250,13 +286,12 @@ export function pathPointAhead(
     }
     if (!Number.isFinite(seg) || seg <= 0) seg = 2;
     if (remaining <= seg) {
-      try {
-        const heading = computeHeading(p1 as LatLngLike, p2 as LatLngLike);
-        const off = computeOffset(p1 as LatLngLike, remaining, heading);
-        return { lat: off.lat, lng: off.lng, pathIndex: i };
-      } catch {
-        return { lat: ll2.lat, lng: ll2.lng, pathIndex: i };
-      }
+      const t = seg > 0 ? remaining / seg : 1;
+      return {
+        lat: ll1.lat + t * (ll2.lat - ll1.lat),
+        lng: ll1.lng + t * (ll2.lng - ll1.lng),
+        pathIndex: i,
+      };
     }
     remaining -= seg;
     i += 1;
@@ -285,13 +320,17 @@ export async function queryMapillaryAlongPathSamples(
   path: unknown[],
   startIdx: number,
   samplesM: number[],
-  init?: { signal?: AbortSignal }
+  init?: { signal?: AbortSignal; speedKmH?: number | null }
 ): Promise<Array<{ sampleM: number; pick: MapillaryStreetCandidate | null }>> {
+  const radiusM = mapillaryStreetSearchRadiusM(init?.speedKmH);
   const tasks = samplesM.map(async (sampleM) => {
     const pt = pathPointAhead(path, startIdx, sampleM);
     if (!pt) return { sampleM, pick: null as MapillaryStreetCandidate | null };
     const drive = driveHeadingAtPathIndex(path, pt.pathIndex);
-    const candidates = await fetchMapillaryStreetCandidates(accessToken, pt.lat, pt.lng, init);
+    const candidates = await fetchMapillaryStreetCandidates(accessToken, pt.lat, pt.lng, {
+      signal: init?.signal,
+      radiusM,
+    });
     const pick = pickMapillaryStreetCandidate(candidates, { lat: pt.lat, lng: pt.lng }, drive);
     return { sampleM, pick };
   });

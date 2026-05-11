@@ -20,7 +20,7 @@
  *   - rate limit: Nominatim 1 req/s, OSRM public 2 req/s, Open-Elevation 체감 1 req/s.
  *   - 실패 시 해당 슬롯은 기존 JSON 유지하며 경고 출력(다른 슬롯은 계속 빌드).
  *
- * 이 스크립트는 App.tsx 의 densifyLatLngPath / computeCumulativeDistances 와 동일 로직을 포함한다.
+ * 이 스크립트는 App.tsx 의 densifyPolylineFixedIntervalM / computeCumulativeDistances 와 동일 로직을 포함한다.
  * 렌더 타임과 빌드 타임 결과가 일치해야 densifiedGeometry 의 currentIndex 의미가 같아진다.
  */
 
@@ -40,7 +40,7 @@ const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const OSRM_BASE = 'https://routing.openstreetmap.de';
 const OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
 const OPENTOPODATA_MAPZEN = 'https://api.opentopodata.org/v1/mapzen';
-const DENSIFY_INTERVAL_M = 10;
+const DENSIFY_INTERVAL_M = 18;
 const SCHEMA_VERSION = 2;
 const SNAP_RADIUS_M = 50;
 
@@ -58,26 +58,6 @@ function haversine(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function headingDeg(a, b) {
-  const dLon = ((b.lng - a.lng) * Math.PI) / 180;
-  const y = Math.sin(dLon) * Math.cos((b.lat * Math.PI) / 180);
-  const x =
-    Math.cos((a.lat * Math.PI) / 180) * Math.sin((b.lat * Math.PI) / 180) -
-    Math.sin((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.cos(dLon);
-  const brng = (Math.atan2(y, x) * 180) / Math.PI;
-  return (brng + 360) % 360;
-}
-
-function offset(from, distanceM, headingDegVal) {
-  const R = 6371000;
-  const d = distanceM / R;
-  const brng = (headingDegVal * Math.PI) / 180;
-  const lat1 = (from.lat * Math.PI) / 180;
-  const lng1 = (from.lng * Math.PI) / 180;
-  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
-  const lng2 = lng1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
-  return { lat: (lat2 * 180) / Math.PI, lng: (lng2 * 180) / Math.PI };
-}
 
 /** encoded polyline (factor 1e5) → [[lat,lng], ...] */
 function decodePolyline(encoded) {
@@ -106,26 +86,72 @@ function decodePolyline(encoded) {
   return points;
 }
 
-function densifyLatLngPath(latLngs, intervalM = DENSIFY_INTERVAL_M) {
-  if (latLngs.length < 2) return latLngs.slice();
-  const out = [];
-  for (let i = 0; i < latLngs.length - 1; i++) {
-    const p1 = latLngs[i], p2 = latLngs[i + 1];
-    out.push(p1);
-    const a = { lat: p1[0], lng: p1[1] };
-    const b = { lat: p2[0], lng: p2[1] };
-    const d = haversine(a, b);
-    if (d > intervalM) {
-      const steps = Math.floor(d / intervalM);
-      const hd = headingDeg(a, b);
-      for (let j = 1; j <= steps; j++) {
-        const pt = offset(a, j * intervalM, hd);
-        out.push([pt.lat, pt.lng]);
-      }
-    }
+/** services/geoUtils.getLatLngAtDistanceAlongPath 와 동일 ([lat,lng] 튜플 경로) */
+function getLatLngAtDistanceAlongPath(latLngs, cumDist, distanceM) {
+  const total = cumDist[cumDist.length - 1];
+  const d = Math.max(0, Math.min(distanceM, total));
+  if (latLngs.length === 1) {
+    const p = latLngs[0];
+    return { lat: p[0], lng: p[1], segmentIndex: 0 };
   }
-  out.push(latLngs[latLngs.length - 1]);
+  let i = 0;
+  while (i < latLngs.length - 1 && cumDist[i + 1] < d) i += 1;
+  if (i >= latLngs.length - 1) {
+    const p = latLngs[latLngs.length - 1];
+    return { lat: p[0], lng: p[1], segmentIndex: Math.max(0, latLngs.length - 2) };
+  }
+  const d0 = cumDist[i];
+  const d1 = cumDist[i + 1];
+  const t = d1 > d0 ? (d - d0) / (d1 - d0) : 0;
+  const a = latLngs[i];
+  const b = latLngs[i + 1];
+  return {
+    lat: a[0] + t * (b[0] - a[0]),
+    lng: a[1] + t * (b[1] - a[1]),
+    segmentIndex: i
+  };
+}
+
+/** services/geoUtils.densifyPolylineFixedIntervalM 와 동일 */
+function densifyPolylineFixedIntervalM(latLngs, intervalM) {
+  if (!latLngs.length) return [];
+  if (latLngs.length === 1) {
+    const a = latLngs[0];
+    return [[a[0], a[1]]];
+  }
+  const step = Math.max(0.5, intervalM);
+  const path = latLngs.map(([lat, lng]) => ({ lat, lng }));
+  const cum = [0];
+  for (let i = 1; i < path.length; i += 1) {
+    cum.push(cum[i - 1] + haversine(path[i - 1], path[i]));
+  }
+  const total = cum[cum.length - 1];
+  if (!Number.isFinite(total) || total <= 0) {
+    const a = latLngs[0];
+    const b = latLngs[latLngs.length - 1];
+    return [
+      [a[0], a[1]],
+      [b[0], b[1]]
+    ];
+  }
+  const out = [];
+  for (let dist = 0; dist < total; dist += step) {
+    const p = getLatLngAtDistanceAlongPath(latLngs, cum, dist);
+    out.push([p.lat, p.lng]);
+  }
+  const last = latLngs[latLngs.length - 1];
+  const lastOut = out[out.length - 1];
+  if (lastOut) {
+    const gap = haversine({ lat: lastOut[0], lng: lastOut[1] }, { lat: last[0], lng: last[1] });
+    if (gap > 0.35) out.push([last[0], last[1]]);
+  } else {
+    out.push([last[0], last[1]]);
+  }
   return out;
+}
+
+function densifyLatLngPath(latLngs, intervalM = DENSIFY_INTERVAL_M) {
+  return densifyPolylineFixedIntervalM(latLngs, intervalM);
 }
 
 function cumulativeDistances(latLngs) {
