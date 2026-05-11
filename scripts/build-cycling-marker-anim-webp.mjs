@@ -34,7 +34,8 @@ async function main() {
     const buf = await base
       .clone()
       .rotate(deg, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .resize(SIZE, SIZE, { fit: 'cover', position: 'centre' })
+      /* contain: 프레임마다 crop 이 달라지지 않게 — 스프라이트 가로 슬라이드 시 흘러가는 느낌 완화 */
+      .resize(SIZE, SIZE, { fit: 'contain', position: 'centre' })
       .png()
       .toBuffer();
     frameBuffers.push(buf);

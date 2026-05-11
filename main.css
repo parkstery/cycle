@@ -66,26 +66,44 @@ html,
     0 0 32px #000;
 }
 
-/* OSRM 주행 마커: 스프라이트 루프 — duration 은 App 에서 속도 연동, 방향은 부모 scaleX */
-.cycling-sim-marker-sprite {
-  width: 120px;
-  height: 120px;
+/* OSRM 주행 마커: 본체는 정지 PNG, 크랭크만 회전 — 속도(또는 케이던스 센서)에 따라 duration 조절(App.tsx) */
+.cycling-sim-marker-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.cycling-sim-marker-body {
+  width: 100%;
+  height: 100%;
   background-repeat: no-repeat;
-  background-position: 0 0;
+  background-position: center;
+  background-size: contain;
   -webkit-user-drag: none;
   user-select: none;
-  animation-name: cycling-marker-sprite-cycle;
-  /* 프레임 수는 App.tsx CYCLING_MARKER_SPRITE_FRAME_COUNT·빌드 스크립트와 동일 */
-  animation-timing-function: steps(16, end);
+}
+.cycling-sim-marker-cranks-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  width: 34%;
+  height: 34%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.cycling-sim-marker-cranks {
+  width: 100%;
+  height: 100%;
+  animation-name: cycling-marker-cranks-spin;
+  animation-timing-function: linear;
   animation-iteration-count: infinite;
+  transform-origin: 50% 50%;
 }
 
-@keyframes cycling-marker-sprite-cycle {
+@keyframes cycling-marker-cranks-spin {
   from {
-    background-position: 0 0;
+    transform: rotate(0deg);
   }
   to {
-    /* 16프레임 × 120px — steps(16) 이 마지막 프레임까지 맞도록 (FRAME_COUNT-1)*FRAME_W */
-    background-position: -1800px 0;
+    transform: rotate(360deg);
   }
 }
