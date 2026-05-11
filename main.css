@@ -66,6 +66,13 @@ html,
     0 0 32px #000;
 }
 
+/* OSRM 주행 마커: Mapbox 가 붙이는 .mapboxgl-marker 루트에 투명 배경 강제 */
+.cycling-sim-marker-host.mapboxgl-marker,
+.cycling-sim-marker-host {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 /* OSRM 주행 마커: `public/riding` 페달링 스프라이트 — steps/@keyframes 는 ridingPedalStripKeyframes.ts 가 주입 */
 .cycling-sim-marker-stack {
   position: relative;

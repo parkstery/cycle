@@ -125,7 +125,7 @@ const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
 /** `public/riding/pedal-sprite.png` — `npm run build:riding-sprite` 로 생성, 캐시 무력화용 */
-const RIDING_PEDAL_SPRITE_REVISION = 2;
+const RIDING_PEDAL_SPRITE_REVISION = 3;
 const CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL =
   '/riding/pedal-sprite.png?v=' + RIDING_PEDAL_SPRITE_REVISION;
 /** 페달링 RPM 상한·하한(표시용) */
@@ -141,8 +141,10 @@ function buildCyclingSimMarkerStack(loopSec: number, pedalingRunning: boolean): 
   ensureRidingPedalStripKeyframes();
   const stack = document.createElement('div');
   stack.className = 'cycling-sim-marker-stack';
+  stack.style.backgroundColor = 'transparent';
   const sprite = document.createElement('div');
   sprite.className = 'cycling-sim-marker-pedal-sprite';
+  sprite.style.backgroundColor = 'transparent';
   sprite.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL}")`;
   sprite.style.backgroundSize = `${RIDING_PEDAL_CELL_PX * RIDING_PEDAL_FRAME_COUNT}px ${RIDING_PEDAL_CELL_PX}px`;
   sprite.style.animationDuration = `${loopSec}s`;
@@ -2803,14 +2805,17 @@ const App: React.FC = () => {
 
     if (!simulationMarker.current && map && mbGl) {
       const el = document.createElement('div');
+      el.classList.add('cycling-sim-marker-host');
       el.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.style.pointerEvents = 'none';
       el.style.zIndex = '1200';
+      el.style.backgroundColor = 'transparent';
       const flip = document.createElement('div');
       flip.className = 'cycling-sim-marker-flip';
       flip.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
       flip.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
+      flip.style.backgroundColor = 'transparent';
       flip.style.transformOrigin = 'center center';
       flip.style.transform = flipHorizontal ? 'scaleX(-1)' : '';
       flip.appendChild(buildCyclingSimMarkerStack(pedalLoopSec, pedalingRunning));
@@ -2821,12 +2826,15 @@ const App: React.FC = () => {
     } else if (simulationMarker.current) {
       simulationMarker.current.setLngLat([lng, lat]);
       const el = simulationMarker.current.getElement();
+      el.classList.add('cycling-sim-marker-host');
       el.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.style.pointerEvents = 'none';
       el.style.zIndex = '1200';
+      el.style.backgroundColor = 'transparent';
       const flip = el.querySelector('.cycling-sim-marker-flip') as HTMLDivElement | null;
       if (flip) {
+        flip.style.backgroundColor = 'transparent';
         flip.style.transform = flipHorizontal ? 'scaleX(-1)' : '';
         let stack = flip.querySelector('.cycling-sim-marker-stack') as HTMLDivElement | null;
         if (!stack) {

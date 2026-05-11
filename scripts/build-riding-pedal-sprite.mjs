@@ -16,9 +16,59 @@ const META_OUT = join(root, 'ridingPedalSpriteMeta.generated.ts');
 
 /** App.tsx `SIMULATION_MARKER_SIZE_PX` 와 동기 */
 const CELL = 120;
+/** 가장자리와 이어진 “거의 흰색” 배경만 투명 처리 (RGB 모두 ≥ 이 값) */
+const EDGE_WHITE_THRESHOLD = Number(process.env.RIDING_EDGE_WHITE_THRESHOLD ?? 249);
 
 /** `0512(10).png` / `0512 (100).png` 등 */
 const FRAME_RE = /^0512\s*\((\d+)\)\.png$/i;
+
+/**
+ * 테두리에서만 BFS — 캐릭터 내부의 밝은색(흰색 디테일)은 가장자리와 안 이어지면 유지.
+ */
+function applyEdgeConnectedNearWhiteToTransparent(data, width, height, thr) {
+  const nearWhite = (di) => {
+    const r = data[di];
+    const g = data[di + 1];
+    const b = data[di + 2];
+    return r >= thr && g >= thr && b >= thr;
+  };
+  const visited = new Uint8Array(width * height);
+  const q = [];
+  const tryPush = (x, y) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = y * width + x;
+    if (visited[idx]) return;
+    const di = idx * 4;
+    if (!nearWhite(di)) return;
+    visited[idx] = 1;
+    q.push(idx);
+  };
+  for (let x = 0; x < width; x++) {
+    tryPush(x, 0);
+    tryPush(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    tryPush(0, y);
+    tryPush(width - 1, y);
+  }
+  for (let qi = 0; qi < q.length; qi++) {
+    const idx = q[qi];
+    const x = idx % width;
+    const y = (idx / width) | 0;
+    tryPush(x + 1, y);
+    tryPush(x - 1, y);
+    tryPush(x, y + 1);
+    tryPush(x, y - 1);
+  }
+  for (let i = 0; i < visited.length; i++) {
+    if (!visited[i]) continue;
+    const di = i * 4;
+    data[di] = 0;
+    data[di + 1] = 0;
+    data[di + 2] = 0;
+    data[di + 3] = 0;
+  }
+}
 
 function listFrameFiles() {
   return fs
@@ -45,12 +95,20 @@ async function main() {
   const frameBuffers = [];
   for (const name of names) {
     const p = join(RIDING_DIR, name);
-    const img = sharp(p).ensureAlpha();
-    const meta = await img.metadata();
+    const meta = await sharp(p).metadata();
     if (!meta.hasAlpha) {
       console.warn(`[riding-sprite] no alpha channel (export RGBA if you need transparency): ${name}`);
     }
-    const buf = await img
+    const { data, info } = await sharp(p).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (info.channels !== 4) {
+      throw new Error(`[riding-sprite] expected RGBA for ${name}, got channels=${info.channels}`);
+    }
+    const rgba = Buffer.from(data);
+    applyEdgeConnectedNearWhiteToTransparent(rgba, info.width, info.height, EDGE_WHITE_THRESHOLD);
+    const buf = await sharp(rgba, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    })
+      .ensureAlpha()
       .resize(CELL, CELL, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 },
