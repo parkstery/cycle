@@ -122,11 +122,13 @@ const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
-/** 주행 마커 본체 PNG revision — WebView 캐시 무력화 (`?v=`) */
-const CYCLING_MARKER_ASSET_REVISION = 7;
-const CYCLING_POSITION_MARKER_BODY_URL =
-  '/cycling_position_marker_rear.png?v=' + CYCLING_MARKER_ASSET_REVISION;
-/** 크랭크 회전 RPM 상한·하한(표시용) */
+/** `public/riding/pedal-sprite.png` — `npm run build:riding-sprite` 로 생성, 캐시 무력화용 */
+const RIDING_PEDAL_SPRITE_REVISION = 1;
+const CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL =
+  '/riding/pedal-sprite.png?v=' + RIDING_PEDAL_SPRITE_REVISION;
+/** `public/riding/0512(N).png` 프레임 수와 동기 (`scripts/build-riding-pedal-sprite.mjs`) */
+const RIDING_PEDAL_FRAME_COUNT = 11;
+/** 페달링 RPM 상한·하한(표시용) */
 const CRANK_RPM_MIN = 14;
 const CRANK_RPM_MAX = 128;
 /** 케이던스 센서 없을 때 속도(km/h)로 추정 RPM */
@@ -135,31 +137,16 @@ const estimateCrankRpmFromSpeedKmh = (kmh: number) => {
   return Math.min(CRANK_RPM_MAX, Math.max(16, 22 + s * 2.85));
 };
 
-const CYCLING_MARKER_CRANK_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-26 -26 52 52" width="100%" height="100%" focusable="false" aria-hidden="true">' +
-  '<circle cx="0" cy="0" r="4" fill="#1f2937" stroke="#0f172a" stroke-width="0.8"/>' +
-  '<line x1="0" y1="0" x2="0" y2="-16" stroke="#4b5563" stroke-width="3.2" stroke-linecap="round"/>' +
-  '<line x1="0" y1="0" x2="0" y2="16" stroke="#4b5563" stroke-width="3.2" stroke-linecap="round"/>' +
-  '<circle cx="0" cy="-16" r="2.8" fill="#9ca3af"/>' +
-  '<circle cx="0" cy="16" r="2.8" fill="#9ca3af"/>' +
-  '</svg>';
-
-function buildCyclingSimMarkerStack(crankPeriodSec: number, cranksRunning: boolean): HTMLDivElement {
+function buildCyclingSimMarkerStack(loopSec: number, pedalingRunning: boolean): HTMLDivElement {
   const stack = document.createElement('div');
   stack.className = 'cycling-sim-marker-stack';
-  const body = document.createElement('div');
-  body.className = 'cycling-sim-marker-body';
-  body.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_BODY_URL}")`;
-  const wrap = document.createElement('div');
-  wrap.className = 'cycling-sim-marker-cranks-wrap';
-  const cranks = document.createElement('div');
-  cranks.className = 'cycling-sim-marker-cranks';
-  cranks.innerHTML = CYCLING_MARKER_CRANK_SVG;
-  cranks.style.animationDuration = `${crankPeriodSec}s`;
-  cranks.style.animationPlayState = cranksRunning ? 'running' : 'paused';
-  wrap.appendChild(cranks);
-  stack.appendChild(body);
-  stack.appendChild(wrap);
+  const sprite = document.createElement('div');
+  sprite.className = 'cycling-sim-marker-pedal-sprite';
+  sprite.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL}")`;
+  sprite.style.backgroundSize = `${SIMULATION_MARKER_SIZE_PX * RIDING_PEDAL_FRAME_COUNT}px ${SIMULATION_MARKER_SIZE_PX}px`;
+  sprite.style.animationDuration = `${loopSec}s`;
+  sprite.style.animationPlayState = pedalingRunning ? 'running' : 'paused';
+  stack.appendChild(sprite);
   return stack;
 }
 
@@ -2807,11 +2794,11 @@ const App: React.FC = () => {
       emaRpm != null &&
       !Number.isNaN(emaRpm) &&
       emaRpm >= SENSOR_PEDALING_RPM_THRESHOLD;
-    const crankRpm = useSensorCadence
+    const pedalRpm = useSensorCadence
       ? Math.min(CRANK_RPM_MAX, Math.max(CRANK_RPM_MIN, emaRpm))
       : estimateCrankRpmFromSpeedKmh(speedNow);
-    const crankPeriodSec = Math.max(0.22, Math.min(5.5, 60 / crankRpm));
-    const cranksRunning = simulation.isActive && speedNow > 0.35;
+    const pedalLoopSec = Math.max(0.22, Math.min(5.5, 60 / pedalRpm));
+    const pedalingRunning = simulation.isActive && speedNow > 0.35;
 
     if (!simulationMarker.current && map && mbGl) {
       const el = document.createElement('div');
@@ -2825,7 +2812,7 @@ const App: React.FC = () => {
       flip.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
       flip.style.transformOrigin = 'center center';
       flip.style.transform = flipHorizontal ? 'scaleX(-1)' : '';
-      flip.appendChild(buildCyclingSimMarkerStack(crankPeriodSec, cranksRunning));
+      flip.appendChild(buildCyclingSimMarkerStack(pedalLoopSec, pedalingRunning));
       el.appendChild(flip);
       simulationMarker.current = new mbGl.Marker({ element: el, anchor: 'center' })
         .setLngLat([lng, lat])
@@ -2843,17 +2830,15 @@ const App: React.FC = () => {
         let stack = flip.querySelector('.cycling-sim-marker-stack') as HTMLDivElement | null;
         if (!stack) {
           flip.replaceChildren();
-          stack = buildCyclingSimMarkerStack(crankPeriodSec, cranksRunning);
+          stack = buildCyclingSimMarkerStack(pedalLoopSec, pedalingRunning);
           flip.appendChild(stack);
         } else {
-          const body = stack.querySelector('.cycling-sim-marker-body') as HTMLDivElement | null;
-          const cranks = stack.querySelector('.cycling-sim-marker-cranks') as HTMLDivElement | null;
-          if (body) {
-            body.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_BODY_URL}")`;
-          }
-          if (cranks) {
-            cranks.style.animationDuration = `${crankPeriodSec}s`;
-            cranks.style.animationPlayState = cranksRunning ? 'running' : 'paused';
+          const sprite = stack.querySelector('.cycling-sim-marker-pedal-sprite') as HTMLDivElement | null;
+          if (sprite) {
+            sprite.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL}")`;
+            sprite.style.backgroundSize = `${SIMULATION_MARKER_SIZE_PX * RIDING_PEDAL_FRAME_COUNT}px ${SIMULATION_MARKER_SIZE_PX}px`;
+            sprite.style.animationDuration = `${pedalLoopSec}s`;
+            sprite.style.animationPlayState = pedalingRunning ? 'running' : 'paused';
           }
         }
       }

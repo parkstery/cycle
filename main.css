@@ -66,44 +66,30 @@ html,
     0 0 32px #000;
 }
 
-/* OSRM 주행 마커: 본체는 정지 PNG, 크랭크만 회전 — 속도(또는 케이던스 센서)에 따라 duration 조절(App.tsx) */
+/* OSRM 주행 마커: `public/riding` 페달링 스프라이트 — 프레임 수·픽셀 폭은 App.tsx·build-riding-pedal-sprite.mjs 와 동기 */
 .cycling-sim-marker-stack {
   position: relative;
   width: 100%;
   height: 100%;
 }
-.cycling-sim-marker-body {
+.cycling-sim-marker-pedal-sprite {
   width: 100%;
   height: 100%;
   background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
+  background-position: 0 0;
   -webkit-user-drag: none;
   user-select: none;
-}
-.cycling-sim-marker-cranks-wrap {
-  position: absolute;
-  left: 50%;
-  bottom: 13%;
-  width: 34%;
-  height: 34%;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.cycling-sim-marker-cranks {
-  width: 100%;
-  height: 100%;
-  animation-name: cycling-marker-cranks-spin;
-  animation-timing-function: linear;
+  animation-name: cycling-marker-pedal-cycle;
+  animation-timing-function: steps(11, end);
   animation-iteration-count: infinite;
-  transform-origin: 50% 50%;
 }
 
-@keyframes cycling-marker-cranks-spin {
+@keyframes cycling-marker-pedal-cycle {
   from {
-    transform: rotate(0deg);
+    background-position: 0 0;
   }
   to {
-    transform: rotate(360deg);
+    /* 11프레임 × 120px — RIDING_PEDAL_FRAME_COUNT·SIMULATION_MARKER_SIZE_PX 와 동기 */
+    background-position: -1320px 0;
   }
 }

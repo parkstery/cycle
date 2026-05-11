@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:default-routes": "node scripts/build-default-routes.mjs",
-    "build:cycling-marker-webp": "node scripts/build-cycling-marker-anim-webp.mjs"
+    "build:cycling-marker-webp": "node scripts/build-cycling-marker-anim-webp.mjs",
+    "build:riding-sprite": "node scripts/build-riding-pedal-sprite.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
