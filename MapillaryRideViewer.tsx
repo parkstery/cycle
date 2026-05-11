@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { CancelMapillaryError, Viewer } from 'mapillary-js';
+import { useEffect, useRef, useState } from 'react';
+import { CancelMapillaryError, TransitionMode, Viewer } from 'mapillary-js';
 import 'mapillary-js/dist/mapillary.css';
 
 type MapillaryRideViewerProps = {
@@ -7,9 +7,9 @@ type MapillaryRideViewerProps = {
   imageId: string;
   /** true이면 공간 탐색을 360(spherical) 이미지로 제한 */
   sphericalNavigation?: boolean;
-  /** 경로 전방 지점 — `project`→`setCenter`로 시야 정렬(1순위) */
+  /** 경로 전방 지점 — `project`→`setCenter`로 시야 미세 조정 */
   lookAt?: { lat: number; lng: number } | null;
-  /** 주행 방위(도). 전방 투영 실패 시 360에서 bearing 보정(2순위) */
+  /** 주행 방위(도). 360에서는 먼저 방위 정렬 후 lookAt 투영 */
   driveHeadingDeg?: number | null;
   className?: string;
 };
@@ -18,7 +18,6 @@ function wrap01(x: number): number {
   return ((x % 1) + 1) % 1;
 }
 
-/** -180 … 180, from → to 최단 각도 */
 function signedBearingDeltaDeg(fromDeg: number, toDeg: number): number {
   return ((toDeg - fromDeg + 540) % 360) - 180;
 }
@@ -27,40 +26,57 @@ async function raf2(): Promise<void> {
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
 
+/** 360: 주행 방위로 먼저 맞춘 뒤 lookAt 투영으로 다듬음. 비파노: 투영 우선. */
 async function alignViewToRide(
   viewer: Viewer,
   lookAt: { lat: number; lng: number } | null | undefined,
   driveHeadingDeg: number | null | undefined,
-  sphericalForBearingFallback: boolean
+  sphericalForBearingFirst: boolean
 ): Promise<void> {
   const headingOk = driveHeadingDeg != null && Number.isFinite(driveHeadingDeg);
   const lookOk = lookAt && Number.isFinite(lookAt.lat) && Number.isFinite(lookAt.lng);
 
   await raf2();
 
-  let usedProject = false;
-  if (lookOk) {
+  const applyBearingFromCenter = async (): Promise<void> => {
+    if (!headingOk) return;
+    try {
+      const b = await viewer.getBearing();
+      const cur = await viewer.getCenter();
+      if (!cur || cur.length < 2) return;
+      const delta = signedBearingDeltaDeg(b, driveHeadingDeg!);
+      if (Math.abs(delta) <= 0.35) return;
+      const y = Math.min(0.94, Math.max(0.06, cur[1]!));
+      viewer.setCenter([wrap01(cur[0]! + delta / 360), y]);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const applyProjectLookAt = async (): Promise<boolean> => {
+    if (!lookOk) return false;
     try {
       const pixel = await viewer.project(lookAt!);
-      if (pixel && pixel.length >= 2) {
-        const basic = await viewer.unprojectToBasic(pixel);
-        if (basic && basic.length >= 2 && Number.isFinite(basic[0]) && Number.isFinite(basic[1])) {
-          viewer.setCenter([basic[0], basic[1]]);
-          usedProject = true;
-        }
-      }
+      if (!pixel || pixel.length < 2) return false;
+      const basic = await viewer.unprojectToBasic(pixel);
+      if (!basic || basic.length < 2 || !Number.isFinite(basic[0]) || !Number.isFinite(basic[1])) return false;
+      viewer.setCenter([basic[0], basic[1]]);
+      return true;
     } catch {
-      /* fall through */
+      return false;
     }
-  }
+  };
 
-  if (!usedProject && sphericalForBearingFallback && headingOk) {
+  if (sphericalForBearingFirst && headingOk) {
+    await applyBearingFromCenter();
+    await raf2();
+    await applyProjectLookAt();
     try {
       const b = await viewer.getBearing();
       const cur = await viewer.getCenter();
       if (cur && cur.length >= 2) {
         const delta = signedBearingDeltaDeg(b, driveHeadingDeg!);
-        if (Math.abs(delta) > 0.4) {
+        if (Math.abs(delta) > 2) {
           const y = Math.min(0.94, Math.max(0.06, cur[1]!));
           viewer.setCenter([wrap01(cur[0]! + delta / 360), y]);
         }
@@ -68,6 +84,12 @@ async function alignViewToRide(
     } catch {
       /* ignore */
     }
+    return;
+  }
+
+  const projected = await applyProjectLookAt();
+  if (!projected && headingOk) {
+    await applyBearingFromCenter();
   }
 }
 
@@ -104,6 +126,8 @@ export function MapillaryRideViewer({
     sphericalNavigation: sphericalNavigation === true,
   };
 
+  const [viewReady, setViewReady] = useState(false);
+
   useEffect(() => {
     const el = containerRef.current;
     const token = accessToken.trim();
@@ -117,6 +141,7 @@ export function MapillaryRideViewer({
     viewerRef.current = viewer;
     lastImageIdRef.current = null;
     filterAppliedRef.current = null;
+    setViewReady(false);
 
     return () => {
       if (alignDebounceRef.current) {
@@ -149,16 +174,40 @@ export function MapillaryRideViewer({
 
     const run = async () => {
       const filterChanged = await applyFilter();
-      if (lastImageIdRef.current === imageId && !filterChanged) return;
+      if (lastImageIdRef.current === imageId && !filterChanged) {
+        const s = syncRef.current;
+        await alignViewToRide(viewer, s.lookAt, s.driveHeadingDeg, s.sphericalNavigation);
+        setViewReady(true);
+        return;
+      }
+
+      setViewReady(false);
+      try {
+        viewer.setTransitionMode(TransitionMode.Instantaneous);
+      } catch {
+        /* ignore */
+      }
+
       try {
         await viewer.moveTo(imageId);
         lastImageIdRef.current = imageId;
         const s = syncRef.current;
         await alignViewToRide(viewer, s.lookAt, s.driveHeadingDeg, s.sphericalNavigation);
+        await raf2();
+        await alignViewToRide(viewer, s.lookAt, s.driveHeadingDeg, s.sphericalNavigation);
       } catch (e) {
         if (e instanceof CancelMapillaryError) return;
         lastImageIdRef.current = null;
+        setViewReady(false);
+        return;
+      } finally {
+        try {
+          viewer.setTransitionMode(TransitionMode.Default);
+        } catch {
+          /* ignore */
+        }
       }
+      setViewReady(true);
     };
 
     void run();
@@ -183,5 +232,14 @@ export function MapillaryRideViewer({
     };
   }, [imageId, lookAt?.lat, lookAt?.lng, driveHeadingDeg, sphericalNavigation]);
 
-  return <div ref={containerRef} className={className ?? ''} />;
+  return (
+    <div
+      ref={containerRef}
+      className={className ?? ''}
+      style={{
+        opacity: viewReady ? 1 : 0,
+        transition: 'opacity 120ms ease-out',
+      }}
+    />
+  );
 }

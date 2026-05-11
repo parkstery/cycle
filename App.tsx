@@ -96,7 +96,9 @@ import {
   stackMapillaryBelowRoutableRoads,
 } from './services/mapillaryCoverage';
 import {
+  chooseMapillaryPickAlongPath,
   driveHeadingAtPathIndex,
+  MAPILLARY_STREET_LOOKAHEAD_SAMPLES_DENSE_M,
   pathPointAhead,
   queryMapillaryAlongPathSamples,
 } from './services/mapillaryStreetView';
@@ -148,11 +150,12 @@ const RIDE_CAMERA_TRACK_DURATION_MS = 160;
 const RIDE_CAMERA_SMOOTHING_MS = 260;
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
 const SIMULATION_PROGRESS_TICK_MS = 33;
-/** 전방 최대 300m 구간을 샘플로 스캔해 Mapillary 유무 확인 */
-const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M = [0, 35, 70, 105, 140, 190, 240, 300] as const;
 const MAPILLARY_STREET_FETCH_THROTTLE_MS = 780;
 const MAPILLARY_STREET_FETCH_MIN_MOVE_M = 24;
-const MAPILLARY_STREET_MIN_HOLD_MS = 4500;
+/** 같은 프레임 유지 최소 시간 — 너무 길면 촘촘한 구간에서 다음 이미지로 못 따라감 */
+const MAPILLARY_STREET_MIN_HOLD_MS = 3000;
+/** 직전 촬영점 대비 허용 GPS 점프(m) — `chooseMapillaryPickAlongPath` */
+const MAPILLARY_STREET_MAX_GPS_JUMP_M = 52;
 const MAPILLARY_STREET_NO_HIT_GRACE_MS = 9000;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
@@ -878,11 +881,15 @@ const App: React.FC = () => {
   const [rideMapillaryStreet, setRideMapillaryStreet] = useState<
     null | { imageKey: string; shownAtMs: number; isPano?: boolean }
   >(null);
+  const rideMapillaryStreetRef = useRef(rideMapillaryStreet);
+  rideMapillaryStreetRef.current = rideMapillaryStreet;
   const lastMapillaryStreetFetchAtRef = useRef(0);
   const lastMapillaryStreetAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
   const mapillaryStreetFetchGenRef = useRef(0);
   /** 사용자가 닫은 프레임 — 같은 imageKey 가 다시 잡히면 자동 재오픈하지 않음 */
   const lastMapillaryStreetDismissedKeyRef = useRef<string | null>(null);
+  /** 직전에 표시한 촬영점 좌표 — 다음 선택 시 연속 구간을 우선 */
+  const lastMapillaryStreetPickRef = useRef<{ id: string; lat: number; lng: number } | null>(null);
   /** Mapillary 뷰어 시야: 경로 전방점 + 주행 방위 */
   const mapillaryRideSync = useMemo(() => {
     if (!route?.path?.length) {
@@ -890,7 +897,7 @@ const App: React.FC = () => {
     }
     const path = route.path;
     const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
-    const ahead = pathPointAhead(path, idx, 32);
+    const ahead = pathPointAhead(path, idx, 52);
     const driveH = driveHeadingAtPathIndex(path, idx);
     return {
       lookAt: ahead ? { lat: ahead.lat, lng: ahead.lng } : null,
@@ -2968,6 +2975,7 @@ const App: React.FC = () => {
       lastMapillaryStreetDismissedKeyRef.current = null;
       mapillaryStreetFetchGenRef.current += 1;
       setRideMapillaryStreet(null);
+      lastMapillaryStreetPickRef.current = null;
       return;
     }
     const path = route.path;
@@ -2990,6 +2998,7 @@ const App: React.FC = () => {
 
       if (movedM >= 130) {
         lastMapillaryStreetDismissedKeyRef.current = null;
+        lastMapillaryStreetPickRef.current = null;
       }
 
       lastMapillaryStreetFetchAtRef.current = now;
@@ -3002,25 +3011,20 @@ const App: React.FC = () => {
             MAPILLARY_CLIENT_TOKEN,
             path,
             idx,
-            [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M],
+            [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_DENSE_M],
             { signal: ac.signal }
           );
           if (gen !== mapillaryStreetFetchGenRef.current) return;
           const dismissed = lastMapillaryStreetDismissedKeyRef.current;
-          const sorted = [...rows].sort((a, b) => a.sampleM - b.sampleM);
-          let chosenKey: string | null = null;
-          let chosenIsPano = false;
-          for (const { sampleM, pick } of sorted) {
-            if (!pick) continue;
-            if (pick.id === dismissed) continue;
-            if (sampleM <= 300) {
-              chosenKey = pick.id;
-              chosenIsPano = pick.isPano;
-              break;
-            }
-          }
-          if (!chosenKey) {
-            const anyHit = sorted.some((r) => r.pick);
+          const chosenPick = chooseMapillaryPickAlongPath(rows, {
+            dismissedId: dismissed,
+            prevPick: lastMapillaryStreetPickRef.current,
+            maxGpsJumpM: MAPILLARY_STREET_MAX_GPS_JUMP_M,
+          });
+          const chosenKey = chosenPick?.id ?? null;
+          const chosenIsPano = chosenPick?.isPano === true;
+          if (!chosenKey || !chosenPick) {
+            const anyHit = rows.some((r) => r.pick);
             if (!anyHit) lastMapillaryStreetDismissedKeyRef.current = null;
             setRideMapillaryStreet((prev) => {
               if (!prev) return null;
@@ -3029,12 +3033,27 @@ const App: React.FC = () => {
             });
             return;
           }
+          const prevStreet = rideMapillaryStreetRef.current;
+          const prevVisibleMs = prevStreet ? Date.now() - prevStreet.shownAtMs : Infinity;
+          const holdBlocksNewFrame =
+            !!prevStreet &&
+            prevStreet.imageKey !== chosenKey &&
+            prevVisibleMs < MAPILLARY_STREET_MIN_HOLD_MS;
+
           setRideMapillaryStreet((prev) => {
             const visibleMs = prev ? Date.now() - prev.shownAtMs : Infinity;
             if (prev?.imageKey === chosenKey) return prev;
             if (prev && visibleMs < MAPILLARY_STREET_MIN_HOLD_MS) return prev;
             return { imageKey: chosenKey, shownAtMs: Date.now(), isPano: chosenIsPano };
           });
+
+          if (!holdBlocksNewFrame) {
+            lastMapillaryStreetPickRef.current = {
+              id: chosenPick.id,
+              lat: chosenPick.lat,
+              lng: chosenPick.lng,
+            };
+          }
         } catch {
           if (gen !== mapillaryStreetFetchGenRef.current) return;
         }

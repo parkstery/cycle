@@ -83,6 +83,63 @@ function smallestAngleDiffDeg(a: number, b: number): number {
 }
 
 /** 경로 진행 방향과 가깝고·현재 위치에 가까운 촬영 프레임 선택 */
+/**
+ * 경로상 촘촘한 전방 샘플(m) — 커버리지가 빽빽할 때 멀리 있는 키프레임으로 튀는 것을 줄인다.
+ * (기존 0,35,70… 대비 약 2배 밀도)
+ */
+export const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_DENSE_M = [
+  0, 10, 20, 30, 40, 50, 60, 72, 84, 96, 110, 125, 140, 158, 176, 195, 215, 235, 255, 275, 300,
+] as const;
+
+/**
+ * 직전에 표시한 촬영점과의 GPS 거리로 점프를 제한하면서, 전방 샘플 중 하나를 고른다.
+ * dismissedId 가 있으면 우선 제외하고, 후보가 없을 때만 무시한다.
+ */
+export function chooseMapillaryPickAlongPath(
+  rows: Array<{ sampleM: number; pick: MapillaryStreetCandidate | null }>,
+  options: {
+    dismissedId: string | null;
+    prevPick: { id: string; lat: number; lng: number } | null;
+    /** 이전 프레임과의 허용 최대 거리(m) — 초과 시 큰 패널티 */
+    maxGpsJumpM: number;
+  }
+): MapillaryStreetCandidate | null {
+  const withPick = rows.filter((r): r is { sampleM: number; pick: MapillaryStreetCandidate } => r.pick != null);
+  if (!withPick.length) return null;
+
+  const notDismissed = withPick.filter((r) => r.pick.id !== options.dismissedId);
+  const pool = notDismissed.length ? notDismissed : withPick;
+  const sorted = [...pool].sort((a, b) => a.sampleM - b.sampleM);
+
+  if (!options.prevPick) {
+    return sorted[0]!.pick;
+  }
+
+  const prev = options.prevPick;
+  const MAX = options.maxGpsJumpM;
+  const RELAX = Math.min(125, MAX * 2.25);
+
+  const score = (r: { sampleM: number; pick: MapillaryStreetCandidate }): number => {
+    const p = r.pick;
+    const sameId = p.id === prev.id;
+    let dPrev = 9999;
+    try {
+      dPrev = computeDistanceBetween({ lat: prev.lat, lng: prev.lng }, { lat: p.lat, lng: p.lng });
+    } catch {
+      /* keep dPrev */
+    }
+    let jumpPenalty = 0;
+    if (!sameId) {
+      if (dPrev <= MAX) jumpPenalty = dPrev * 0.22;
+      else if (dPrev <= RELAX) jumpPenalty = MAX * 0.22 + (dPrev - MAX) * 1.65;
+      else jumpPenalty = 4000 + dPrev;
+    }
+    return r.sampleM * 0.1 + jumpPenalty - (sameId ? 350 : 0);
+  };
+
+  return [...sorted].sort((a, b) => score(a) - score(b))[0]!.pick;
+}
+
 export function pickMapillaryStreetCandidate(
   candidates: MapillaryStreetCandidate[],
   current: LatLngLike,
