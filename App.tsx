@@ -122,11 +122,11 @@ const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
 const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
-/** 마커 PNG를 바꿀 때마다 숫자만 올리면 동일 파일명이라도 WebView가 새 파일을 받기 쉽다. */
-const CYCLING_MARKER_ASSET_REVISION = 4;
-/** 주행 마커 PNG — 후면 실루엣 (`public/cycling_position_marker_rear.png`). 옆모습으로 바꿀 때는 파일명·revision 함께 조정. */
+/** 주행 마커 WebP를 바꿀 때마다 숫자만 올리면 동일 파일명이라도 WebView가 새 파일을 받기 쉽다. */
+const CYCLING_MARKER_ASSET_REVISION = 5;
+/** 주행 마커 애니메이션 WebP (`npm run build:cycling-marker-webp` 로 생성). */
 const CYCLING_POSITION_MARKER_URL =
-  '/cycling_position_marker_rear.png?v=' + CYCLING_MARKER_ASSET_REVISION;
+  '/cycling_position_marker_ride.webp?v=' + CYCLING_MARKER_ASSET_REVISION;
 
 /** 피처 플래그: 저장된 경로를 OSRM/Elevation 재호출 없이 오프라인 복원. 문제 발생 시 false 로 내려 기존(재탐색) 동작으로 폴백. */
 const USE_OFFLINE_ROUTE_RESTORE = true;
@@ -147,6 +147,13 @@ const ROUTE_PHASE_SLOW_MODAL_MS = 10000;
 const ELEVATION_PHASE_SLOW_MODAL_MS = 10000;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 const MAPBOX_COMPOSITE_SOURCE_ID = 'composite';
+/**
+ * OSRM/도로 coverage 오버레이 전용 vector source.
+ * `satellite-v9`는 raster-only 스타일이라 내장 `composite` 소스가 없어, 그 위에 도로 오버레이를 못 얹는다.
+ * 스타일과 무관하게 항상 동일한 mapbox-streets-v8 tileset을 우리 ID로 직접 추가해 4종 스타일에서 일관되게 보이게 한다.
+ */
+const ROUTABLE_ROAD_SOURCE_ID = 'cycle-routable-roads-src';
+const ROUTABLE_ROAD_TILESET_URL = 'mapbox://mapbox.mapbox-streets-v8';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
 const BUILDING_LAYER_ID = '3d-buildings';
 const RIDE_CAMERA_REAR_OFFSET_M = 5;
@@ -558,7 +565,6 @@ const App: React.FC = () => {
   const maybeAdvanceBackgroundMusicRef = useRef<(reason: 'ended' | 'error' | 'watchdog' | 'visibility') => void>(() => { });
   const onVisibilityForBgMusicRef = useRef<() => void>(() => { });
   /** 주행 마커 이미지 base64 (data URI). SVG 내부 참조용 — data URI SVG에서 외부 URL은 로드되지 않음 */
-  const cyclingMarkerDataUrlRef = useRef<string | null>(null);
   /** 맵/경로 클릭 시 위치 선택 (주소·표고 조회 후 인포윈도우). ref로 두어 폴리라인 생성 시에도 동일 로직 사용 */
   const handleLocationClickRef = useRef<(lat: number, lng: number) => void>(() => { });
   const triggerMapResize = useCallback((map?: MapboxMap | null) => {
@@ -1876,15 +1882,21 @@ const App: React.FC = () => {
           map.on('style.load', () => {
             try {
               ensureRouteLineLayer(map);
-              // style 변경 후 road coverage 오버레이 재부착
+              // style 변경 후 road coverage 오버레이 재부착.
+              // satellite-v9(raster-only)에는 내장 composite 가 없으므로, 스타일과 무관하게 우리 전용 vector source 를 보장한다.
               const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
-              const hasCompositeSource = !!map.getSource(MAPBOX_COMPOSITE_SOURCE_ID);
-              if (!hasOverlay && hasCompositeSource) {
+              if (!map.getSource(ROUTABLE_ROAD_SOURCE_ID)) {
+                map.addSource(ROUTABLE_ROAD_SOURCE_ID, {
+                  type: 'vector',
+                  url: ROUTABLE_ROAD_TILESET_URL,
+                });
+              }
+              if (!hasOverlay) {
                 map.addLayer(
                   {
                     id: ROUTABLE_ROAD_LAYER_ID,
                     type: 'line',
-                    source: MAPBOX_COMPOSITE_SOURCE_ID,
+                    source: ROUTABLE_ROAD_SOURCE_ID,
                     'source-layer': 'road',
                     filter: [
                       'in',
@@ -2287,19 +2299,6 @@ const App: React.FC = () => {
     };
   }, [elevationProvider, resolveNearestAddress]);
 
-  // 주행 마커 이미지 프리로드 → base64 data URL (SVG 내부 참조용, data URI SVG는 외부 URL 로드 불가)
-  useEffect(() => {
-    if (cyclingMarkerDataUrlRef.current) return;
-    fetch(CYCLING_POSITION_MARKER_URL)
-      .then((r) => r.blob())
-      .then((blob) => {
-        const reader = new FileReader();
-        reader.onloadend = () => { cyclingMarkerDataUrlRef.current = reader.result as string; };
-        reader.readAsDataURL(blob);
-      })
-      .catch(() => { });
-  }, []);
-
   useEffect(() => {
     simulationActiveRef.current = simulation.isActive;
   }, [simulation.isActive]);
@@ -2638,14 +2637,20 @@ const App: React.FC = () => {
     const map = mapboxMapRef.current;
     if (!map) return;
     try {
+      // satellite-v9(raster-only)에는 내장 composite 가 없다. 스타일에 관계없이 우리 전용 vector source 를 항상 보장.
       const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
-      const hasCompositeSource = !!map.getSource(MAPBOX_COMPOSITE_SOURCE_ID);
-      if (!hasOverlay && hasCompositeSource) {
+      if (!map.getSource(ROUTABLE_ROAD_SOURCE_ID)) {
+        map.addSource(ROUTABLE_ROAD_SOURCE_ID, {
+          type: 'vector',
+          url: ROUTABLE_ROAD_TILESET_URL,
+        });
+      }
+      if (!hasOverlay) {
         map.addLayer(
           {
             id: ROUTABLE_ROAD_LAYER_ID,
             type: 'line',
-            source: MAPBOX_COMPOSITE_SOURCE_ID,
+            source: ROUTABLE_ROAD_SOURCE_ID,
             'source-layer': 'road',
             filter: [
               'in',
@@ -2757,16 +2762,6 @@ const App: React.FC = () => {
         /* ignore */
       }
     }
-    const dataUrl = cyclingMarkerDataUrlRef.current;
-    const cyclingIconUrl = (() => {
-      if (dataUrl) {
-        const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
-        const wobble = '<animateTransform attributeName="transform" type="rotate" values="-3 20 22;3 20 22;-3 20 22" dur="1.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"/>';
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + SIMULATION_MARKER_SIZE_PX + '" height="' + SIMULATION_MARKER_SIZE_PX + '" viewBox="0 0 40 40"><g transform="' + flip + '"><g>' + wobble + '<image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></g></svg>';
-        return 'data:image/svg+xml,' + encodeURIComponent(svg);
-      }
-      return CYCLING_POSITION_MARKER_URL;
-    })();
     const mbGl = mapboxGlRef.current;
     if (!simulationMarker.current && map && mbGl) {
       const el = document.createElement('div');
@@ -2778,10 +2773,17 @@ const App: React.FC = () => {
       img.width = SIMULATION_MARKER_SIZE_PX;
       img.height = SIMULATION_MARKER_SIZE_PX;
       img.alt = '';
-      img.src = cyclingIconUrl;
+      img.decoding = 'async';
+      img.loading = 'eager';
+      img.draggable = false;
+      img.src = CYCLING_POSITION_MARKER_URL;
+      img.className = 'cycling-sim-marker-img';
       img.style.display = 'block';
       img.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
       img.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
+      img.style.objectFit = 'contain';
+      img.style.transform = flipHorizontal ? 'scaleX(-1)' : '';
+      img.style.transformOrigin = 'center center';
       el.appendChild(img);
       simulationMarker.current = new mbGl.Marker({ element: el, anchor: 'center' })
         .setLngLat([lng, lat])
@@ -2795,12 +2797,14 @@ const App: React.FC = () => {
       el.style.zIndex = '1200';
       const img = el.querySelector('img');
       if (img) {
-        img.src = cyclingIconUrl;
         img.width = SIMULATION_MARKER_SIZE_PX;
         img.height = SIMULATION_MARKER_SIZE_PX;
         img.style.display = 'block';
         img.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
         img.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
+        img.style.objectFit = 'contain';
+        img.style.transform = flipHorizontal ? 'scaleX(-1)' : '';
+        img.style.transformOrigin = 'center center';
       }
     }
 
