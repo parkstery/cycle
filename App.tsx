@@ -116,6 +116,8 @@ import { loadIndoorSensorPrefs, saveIndoorSensorPrefs, clampFeelK, FEEL_K_MIN, F
 import type { BikeProfile } from './sensor/sensorPrefs';
 import { logEvent } from "firebase/analytics";
 import { analytics } from './firebase';
+import { RIDING_PEDAL_CELL_PX, RIDING_PEDAL_FRAME_COUNT } from './ridingPedalSpriteMeta.generated';
+import { ensureRidingPedalStripKeyframes } from './ridingPedalStripKeyframes';
 logEvent(analytics, "app_open");
 
 const FAVORITE_ROUTES_STORAGE_KEY = 'favorite_routes';
@@ -123,11 +125,9 @@ const FAVORITE_ROUTES_INIT_VERSION_KEY = 'favorite_routes_init_version';
 const BUNDLED_MY_ROUTES_VERSION = 2;
 
 /** `public/riding/pedal-sprite.png` — `npm run build:riding-sprite` 로 생성, 캐시 무력화용 */
-const RIDING_PEDAL_SPRITE_REVISION = 1;
+const RIDING_PEDAL_SPRITE_REVISION = 2;
 const CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL =
   '/riding/pedal-sprite.png?v=' + RIDING_PEDAL_SPRITE_REVISION;
-/** `public/riding/0512(N).png` 프레임 수와 동기 (`scripts/build-riding-pedal-sprite.mjs`) */
-const RIDING_PEDAL_FRAME_COUNT = 11;
 /** 페달링 RPM 상한·하한(표시용) */
 const CRANK_RPM_MIN = 14;
 const CRANK_RPM_MAX = 128;
@@ -138,12 +138,13 @@ const estimateCrankRpmFromSpeedKmh = (kmh: number) => {
 };
 
 function buildCyclingSimMarkerStack(loopSec: number, pedalingRunning: boolean): HTMLDivElement {
+  ensureRidingPedalStripKeyframes();
   const stack = document.createElement('div');
   stack.className = 'cycling-sim-marker-stack';
   const sprite = document.createElement('div');
   sprite.className = 'cycling-sim-marker-pedal-sprite';
   sprite.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL}")`;
-  sprite.style.backgroundSize = `${SIMULATION_MARKER_SIZE_PX * RIDING_PEDAL_FRAME_COUNT}px ${SIMULATION_MARKER_SIZE_PX}px`;
+  sprite.style.backgroundSize = `${RIDING_PEDAL_CELL_PX * RIDING_PEDAL_FRAME_COUNT}px ${RIDING_PEDAL_CELL_PX}px`;
   sprite.style.animationDuration = `${loopSec}s`;
   sprite.style.animationPlayState = pedalingRunning ? 'running' : 'paused';
   stack.appendChild(sprite);
@@ -2836,7 +2837,7 @@ const App: React.FC = () => {
           const sprite = stack.querySelector('.cycling-sim-marker-pedal-sprite') as HTMLDivElement | null;
           if (sprite) {
             sprite.style.backgroundImage = `url("${CYCLING_POSITION_MARKER_PEDAL_SPRITE_URL}")`;
-            sprite.style.backgroundSize = `${SIMULATION_MARKER_SIZE_PX * RIDING_PEDAL_FRAME_COUNT}px ${SIMULATION_MARKER_SIZE_PX}px`;
+            sprite.style.backgroundSize = `${RIDING_PEDAL_CELL_PX * RIDING_PEDAL_FRAME_COUNT}px ${RIDING_PEDAL_CELL_PX}px`;
             sprite.style.animationDuration = `${pedalLoopSec}s`;
             sprite.style.animationPlayState = pedalingRunning ? 'running' : 'paused';
           }

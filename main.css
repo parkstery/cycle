@@ -66,7 +66,7 @@ html,
     0 0 32px #000;
 }
 
-/* OSRM 주행 마커: `public/riding` 페달링 스프라이트 — 프레임 수·픽셀 폭은 App.tsx·build-riding-pedal-sprite.mjs 와 동기 */
+/* OSRM 주행 마커: `public/riding` 페달링 스프라이트 — steps/@keyframes 는 ridingPedalStripKeyframes.ts 가 주입 */
 .cycling-sim-marker-stack {
   position: relative;
   width: 100%;
@@ -79,17 +79,4 @@ html,
   background-position: 0 0;
   -webkit-user-drag: none;
   user-select: none;
-  animation-name: cycling-marker-pedal-cycle;
-  animation-timing-function: steps(11, end);
-  animation-iteration-count: infinite;
-}
-
-@keyframes cycling-marker-pedal-cycle {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    /* 11프레임 × 120px — RIDING_PEDAL_FRAME_COUNT·SIMULATION_MARKER_SIZE_PX 와 동기 */
-    background-position: -1320px 0;
-  }
 }
