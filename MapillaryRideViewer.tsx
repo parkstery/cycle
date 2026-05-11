@@ -23,6 +23,20 @@ function signedBearingDeltaDeg(fromDeg: number, toDeg: number): number {
   return ((toDeg - fromDeg + 540) % 360) - 180;
 }
 
+/**
+ * equirectangular basic Y 가 너무 위(하늘)·아래(발밑)로 치우치면 시야를 ‘지평선 근처’로 당김.
+ * GPS project 만으로는 카메라 피치(위를 찍은 원본)를 복구할 수 없어, 완전한 도로 정면은 불가에 가깝다.
+ */
+const BASIC_Y_BAND_LO = 0.34;
+const BASIC_Y_BAND_HI = 0.66;
+
+function softenBasicYTowardHorizon(by: number): number {
+  if (!Number.isFinite(by)) return 0.5;
+  if (by < BASIC_Y_BAND_LO) return by + (BASIC_Y_BAND_LO - by) * 0.62;
+  if (by > BASIC_Y_BAND_HI) return by - (by - BASIC_Y_BAND_HI) * 0.62;
+  return by;
+}
+
 async function raf2(): Promise<void> {
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
@@ -54,7 +68,7 @@ async function alignViewToRide(
       if (!pixel || pixel.length < 2) return false;
       const basic = await viewer.unprojectToBasic(pixel);
       if (!basic || basic.length < 2 || !Number.isFinite(basic[0]) || !Number.isFinite(basic[1])) return false;
-      viewer.setCenter([basic[0], basic[1]]);
+      viewer.setCenter([basic[0], softenBasicYTowardHorizon(basic[1]!)]);
       return true;
     } catch {
       return false;
@@ -73,7 +87,7 @@ async function alignViewToRide(
       /** drift에서는 잦은 setCenter 방지, full에서는 초기 정렬만 빠르게 */
       const minDeg = drift ? 16 : 6;
       if (Math.abs(delta) < minDeg) return;
-      const y = Math.min(0.94, Math.max(0.06, cur[1]!));
+      const y = Math.min(0.88, Math.max(0.12, softenBasicYTowardHorizon(cur[1]!)));
       viewer.setCenter([wrap01(cur[0]! + delta / 360), y]);
     } catch {
       /* ignore */
@@ -231,6 +245,11 @@ export function MapillaryRideViewer({
           /* ignore */
         }
         await viewer.moveTo(imageId);
+        try {
+          viewer.setTransitionMode(TransitionMode.Instantaneous);
+        } catch {
+          /* ignore */
+        }
         lastImageIdRef.current = imageId;
         const s = syncRef.current;
         await alignViewToRide(viewer, s.lookAt, s.bearingTargetDeg, s.sphericalNavigation, 'full');
@@ -311,7 +330,8 @@ export function MapillaryRideViewer({
       className={className ?? ''}
       style={{
         opacity: viewReady ? 1 : 0,
-        transition: 'opacity 220ms ease-out',
+        /** 이미지 스틸컷과 맞추기 — 패널 페이드가 전환 잔상처럼 느껴지지 않게 */
+        transition: 'none',
       }}
     />
   );
