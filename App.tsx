@@ -75,6 +75,7 @@ import {
   computeHeading,
   computeOffset,
   densifyPolylineFixedIntervalM,
+  getLatLngAtDistanceAlongPath,
   indexAtOrBeforeCumulativeDistance,
 } from './services/geoUtils';
 import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
@@ -726,10 +727,25 @@ const App: React.FC = () => {
   // App Core State
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
-  const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
+  const [simulation, setSimulation] = useState<SimulationState>({
+    isActive: false,
+    currentIndex: 0,
+    alongRouteM: 0,
+    speed: 100,
+  });
   /** 거리뷰 Graph fetch: currentIndex 를 effect deps 에 넣으면 매 틱 cleanup 이 fetch 를 abort 하므로 ref 로만 추적 */
   const simulationIndexForStreetRef = useRef(0);
   simulationIndexForStreetRef.current = simulation.currentIndex;
+
+  /** 주행 path 각 점의 누적 거리(m) — 연속 마커 보간·시뮬 진행·후방 카메라 공통 */
+  const routeCumulativeDistancesM = useMemo((): number[] | null => {
+    if (!route?.path?.length) return null;
+    const path = route.path;
+    const cd = route.cumulativeDistances;
+    if (cd?.length === path.length) return cd;
+    const pairs: [number, number][] = path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))]);
+    return computeCumulativeDistances(pairs);
+  }, [route?.path, route?.cumulativeDistances]);
 
   useEffect(() => {
     if (rideRearCameraFollow) return;
@@ -759,11 +775,15 @@ const App: React.FC = () => {
     const turnedOn = rideRearCameraFollow && !rideRearCameraFollowPrevRef.current;
     rideRearCameraFollowPrevRef.current = rideRearCameraFollow;
     if (!turnedOn) return;
-    if (!simulation.isActive || !route?.path?.length) return;
+    if (!simulation.isActive || !route?.path?.length || !routeCumulativeDistancesM?.length) return;
     const path = route.path;
-    const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
-    trackRiderCamera(path[idx], path[Math.min(idx + 10, path.length - 1)], 450);
-  }, [rideRearCameraFollow, simulation.isActive, simulation.currentIndex, route?.path, trackRiderCamera]);
+    const cum = routeCumulativeDistancesM;
+    const total = cum[cum.length - 1] ?? 0;
+    const along = Math.max(0, Math.min(simulation.alongRouteM ?? 0, total));
+    const cur = getLatLngAtDistanceAlongPath(path, cum, along);
+    const ahead = getLatLngAtDistanceAlongPath(path, cum, Math.min(along + 14, total));
+    trackRiderCamera({ lat: cur.lat, lng: cur.lng }, { lat: ahead.lat, lng: ahead.lng }, 450);
+  }, [rideRearCameraFollow, simulation.isActive, simulation.alongRouteM, route?.path, routeCumulativeDistancesM, trackRiderCamera]);
   const [speedKmH, setSpeedKmH] = useState(20);
   const [sensorPrefs, setSensorPrefs] = useState(() => loadIndoorSensorPrefs());
   const [sensorsModalOpen, setSensorsModalOpen] = useState(false);
@@ -2695,44 +2715,48 @@ const App: React.FC = () => {
     // 의존성은 route?.path만 사용하고, cachedCoaching 등은 routeRef로 참조 (stale closure 방지)
     const routeData = routeRef.current;
     if (!route?.path?.length || !routeData) return () => clearTimeout(timer);
-    const currentIdx = Math.min(Math.max(0, simulation.currentIndex), route.path.length - 1);
-    let currentPos = route.path[currentIdx];
-    let adjustedIdx = currentIdx;
+    const cum = routeCumulativeDistancesM;
+    if (!cum?.length) return () => clearTimeout(timer);
+    const total = cum[cum.length - 1] ?? 0;
+    const along = Math.max(0, Math.min(simulation.alongRouteM ?? 0, total));
+    const interp = getLatLngAtDistanceAlongPath(route.path, cum, along);
+    const lat = interp.lat;
+    const lng = interp.lng;
+    const currentIdx = indexAtOrBeforeCumulativeDistance(cum, along);
+    const vertexPos = route.path[currentIdx];
 
     // 방어: path가 sparse이거나 좌표가 없으면 다음 유효한 인덱스로 스킵 (최대 10개까지)
-    if (!currentPos) {
+    if (!vertexPos) {
       const maxSkip = Math.min(10, route.path.length - currentIdx - 1);
       for (let skip = 1; skip <= maxSkip; skip++) {
         const nextIdx = currentIdx + skip;
         if (route.path[nextIdx]) {
-          adjustedIdx = nextIdx;
-          currentPos = route.path[nextIdx];
+          const nextAlong = cum[nextIdx] ?? 0;
           console.log(`[SIMULATION_SKIP] sparse path at ${currentIdx}, skipping to ${nextIdx}`);
-          setSimulation(prev => ({ ...prev, currentIndex: nextIdx }));
+          setSimulation(prev => ({ ...prev, currentIndex: nextIdx, alongRouteM: nextAlong }));
           return () => clearTimeout(timer);
         }
       }
-      // 유효한 인덱스를 찾지 못하면 경로 끝으로 처리
       console.log('[SIMULATION_STOP] reason=no_valid_position_found');
       setSimulation(prev => ({ ...prev, isActive: false }));
       setAppPhase('IDLE');
       return () => clearTimeout(timer);
     }
 
-    const lookAheadIdx = Math.min(adjustedIdx + 10, route.path.length - 1);
-    const targetPosForHeading = route.path[lookAheadIdx];
+    const aheadAlong = Math.min(along + 14, total);
+    const aheadInterp = getLatLngAtDistanceAlongPath(route.path, cum, aheadAlong);
+    const targetPosForHeading = { lat: aheadInterp.lat, lng: aheadInterp.lng };
+    const currentPosForCam = { lat, lng };
 
-    // Sync simulation marker to currentIndex (주행 중·일시정지 공통)
-    const lat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
-    const lng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
+    // Sync simulation marker — 누적 거리 기준 세그먼트 보간 (꼭짓점 스냅 아님)
     const map = mapboxMapRef.current;
     let flipHorizontal = false;
-    if (lookAheadIdx > currentIdx && targetPosForHeading) {
+    if (aheadAlong > along + 1e-3) {
       try {
-        const heading = computeHeading(currentPos, targetPosForHeading);
+        const heading = computeHeading(currentPosForCam, targetPosForHeading);
         flipHorizontal = heading > 180;
       } catch {
-        // 좌표 형식 오류 시 heading 스킵
+        /* ignore */
       }
     }
     const dataUrl = cyclingMarkerDataUrlRef.current;
@@ -2785,9 +2809,7 @@ const App: React.FC = () => {
     // 일시정지: 마커·맵 중심만 동기화
     if (!simulation.isActive) {
       if (mapboxMapRef.current) {
-        const plat = typeof currentPos.lat === 'function' ? currentPos.lat() : currentPos.lat;
-        const plng = typeof currentPos.lng === 'function' ? currentPos.lng() : currentPos.lng;
-        mapboxMapRef.current.easeTo({ center: [plng, plat], duration: 0 });
+        mapboxMapRef.current.easeTo({ center: [lng, lat], duration: 0 });
       }
       return;
     }
@@ -2798,16 +2820,21 @@ const App: React.FC = () => {
       tempMarker.current.remove();
       tempMarker.current = null;
     }
-    if (currentIdx >= route.path.length - 1) {
+    if (along >= total - 0.35) {
       console.log('[SIMULATION_STOP] reason=end_of_route');
-      setSimulation(prev => ({ ...prev, isActive: false }));
+      setSimulation(prev => ({
+        ...prev,
+        isActive: false,
+        alongRouteM: total,
+        currentIndex: Math.max(0, route.path.length - 1),
+      }));
       setAppPhase('IDLE');
       lastSpokenValidUntilPathIndex.current = null;
       getRideEncouragement(routeData, { distance: routeData.distance, duration: routeData.duration }).then(speak);
       return;
     }
 
-    trackRiderCamera(currentPos, targetPosForHeading, RIDE_CAMERA_TRACK_DURATION_MS);
+    trackRiderCamera(currentPosForCam, targetPosForHeading, RIDE_CAMERA_TRACK_DURATION_MS);
 
       // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
       const elevation = routeData.elevation ?? [];
@@ -2912,19 +2939,21 @@ const App: React.FC = () => {
           }
         })();
       }
-      // 이 effect는 currentIndex 변화 시 뷰 동기화만 담당. 진행(index 증가)은 아래 별도 interval effect가 수행.
+      // alongRouteM 변화마다 마커·카메라 보간; 인덱스 진행은 interval 이 alongRouteM 갱신.
     return () => clearTimeout(timer);
-  }, [simulation.isActive, simulation.currentIndex, route?.path, isMapReady, trackRiderCamera]);
+  }, [simulation.isActive, simulation.alongRouteM, route?.path, routeCumulativeDistancesM, isMapReady, trackRiderCamera]);
 
-  // Simulation progression driver: runs continuously while simulation is active,
-  // accumulates distance from live speed, and advances currentIndex by path segments.
-  // Decoupled from currentIndex/speed state so speed fluctuations cannot tear down the timer.
+  // Simulation progression: 속도로 누적 거리(m)를 연속 증가 → 마커는 세그먼트 보간으로 끊김 없이 이동
   useEffect(() => {
     if (!simulation.isActive) return;
     if (!route?.path?.length) return;
+    const cum = routeCumulativeDistancesM;
+    if (!cum?.length) return;
     const path = route.path;
+    const total = cum[cum.length - 1] ?? 0;
+    if (!Number.isFinite(total) || total <= 0) return;
+
     let lastTickMs = Date.now();
-    let pendingMeters = 0;
     const interval = window.setInterval(() => {
       const now = Date.now();
       const dtSec = Math.max(0, (now - lastTickMs) / 1000);
@@ -2945,35 +2974,19 @@ const App: React.FC = () => {
       const keepMoving = effSpeed > SENSOR_MOVE_STOP_KMH || pedalingActive;
       if (!keepMoving) return;
 
-      pendingMeters += (effSpeed * 1000 / 3600) * dtSec;
+      const deltaM = (effSpeed * 1000 / 3600) * dtSec;
 
       setSimulation(prev => {
-        let idx = prev.currentIndex;
-        const maxIdx = path.length - 1;
-        let safety = 2000;
-        while (pendingMeters > 0 && idx < maxIdx && safety-- > 0) {
-          const p1 = path[idx];
-          const p2 = path[idx + 1];
-          if (!p1 || !p2) {
-            idx += 1;
-            continue;
-          }
-          let segDist = 2;
-          try { segDist = computeDistanceBetween(p1, p2); } catch { /* keep fallback */ }
-          if (!Number.isFinite(segDist) || segDist <= 0) segDist = 2;
-          if (pendingMeters >= segDist) {
-            pendingMeters -= segDist;
-            idx += 1;
-          } else {
-            break;
-          }
-        }
-        if (idx === prev.currentIndex) return prev;
-        return { ...prev, currentIndex: idx };
+        const base = prev.alongRouteM ?? 0;
+        if (base >= total - 1e-9) return prev;
+        const nextAlong = Math.min(base + deltaM, total);
+        const idx = indexAtOrBeforeCumulativeDistance(cum, nextAlong);
+        if (nextAlong === base && idx === prev.currentIndex) return prev;
+        return { ...prev, alongRouteM: nextAlong, currentIndex: idx };
       });
     }, SIMULATION_PROGRESS_TICK_MS);
     return () => clearInterval(interval);
-  }, [simulation.isActive, route?.path]);
+  }, [simulation.isActive, route?.path, routeCumulativeDistancesM]);
 
   // 주행 중: 경로상 위치에 Mapillary 이미지가 있으면 임베드 플로팅 패널 표시
   // 주의: simulation.currentIndex 를 deps 에 두면 ~33ms 마다 effect cleanup 이 fetch 를 abort 하므로
@@ -3671,7 +3684,7 @@ const App: React.FC = () => {
       setRouteSource('OSRM');
       console.log('[SIMULATION_STOP] reason=restore_saved_route');
       resetRideMapillaryStreetState();
-      setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
+      setSimulation({ isActive: false, currentIndex: 0, alongRouteM: 0, speed: 100 });
       setAppPhase('IDLE');
       // 이전 ride 잔존 상태 전면 리셋 — coach text·elapsed·covered·코칭 refs 가
       // 새 경로 주행 시작 전까지 이전 값을 보여 주는 문제 방지
@@ -3807,7 +3820,7 @@ const App: React.FC = () => {
     lastRouteRequestRef.current = null;
     console.log('[SIMULATION_STOP] reason=clear_map');
     setRideRearCameraFollow(true);
-    setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
+    setSimulation({ isActive: false, currentIndex: 0, alongRouteM: 0, speed: 100 });
     setCoachData(null);
     setRouteSource(null);
     setWaypoints([]);
@@ -3835,7 +3848,7 @@ const App: React.FC = () => {
       rewardSecondDeclinedRef.current = false;
       rewardSecondOfferShownRef.current = false;
       rideStoppedByLimitRef.current = false;
-      setSimulation(prev => ({ ...prev, currentIndex: 0, isActive: true }));
+      setSimulation(prev => ({ ...prev, currentIndex: 0, alongRouteM: 0, isActive: true }));
       lastCoachedIndex.current = -1;
       lastSpokenValidUntilPathIndex.current = null;
       setElapsedTime(0);
@@ -3857,7 +3870,7 @@ const App: React.FC = () => {
     setRewardOfferTargetKm(0);
     setRideLimitMessage(null);
     setMaxRideLimitMessage(null);
-    setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0 }));
+      setSimulation(prev => ({ ...prev, isActive: false, currentIndex: 0, alongRouteM: 0 }));
     setAppPhase('IDLE');
     lastValidUntilFetched.current = -1;
     isPrefetchingCoachRef.current = false;
@@ -3878,18 +3891,31 @@ const App: React.FC = () => {
       const isActive = !prev.isActive;
       if (!isActive) console.log('[SIMULATION_STOP] reason=user_pause');
       if (isActive && route?.path?.length) {
-        const currentIdx = Math.min(Math.max(0, prev.currentIndex), route.path.length - 1);
-        trackRiderCamera(route.path[currentIdx], route.path[Math.min(currentIdx + 10, route.path.length - 1)], 450);
+        const path = route.path;
+        const cd =
+          route.cumulativeDistances?.length === path.length
+            ? route.cumulativeDistances
+            : computeCumulativeDistances(path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]));
+        const total = cd[cd.length - 1] ?? 0;
+        const along = Math.max(0, Math.min(prev.alongRouteM ?? cd[prev.currentIndex] ?? 0, total));
+        const cur = getLatLngAtDistanceAlongPath(path, cd, along);
+        const ahead = getLatLngAtDistanceAlongPath(path, cd, Math.min(along + 14, total));
+        trackRiderCamera({ lat: cur.lat, lng: cur.lng }, { lat: ahead.lat, lng: ahead.lng }, 450);
       }
       return { ...prev, isActive };
     });
   };
 
-  /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 currentIndex만 변경. 맵/마커/표고는 기존 effect가 동기화. */
+  /** 주행 위치 강제 이동: 시뮬 타이머/경로는 유지하고 누적 거리·인덱스 동기화. 맵/마커는 기존 effect가 보간 위치로 맞춤. */
   const jumpToRouteIndex = (targetIndex: number) => {
     if (!route?.path?.length) return;
     const clamped = Math.max(0, Math.min(targetIndex, route.path.length - 1));
-    setSimulation(prev => ({ ...prev, currentIndex: clamped }));
+    const cum =
+      route.cumulativeDistances?.length === route.path.length
+        ? route.cumulativeDistances
+        : computeCumulativeDistances(route.path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]));
+    const along = cum[clamped] ?? 0;
+    setSimulation(prev => ({ ...prev, currentIndex: clamped, alongRouteM: along }));
     const coord = route.path[clamped];
     const lat = typeof coord.lat === 'function' ? coord.lat() : coord.lat;
     const lng = typeof coord.lng === 'function' ? coord.lng() : coord.lng;
@@ -4232,7 +4258,7 @@ const App: React.FC = () => {
         // 새 path 설정 직후 시뮬레이션 리셋
         console.log('[SIMULATION_STOP] reason=route_recalculated');
         resetRideMapillaryStreetState();
-        setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
+        setSimulation({ isActive: false, currentIndex: 0, alongRouteM: 0, speed: 100 });
         setAppPhase('IDLE');
         lastCoachedIndex.current = -1;
 
@@ -4309,7 +4335,7 @@ const App: React.FC = () => {
 
     // 첫 코칭 발화/음악 루프 등 ref 기반 로직이 React state effect 를 기다리지 않게 즉시 반영한다.
     simulationActiveRef.current = true;
-    setSimulation({ isActive: true, currentIndex: 0, speed: 100 });
+    setSimulation({ isActive: true, currentIndex: 0, alongRouteM: 0, speed: 100 });
     setAppPhase('RUNNING');
     trackRiderCamera(currentRoute.path[0], currentRoute.path[1], 450);
 
@@ -4466,10 +4492,18 @@ const App: React.FC = () => {
     setSimulation(prev => ({ ...prev, isActive: true }));
     const r = routeRef.current;
     if (r?.path?.length) {
-      const idx = Math.min(Math.max(0, simulation.currentIndex), r.path.length - 1);
-      trackRiderCamera(r.path[idx], r.path[Math.min(idx + 10, r.path.length - 1)], 450);
+      const path = r.path;
+      const cd =
+        r.cumulativeDistances?.length === path.length
+          ? r.cumulativeDistances
+          : computeCumulativeDistances(path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]));
+      const total = cd[cd.length - 1] ?? 0;
+      const along = Math.max(0, Math.min(simulation.alongRouteM ?? 0, total));
+      const cur = getLatLngAtDistanceAlongPath(path, cd, along);
+      const ahead = getLatLngAtDistanceAlongPath(path, cd, Math.min(along + 14, total));
+      trackRiderCamera({ lat: cur.lat, lng: cur.lng }, { lat: ahead.lat, lng: ahead.lng }, 450);
     }
-  }, [grantRideExtensionFromRewardedAd, simulation.currentIndex, trackRiderCamera]);
+  }, [grantRideExtensionFromRewardedAd, simulation.alongRouteM, trackRiderCamera]);
 
   const handleRewardDeclineSecond = useCallback(() => {
     setRewardOfferModalStage(null);
@@ -4478,10 +4512,18 @@ const App: React.FC = () => {
     setSimulation(prev => ({ ...prev, isActive: true }));
     const r = routeRef.current;
     if (r?.path?.length) {
-      const idx = Math.min(Math.max(0, simulation.currentIndex), r.path.length - 1);
-      trackRiderCamera(r.path[idx], r.path[Math.min(idx + 10, r.path.length - 1)], 450);
+      const path = r.path;
+      const cd =
+        r.cumulativeDistances?.length === path.length
+          ? r.cumulativeDistances
+          : computeCumulativeDistances(path.map((p: any) => [fix8(coordLat(p)), fix8(coordLng(p))] as [number, number]));
+      const total = cd[cd.length - 1] ?? 0;
+      const along = Math.max(0, Math.min(simulation.alongRouteM ?? 0, total));
+      const cur = getLatLngAtDistanceAlongPath(path, cd, along);
+      const ahead = getLatLngAtDistanceAlongPath(path, cd, Math.min(along + 14, total));
+      trackRiderCamera({ lat: cur.lat, lng: cur.lng }, { lat: ahead.lat, lng: ahead.lng }, 450);
     }
-  }, [simulation.currentIndex, trackRiderCamera]);
+  }, [simulation.alongRouteM, trackRiderCamera]);
 
   const handleSetStart = () => {
     if (clickedLocation) {

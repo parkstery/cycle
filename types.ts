@@ -34,7 +34,10 @@ export enum TravelMode {
 
 export interface SimulationState {
   isActive: boolean;
+  /** 경로 꼭짓점 인덱스(표고·코칭·거리뷰 샘플링). `alongRouteM` 과 동기 */
   currentIndex: number;
+  /** 경로 시작부터의 누적 거리(m). 마커·카메라는 이 값으로 세그먼트 보간 */
+  alongRouteM: number;
   speed: number;
 }
 
