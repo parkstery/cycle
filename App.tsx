@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth, Box } from 'lucide-react';
+import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth, Box, Route } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -44,6 +44,7 @@ import {
   ensureRouteLineLayer,
   fitMapToPath,
   mapStyleUrl,
+  setRouteCorridorVisibility,
   setRouteLineGeometry,
 } from './services/mapboxRouteLayer';
 import { SensorsModal } from './SensorsModal';
@@ -633,6 +634,10 @@ const App: React.FC = () => {
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
   const [mapStyleDropdownOpen, setMapStyleDropdownOpen] = useState(false);
+  /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
+  const [routeCorridorVisible, setRouteCorridorVisible] = useState(false);
+  const routeCorridorVisibleRef = useRef(false);
+  routeCorridorVisibleRef.current = routeCorridorVisible;
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -1588,6 +1593,7 @@ const App: React.FC = () => {
               } else {
                 clearRouteLineGeometry(map);
               }
+              setRouteCorridorVisibility(map, routeCorridorVisibleRef.current);
               map.resize();
             } catch (e) {
               console.warn('[Mapbox] style.load route layer', e);
@@ -1680,6 +1686,16 @@ const App: React.FC = () => {
     if (!isMapReady || !userLocation || !mapboxMapRef.current) return;
     mapboxMapRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 14, duration: 0 });
   }, [isMapReady, userLocation]);
+
+  useEffect(() => {
+    const m = mapboxMapRef.current;
+    if (!m || !m.isStyleLoaded()) return;
+    try {
+      setRouteCorridorVisibility(m, routeCorridorVisible);
+    } catch {
+      /* 레이어 미준비 등 */
+    }
+  }, [routeCorridorVisible]);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -4533,9 +4549,9 @@ const App: React.FC = () => {
 
 
 
-      {/* Map Style Button - Moved Left (80% size) */}
+      {/* 지도 스타일 메뉴 + OSRM 경로 코리더(계산된 라인 강조) */}
       <div
-        className="fixed z-[1000] pointer-events-auto"
+        className="fixed z-[1000] pointer-events-auto relative flex flex-col gap-2 items-center"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
           top: SAFE_TOP_1REM,
@@ -4589,8 +4605,29 @@ const App: React.FC = () => {
             })}
           </div>
         )}
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => {
+            if (!route?.path || route.path.length < 2) return;
+            activateFromTouchEnd(e, () => setRouteCorridorVisible((v) => !v));
+          }}
+          onClick={() => {
+            if (!route?.path || route.path.length < 2) return;
+            setRouteCorridorVisible((v) => !v);
+          }}
+          disabled={!route?.path || route.path.length < 2}
+          title="OSRM 경로 강조 — 현재 계산된 라우트 구간(파란 코리더)"
+          aria-pressed={routeCorridorVisible}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation disabled:opacity-40 disabled:pointer-events-none ${
+            routeCorridorVisible ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'
+          }`}
+        >
+          <Route size={19} className="pointer-events-none" />
+        </button>
       </div>
-      {/* 도로 보기(Mapbox road coverage) toggle */}
+      {/* 도로 보기(Mapbox routable road 레이어) */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
@@ -4617,7 +4654,7 @@ const App: React.FC = () => {
           />
         </button>
       </div>
-      {/* 3D map toggle (coverage 버튼 아래 추가 배치) */}
+      {/* 3D map toggle */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
