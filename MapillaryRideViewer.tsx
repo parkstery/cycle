@@ -156,6 +156,11 @@ export function MapillaryRideViewer({
     const viewer = new Viewer({
       accessToken: token,
       container: el,
+      /**
+       * Default 는 전환마다 데이터에 따라 모션/블렌드를 바꿔 “옆에서 날아옴” 등 느낌이 들쭉날쭉함.
+       * 주행 거리뷰는 Instantaneous 로 통일(스틸컷, 모션·블렌드 없음) — API 상 선택지는 이 둘뿐.
+       */
+      transitionMode: TransitionMode.Instantaneous,
       component: {
         cover: false,
         /** 도로 위 전방 이동 화살표(쉐브론) */
@@ -212,7 +217,7 @@ export function MapillaryRideViewer({
         return;
       }
 
-      /** 첫 이미지 로드에서만 페이드인 — 이후 전환은 Mapillary 기본(모션·블렌드) 전환으로 이어짐 */
+      /** 첫 이미지 로드에서만 페이드인 — 이미지 간 전환은 Instantaneous(스틸컷) */
       const isFirstImageThisSession = lastImageIdRef.current == null;
       if (isFirstImageThisSession) {
         setViewReady(false);
@@ -221,7 +226,7 @@ export function MapillaryRideViewer({
 
       try {
         try {
-          viewer.setTransitionMode(TransitionMode.Default);
+          viewer.setTransitionMode(TransitionMode.Instantaneous);
         } catch {
           /* ignore */
         }
