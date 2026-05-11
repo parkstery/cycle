@@ -508,10 +508,10 @@ const MAP_STYLE_CONTROLS: {
   title: string;
   Icon: LucideIcon;
 }[] = [
-  { id: 'streets', title: '일반 지도', Icon: MapIcon },
-  { id: 'outdoors', title: '아웃도어 맵', Icon: Mountain },
-  { id: 'satellite', title: '위성', Icon: Satellite },
-  { id: 'hybrid', title: '위성 + 도로', Icon: Layers },
+  { id: 'streets', title: 'Streets map', Icon: MapIcon },
+  { id: 'outdoors', title: 'Outdoor map', Icon: Mountain },
+  { id: 'satellite', title: 'Satellite', Icon: Satellite },
+  { id: 'hybrid', title: 'Satellite + roads', Icon: Layers },
 ];
 
 const App: React.FC = () => {
@@ -5113,7 +5113,7 @@ const App: React.FC = () => {
             width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 360px)',
           }}
           role="dialog"
-          aria-label="Mapillary 거리뷰"
+          aria-label="Mapillary street view"
         >
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1 shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-white/90">Mapillary</span>
@@ -5124,8 +5124,8 @@ const App: React.FC = () => {
                 setRideMapillaryStreet(null);
               }}
               className="rounded-md p-1 text-white/80 hover:bg-white/10 hover:text-white touch-manipulation"
-              title="닫기"
-              aria-label="Mapillary 거리뷰 닫기"
+              title="Close"
+              aria-label="Close Mapillary street view"
             >
               <X size={16} />
             </button>
@@ -5161,7 +5161,7 @@ const App: React.FC = () => {
           top: SAFE_TOP_1REM,
         }}
         role="radiogroup"
-        aria-label="지도 스타일"
+        aria-label="Map style"
       >
         {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
           const active = mapType === id;
@@ -5202,8 +5202,8 @@ const App: React.FC = () => {
           onClick={toggleRouteCoverageVisibleUi}
           title={
             routeCoverageVisible
-              ? 'OSRM/맵 도로 끄기 (Mapbox 주행 가능 도로)'
-              : 'OSRM/맵 도로 켜기 — 위성 단독 스타일에서는 도로 벡터가 없을 수 있음'
+              ? 'Hide OSRM / map roads overlay (Mapbox drivable roads)'
+              : 'Show OSRM / map roads — satellite-only styles may lack road vectors'
           }
           aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
           aria-pressed={routeCoverageVisible}
@@ -5227,9 +5227,9 @@ const App: React.FC = () => {
           title={
             mapillaryTokenConfigured
               ? mapillaryBasicCoverageVisible
-                ? 'Mapillary 기본 커버리지 끄기 (촬영 경로)'
-                : 'Mapillary 기본 커버리지 켜기'
-              : '.env.local 에 VITE_MAPILLARY_CLIENT_TOKEN 설정'
+                ? 'Hide Mapillary default coverage (capture paths)'
+                : 'Show Mapillary default coverage'
+              : 'Set VITE_MAPILLARY_CLIENT_TOKEN in .env.local'
           }
           aria-pressed={mapillaryBasicCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
@@ -5252,9 +5252,9 @@ const App: React.FC = () => {
           title={
             mapillaryTokenConfigured
               ? mapillaryPanoCoverageVisible
-                ? 'Mapillary 360° 커버리지 끄기'
-                : 'Mapillary 360° 커버리지 켜기 (파노 구간)'
-              : '.env.local 에 VITE_MAPILLARY_CLIENT_TOKEN 설정'
+                ? 'Hide Mapillary 360° coverage'
+                : 'Show Mapillary 360° coverage (panoramic segments)'
+              : 'Set VITE_MAPILLARY_CLIENT_TOKEN in .env.local'
           }
           aria-pressed={mapillaryPanoCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
@@ -5278,12 +5278,12 @@ const App: React.FC = () => {
             onClick={() => setRideRearCameraFollow((v) => !v)}
             title={
               rideRearCameraFollow
-                ? '후방 추적 카메라 끄기 — 맵을 마우스·터치로 움직일 수 있습니다'
-                : '후방 추적 카메라 켜기 — 라이더 뒤에서 맵이 따라갑니다'
+                ? 'Turn off rear follow camera — pan and zoom the map freely'
+                : 'Turn on rear follow camera — map follows behind the rider'
             }
             aria-pressed={rideRearCameraFollow}
             aria-label={
-              rideRearCameraFollow ? '후방 추적 카메라 끄기' : '후방 추적 카메라 켜기'
+              rideRearCameraFollow ? 'Turn off rear follow camera' : 'Turn on rear follow camera'
             }
             className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
               rideRearCameraFollow
@@ -5312,7 +5312,7 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, () => setMap3DEnabled((prev) => !prev))}
           onClick={() => setMap3DEnabled((prev) => !prev)}
-          title={map3DEnabled ? '3D 보기 Off' : '3D 보기 On'}
+          title={map3DEnabled ? '3D view off' : '3D view on'}
           aria-label={map3DEnabled ? 'Disable 3D map' : 'Enable 3D map'}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
             map3DEnabled ? 'bg-sky-100 text-sky-700' : 'bg-white text-slate-500'
@@ -5379,12 +5379,12 @@ const App: React.FC = () => {
             onClick={() => void toggleSensorQuickMode()}
             title={
               !sensorPrefs.sensorDriveEnabled
-                ? '센서 켜기 (스캔·연결·감지)'
+                ? 'Turn on sensors (scan, connect, speed)'
                 : sensorBleBusyHud
-                  ? '스캔·연결 중… 탭하면 센서 끄기'
+                  ? 'Scanning or connecting… tap to turn sensors off'
                   : sensorHubConnected
-                    ? '센서 끄기 (스캔·연결 중지)'
-                    : '연결된 센서 없음 · 탭하면 센서 끄기'
+                    ? 'Turn off sensors (stop scan and connection)'
+                    : 'No sensor connected · tap to turn sensors off'
             }
             aria-label={
               sensorPrefs.sensorDriveEnabled
@@ -5468,14 +5468,14 @@ const App: React.FC = () => {
               onTouchStart={stopPointerPropagation}
               onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
               onClick={() => setSearchExpanded(!searchExpanded)}
-              title="장소 검색 (Mapbox)"
+              title="Search places (Mapbox)"
               className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
             >
               {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
             </button>
             <input
               type="text"
-              placeholder="장소 검색..."
+              placeholder="Search places…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => searchExpanded && placeSearchSuggestions.length > 0 && setShowPlaceSearchSuggestions(true)}
@@ -5522,7 +5522,7 @@ const App: React.FC = () => {
             <ul
               className="absolute left-1/2 top-full z-[1100] mt-0.5 w-[150%] -translate-x-1/2 py-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto"
               role="listbox"
-              aria-label="장소 추천 (Mapbox Geocoding)"
+              aria-label="Place suggestions (Mapbox Geocoding)"
               aria-activedescendant={placeSearchHighlightIndex >= 0 ? `place-search-suggestion-${placeSearchHighlightIndex}` : undefined}
             >
               {placeSearchSuggestions.map((item, idx) => (

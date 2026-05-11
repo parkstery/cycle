@@ -21,10 +21,12 @@ html,
 .gm-fullscreen-control {
   display: none !important;
 }
-/* 지도 카메라 컨트롤(회전/기울기) 숨김 */
+/* Google Maps: camera / tilt controls (title varies by locale) */
 .gm-compass,
 .gm-rotate-control,
-[title="지도 카메라 컨트롤"] {
+[title="지도 카메라 컨트롤"],
+[title="Map camera controls"],
+[title="Tilt map"] {
   display: none !important;
 }
 
