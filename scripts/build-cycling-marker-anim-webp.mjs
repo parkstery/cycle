@@ -10,6 +10,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const inputPath = join(root, 'public', 'cycling_position_marker_rear.png');
 const outPath = join(root, 'public', 'cycling_position_marker_ride.webp');
+/** CSS 스프라이트 애니(`App.tsx` 상수·`main.css` 키프레임)와 동기 */
+const spriteOutPath = join(root, 'public', 'cycling_position_marker_ride_sprite.png');
 
 /** App.tsx `SIMULATION_MARKER_SIZE_PX` 와 맞춤 */
 const SIZE = 120;
@@ -48,8 +50,26 @@ async function main() {
     })
     .toFile(outPath);
 
+  const compositeInputs = frameBuffers.map((buf, i) => ({
+    input: buf,
+    left: i * SIZE,
+    top: 0,
+  }));
+  await sharp({
+    create: {
+      width: SIZE * FRAME_COUNT,
+      height: SIZE,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite(compositeInputs)
+    .png()
+    .toFile(spriteOutPath);
+
   const meta = await sharp(outPath, { animated: true }).metadata();
   console.log('Wrote', outPath, { pages: meta.pages, width: meta.width, height: meta.pageHeight ?? meta.height });
+  console.log('Wrote', spriteOutPath, { width: SIZE * FRAME_COUNT, height: SIZE, frames: FRAME_COUNT });
 }
 
 main().catch((e) => {
