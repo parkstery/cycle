@@ -61,7 +61,7 @@ import type { SearchSuggestionItem } from './services/nominatim';
 import * as openElevation from './services/openElevation';
 import { applyRoadElevationModel } from './services/roadElevation';
 import { getValhallaElevationAlongOsrmPath, isValhallaElevationConfigured } from './services/valhallaElevation';
-import { fetchOsrmRouteJson } from './services/osrmRoute';
+import { fetchOsrmRouteJson, type OsrmRouteResponse } from './services/osrmRoute';
 import { Capacitor, SystemBars, SystemBarType } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -93,6 +93,7 @@ import {
   stackMapillaryBelowRoutableRoads,
 } from './services/mapillaryCoverage';
 import { queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
+import { snapRoutingChainToMapillaryParallel } from './services/mapillaryRouteSnap';
 import MapillaryRideViewer from './MapillaryRideViewer';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
@@ -3785,10 +3786,35 @@ const App: React.FC = () => {
         destLatLngOuter = destLatLng;
         const wpLatLngs = activeWaypoints.map(wp => toLatLng(wp.location)).filter(Boolean) as any[];
         const profile = activeMode === TravelMode.DRIVING ? 'driving' : activeMode === TravelMode.BICYCLING ? 'cycling' : 'foot';
-        const coords = [originLatLng, ...wpLatLngs, destLatLng].map((p) => `${coordLng(p)},${coordLat(p)}`).join(';');
-        const data = Capacitor.isNativePlatform()
-          ? await fetchOsrmRouteJson(profile, coords)
-          : await (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coords)}`)).json();
+        const rawChain: Array<{ lat: number; lng: number }> = [originLatLng, ...wpLatLngs, destLatLng];
+        const coordsStrFrom = (pts: Array<{ lat: number; lng: number }>) =>
+          pts.map((p) => `${coordLng(p)},${coordLat(p)}`).join(';');
+        const origCoordsStr = coordsStrFrom(rawChain);
+
+        const fetchOsrmData = async (coordStr: string) =>
+          Capacitor.isNativePlatform()
+            ? fetchOsrmRouteJson(profile, coordStr)
+            : (await fetch(`/api/osrm-route?profile=${encodeURIComponent(profile)}&coords=${encodeURIComponent(coordStr)}`)).json();
+
+        let data: OsrmRouteResponse;
+        if (MAPILLARY_CLIENT_TOKEN.trim()) {
+          let mlyChain = rawChain;
+          try {
+            mlyChain = await snapRoutingChainToMapillaryParallel(MAPILLARY_CLIENT_TOKEN, rawChain);
+          } catch {
+            mlyChain = rawChain;
+          }
+          const mlyCoordsStr = coordsStrFrom(mlyChain);
+          const unchanged =
+            mlyCoordsStr === origCoordsStr ||
+            mlyChain.every((p, i) => p.lat === rawChain[i]!.lat && p.lng === rawChain[i]!.lng);
+          data = await fetchOsrmData(mlyCoordsStr);
+          if (data.code !== 'Ok' && !unchanged) {
+            data = await fetchOsrmData(origCoordsStr);
+          }
+        } else {
+          data = await fetchOsrmData(origCoordsStr);
+        }
         if (data.code !== 'Ok') {
           const errText = typeof (data as { error?: string }).error === 'string' ? (data as { error?: string }).error : '';
           if (data.code === 'NoSegment') {
