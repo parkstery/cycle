@@ -59,7 +59,8 @@ import {
 } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement, pickFreshTipForResistance, parseResistanceBand } from './services/aiCoach';
 import * as nominatim from './services/nominatim';
-import type { SearchSuggestionItem } from './services/nominatim';
+import * as placeGeocode from './services/placeGeocode';
+import type { SearchSuggestionItem } from './services/placeGeocode';
 import * as openElevation from './services/openElevation';
 import { applyRoadElevationModel } from './services/roadElevation';
 import { getValhallaElevationAlongOsrmPath, isValhallaElevationConfigured } from './services/valhallaElevation';
@@ -2003,7 +2004,7 @@ const App: React.FC = () => {
     if (originSuggestDebounceRef.current) clearTimeout(originSuggestDebounceRef.current);
     originSuggestDebounceRef.current = window.setTimeout(() => {
       const reqId = ++originSuggestReqIdRef.current;
-      nominatim.searchSuggestions(q, 5).then((list) => {
+      placeGeocode.searchSuggestions(q, 5).then((list) => {
         if (reqId !== originSuggestReqIdRef.current) return;
         setOriginSuggestions(list);
         if (!originJustSelectedRef.current) setShowOriginSuggestions(list.length > 0);
@@ -2042,7 +2043,7 @@ const App: React.FC = () => {
     if (destSuggestDebounceRef.current) clearTimeout(destSuggestDebounceRef.current);
     destSuggestDebounceRef.current = window.setTimeout(() => {
       const reqId = ++destSuggestReqIdRef.current;
-      nominatim.searchSuggestions(q, 5).then((list) => {
+      placeGeocode.searchSuggestions(q, 5).then((list) => {
         if (reqId !== destSuggestReqIdRef.current) return;
         setDestinationSuggestions(list);
         if (!destJustSelectedRef.current) setShowDestinationSuggestions(list.length > 0);
@@ -2075,7 +2076,7 @@ const App: React.FC = () => {
     if (placeSuggestDebounceRef.current) clearTimeout(placeSuggestDebounceRef.current);
     placeSuggestDebounceRef.current = window.setTimeout(() => {
       const reqId = ++placeSuggestReqIdRef.current;
-      nominatim.searchSuggestions(q, PLACE_SEARCH_SUGGEST_LIMIT).then((list) => {
+      placeGeocode.searchSuggestions(q, PLACE_SEARCH_SUGGEST_LIMIT).then((list) => {
         if (reqId !== placeSuggestReqIdRef.current) return;
         setPlaceSearchSuggestions(list);
         if (!placeJustSelectedRef.current) setShowPlaceSearchSuggestions(list.length > 0);
@@ -3904,7 +3905,7 @@ const App: React.FC = () => {
         if (!trimmed) {
           throw new Error(`[OSRM] ${which}: 고정 좌표 없고 주소도 비어 있음`);
         }
-        const res = await nominatim.addressToCoord(trimmed);
+        const res = await placeGeocode.addressToCoord(trimmed);
         return { lat: res.lat, lng: res.lng };
       };
       const toLatLng = (p: any) => {
@@ -4618,11 +4619,11 @@ const App: React.FC = () => {
 
   const handlePlaceSearch = async (term?: string) => {
     const query = (term ?? searchTerm).trim();
-    if (!query || !mapboxMapRef.current) return;
+    if (!query) return;
     setShowPlaceSearchSuggestions(false);
     setPlaceSearchHighlightIndex(-1);
     try {
-      const res = await nominatim.search(query);
+      const res = await placeGeocode.search(query);
       applyPlaceSearchOnMap(res.lat, res.lng, query);
       setSearchTerm(query);
     } catch { /* ignore */ }
@@ -5326,7 +5327,7 @@ const App: React.FC = () => {
               onTouchStart={stopPointerPropagation}
               onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
               onClick={() => setSearchExpanded(!searchExpanded)}
-              title="Search Places"
+              title="장소 검색 (Mapbox)"
               className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
             >
               {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
@@ -5380,7 +5381,7 @@ const App: React.FC = () => {
             <ul
               className="absolute left-1/2 top-full z-[1100] mt-0.5 w-[150%] -translate-x-1/2 py-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto"
               role="listbox"
-              aria-label="장소 추천"
+              aria-label="장소 추천 (Mapbox Geocoding)"
               aria-activedescendant={placeSearchHighlightIndex >= 0 ? `place-search-suggestion-${placeSearchHighlightIndex}` : undefined}
             >
               {placeSearchSuggestions.map((item, idx) => (

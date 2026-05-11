@@ -139,11 +139,16 @@ function parsePlusCodeFromAddress(address: string): { code: string; locality: st
 }
 
 /**
- * 주소 → 좌표. Plus Code면 디코딩(짧은 코드는 locality로 참조 좌표 조회 후 복원), 아니면 Nominatim 검색.
+ * 주소 → 좌표. Plus Code면 디코딩(짧은 코드는 locality로 참조 좌표 조회 후 복원), 아니면 정지오코딩 검색.
+ * `forwardSearch` 로 Mapbox 등 외부 검색기를 주입할 수 있다.
  */
-export async function addressToCoord(address: string): Promise<{ lat: number; lng: number }> {
+export async function addressToCoord(
+  address: string,
+  opts?: { forwardSearch?: (q: string) => Promise<{ lat: number; lng: number }> }
+): Promise<{ lat: number; lng: number }> {
+  const forward = opts?.forwardSearch ?? search;
   const parsed = parsePlusCodeFromAddress(address);
-  if (!parsed) return search(address);
+  if (!parsed) return forward(address);
 
   const { code, locality } = parsed;
   try {
@@ -156,7 +161,7 @@ export async function addressToCoord(address: string): Promise<{ lat: number; ln
       let refLng = 0;
       if (locality.length >= 2) {
         try {
-          const ref = await search(locality);
+          const ref = await forward(locality);
           refLat = ref.lat;
           refLng = ref.lng;
         } catch {
@@ -172,7 +177,7 @@ export async function addressToCoord(address: string): Promise<{ lat: number; ln
       return { lat: area.latitudeCenter, lng: area.longitudeCenter };
     }
   } catch (_) {
-    /* fallback to Nominatim */
+    /* fallback */
   }
-  return search(address);
+  return forward(address);
 }
