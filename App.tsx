@@ -890,6 +890,15 @@ const App: React.FC = () => {
   const lastMapillaryStreetDismissedKeyRef = useRef<string | null>(null);
   /** 직전에 표시한 촬영점 좌표 — 다음 선택 시 연속 구간을 우선 */
   const lastMapillaryStreetPickRef = useRef<{ id: string; lat: number; lng: number } | null>(null);
+  /** 일시정지 시에는 거리뷰 유지 — 완전 종료·경로 제거·재탐색 시에만 호출 */
+  const resetRideMapillaryStreetState = useCallback(() => {
+    lastMapillaryStreetAnchorRef.current = null;
+    lastMapillaryStreetFetchAtRef.current = 0;
+    lastMapillaryStreetDismissedKeyRef.current = null;
+    mapillaryStreetFetchGenRef.current += 1;
+    lastMapillaryStreetPickRef.current = null;
+    setRideMapillaryStreet(null);
+  }, []);
   /** Mapillary 뷰어 시야: 경로 전방점 + 주행 방위 */
   const mapillaryRideSync = useMemo(() => {
     if (!route?.path?.length) {
@@ -2969,13 +2978,11 @@ const App: React.FC = () => {
   // 주의: simulation.currentIndex 를 deps 에 두면 ~33ms 마다 effect cleanup 이 fetch 를 abort 하므로
   // 최신 인덱스는 simulationIndexForStreetRef + 짧은 interval 로만 반영한다.
   useEffect(() => {
-    if (!mapillaryTokenConfigured || !simulation.isActive || !route?.path?.length) {
-      lastMapillaryStreetAnchorRef.current = null;
-      lastMapillaryStreetFetchAtRef.current = 0;
-      lastMapillaryStreetDismissedKeyRef.current = null;
-      mapillaryStreetFetchGenRef.current += 1;
-      setRideMapillaryStreet(null);
-      lastMapillaryStreetPickRef.current = null;
+    if (!mapillaryTokenConfigured || !route?.path?.length) {
+      resetRideMapillaryStreetState();
+      return;
+    }
+    if (!simulation.isActive) {
       return;
     }
     const path = route.path;
@@ -3070,7 +3077,7 @@ const App: React.FC = () => {
       clearInterval(intervalId);
       ac.abort();
     };
-  }, [mapillaryTokenConfigured, simulation.isActive, route?.path]);
+  }, [mapillaryTokenConfigured, simulation.isActive, route?.path, resetRideMapillaryStreetState]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
@@ -3653,6 +3660,7 @@ const App: React.FC = () => {
       lastOsrmDecodedPathRef.current = payload.fullGeometry.slice();
       setRouteSource('OSRM');
       console.log('[SIMULATION_STOP] reason=restore_saved_route');
+      resetRideMapillaryStreetState();
       setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
       setAppPhase('IDLE');
       // 이전 ride 잔존 상태 전면 리셋 — coach text·elapsed·covered·코칭 refs 가
@@ -3734,7 +3742,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [elevationProvider, elevationEngine, speedKmH, updateFavoriteRoutePayload]);
+  }, [elevationProvider, elevationEngine, speedKmH, updateFavoriteRoutePayload, resetRideMapillaryStreetState]);
 
   useEffect(() => {
     restoreRouteFromSavedGeometryRef.current = restoreRouteFromSavedGeometry;
@@ -3754,6 +3762,7 @@ const App: React.FC = () => {
   }, [speedKmH, trackRiderCamera]);
 
   const clearMapOverlays = () => {
+    resetRideMapillaryStreetState();
     setLockedRouteProfile(null);
     hasShownModePulseRef.current = false;
     setAppPhase('IDLE');
@@ -3832,6 +3841,7 @@ const App: React.FC = () => {
 
   const handleStopSimulation = () => {
     console.log('[SIMULATION_STOP] reason=user_stop');
+    resetRideMapillaryStreetState();
     setRideRearCameraFollow(true);
     setRewardOfferModalStage(null);
     setRewardOfferTargetKm(0);
@@ -4225,6 +4235,7 @@ const App: React.FC = () => {
 
         // 새 path 설정 직후 시뮬레이션 리셋
         console.log('[SIMULATION_STOP] reason=route_recalculated');
+        resetRideMapillaryStreetState();
         setSimulation({ isActive: false, currentIndex: 0, speed: 100 });
         setAppPhase('IDLE');
         lastCoachedIndex.current = -1;
@@ -4272,7 +4283,7 @@ const App: React.FC = () => {
       routeCalcActiveRef.current = false;
       setLoading(false);
     }
-  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, updateFavoriteRoutePayload, showElevationFlatToast]);
+  }, [origin, destination, waypoints, mode, speedKmH, elevationEngine, elevationProvider, updateFavoriteRoutePayload, showElevationFlatToast, resetRideMapillaryStreetState]);
 
   /** Core: actually starts ride (coaching, timers). Reward logic calls this. */
   const startSimulationCore = useCallback(async (currentRoute: RouteInfo) => {
@@ -5055,7 +5066,7 @@ const App: React.FC = () => {
         ref={mapRef}
         className={`bg-slate-900 absolute inset-0 z-10 min-h-0 h-full w-full ${!mapRevealed ? 'invisible pointer-events-none' : ''}`}
       />
-      {simulation.isActive && rideMapillaryStreet && (
+      {rideMapillaryStreet && route?.path?.length ? (
         <div
           className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(42vh,300px)]"
           style={{
@@ -5095,7 +5106,7 @@ const App: React.FC = () => {
             Imagery © Mapillary contributors
           </p>
         </div>
-      )}
+      ) : null}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
           <span className="text-white font-bold text-sm text-glow-black">{coachData.tip}</span>
