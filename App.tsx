@@ -135,9 +135,9 @@ const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
 const ROUTE_DENSIFY_INTERVAL_M = 1;
 /** Slow-route dialog if geocode+OSRM not finished by this time (per-phase; calculation keeps running). */
-const ROUTE_PHASE_SLOW_MODAL_MS = 5000;
+const ROUTE_PHASE_SLOW_MODAL_MS = 10000;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
-const ELEVATION_PHASE_SLOW_MODAL_MS = 5000;
+const ELEVATION_PHASE_SLOW_MODAL_MS = 10000;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
 const MAPBOX_COMPOSITE_SOURCE_ID = 'composite';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
@@ -152,10 +152,10 @@ const RIDE_CAMERA_SMOOTHING_MS = 260;
 const SIMULATION_PROGRESS_TICK_MS = 33;
 const MAPILLARY_STREET_FETCH_THROTTLE_MS = 780;
 const MAPILLARY_STREET_FETCH_MIN_MOVE_M = 24;
-/** 같은 프레임 유지 최소 시간 — 너무 길면 촘촘한 구간에서 다음 이미지로 못 따라감 */
-const MAPILLARY_STREET_MIN_HOLD_MS = 3000;
+/** 같은 프레임 유지 최소 시간 — 촘촘한 구간에서 다음 키로 넘기기 위해 짧게 */
+const MAPILLARY_STREET_MIN_HOLD_MS = 1350;
 /** 직전 촬영점 대비 허용 GPS 점프(m) — `chooseMapillaryPickAlongPath` */
-const MAPILLARY_STREET_MAX_GPS_JUMP_M = 52;
+const MAPILLARY_STREET_MAX_GPS_JUMP_M = 58;
 const MAPILLARY_STREET_NO_HIT_GRACE_MS = 9000;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
@@ -3020,6 +3020,8 @@ const App: React.FC = () => {
             dismissedId: dismissed,
             prevPick: lastMapillaryStreetPickRef.current,
             maxGpsJumpM: MAPILLARY_STREET_MAX_GPS_JUMP_M,
+            riderLatLng: { lat, lng },
+            stalePrevRiderDistM: 70,
           });
           const chosenKey = chosenPick?.id ?? null;
           const chosenIsPano = chosenPick?.isPano === true;

@@ -82,7 +82,6 @@ function smallestAngleDiffDeg(a: number, b: number): number {
   return Math.abs(((a - b + 540) % 360) - 180);
 }
 
-/** 경로 진행 방향과 가깝고·현재 위치에 가까운 촬영 프레임 선택 */
 /**
  * 경로상 촘촘한 전방 샘플(m) — 커버리지가 빽빽할 때 멀리 있는 키프레임으로 튀는 것을 줄인다.
  * (기존 0,35,70… 대비 약 2배 밀도)
@@ -92,7 +91,8 @@ export const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_DENSE_M = [
 ] as const;
 
 /**
- * 직전에 표시한 촬영점과의 GPS 거리로 점프를 제한하면서, 전방 샘플 중 하나를 고른다.
+ * 직전 촬영점과의 연속성을 고려하되, **경로상 가장 가까운 샘플 히트** 밖으로는 나가지 않는다.
+ * (먼 샘플만 히트할 때 100~300m 점프 방지)
  * dismissedId 가 있으면 우선 제외하고, 후보가 없을 때만 무시한다.
  */
 export function chooseMapillaryPickAlongPath(
@@ -102,20 +102,50 @@ export function chooseMapillaryPickAlongPath(
     prevPick: { id: string; lat: number; lng: number } | null;
     /** 이전 프레임과의 허용 최대 거리(m) — 초과 시 큰 패널티 */
     maxGpsJumpM: number;
+    /** 라이더가 이전 촬영점에서 이 거리(m) 이상 떨어지면 연속성 가중을 끈다 */
+    stalePrevRiderDistM?: number;
+    /** 현재 라이더 위치 — stale 판정에 사용 */
+    riderLatLng?: { lat: number; lng: number } | null;
   }
 ): MapillaryStreetCandidate | null {
   const withPick = rows.filter((r): r is { sampleM: number; pick: MapillaryStreetCandidate } => r.pick != null);
   if (!withPick.length) return null;
 
-  const notDismissed = withPick.filter((r) => r.pick.id !== options.dismissedId);
-  const pool = notDismissed.length ? notDismissed : withPick;
+  const staleM = options.stalePrevRiderDistM ?? 72;
+  let prevEffective: typeof options.prevPick = options.prevPick;
+  const rider = options.riderLatLng;
+  if (
+    prevEffective &&
+    rider &&
+    Number.isFinite(rider.lat) &&
+    Number.isFinite(rider.lng)
+  ) {
+    try {
+      if (
+        computeDistanceBetween(rider, { lat: prevEffective.lat, lng: prevEffective.lng }) > staleM
+      ) {
+        prevEffective = null;
+      }
+    } catch {
+      prevEffective = null;
+    }
+  }
+
+  const minSampleHit = Math.min(...withPick.map((r) => r.sampleM));
+  /** minSampleHit ~ +이 값(m) 안에서만 후보 — 먼 전방 샘플만 있는 경우로의 도약 차단 */
+  const ALONG_PATH_ENVELOPE_M = 48;
+  const alongNarrow = withPick.filter((r) => r.sampleM <= minSampleHit + ALONG_PATH_ENVELOPE_M);
+  const alongPool = alongNarrow.length ? alongNarrow : withPick;
+
+  const notDismissed = alongPool.filter((r) => r.pick.id !== options.dismissedId);
+  const pool = notDismissed.length ? notDismissed : alongPool;
   const sorted = [...pool].sort((a, b) => a.sampleM - b.sampleM);
 
-  if (!options.prevPick) {
+  if (!prevEffective) {
     return sorted[0]!.pick;
   }
 
-  const prev = options.prevPick;
+  const prev = prevEffective;
   const MAX = options.maxGpsJumpM;
   const RELAX = Math.min(125, MAX * 2.25);
 
@@ -134,7 +164,7 @@ export function chooseMapillaryPickAlongPath(
       else if (dPrev <= RELAX) jumpPenalty = MAX * 0.22 + (dPrev - MAX) * 1.65;
       else jumpPenalty = 4000 + dPrev;
     }
-    return r.sampleM * 0.1 + jumpPenalty - (sameId ? 350 : 0);
+    return r.sampleM * 1.85 + jumpPenalty - (sameId ? 380 : 0);
   };
 
   return [...sorted].sort((a, b) => score(a) - score(b))[0]!.pick;
