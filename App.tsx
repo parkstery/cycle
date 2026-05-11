@@ -739,6 +739,9 @@ const App: React.FC = () => {
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const routeRef = useRef<RouteInfo | null>(null); // stale closure 방지용 route 참조
   const [simulation, setSimulation] = useState<SimulationState>({ isActive: false, currentIndex: 0, speed: 100 });
+  /** 거리뷰 Graph fetch: currentIndex 를 effect deps 에 넣으면 매 틱 cleanup 이 fetch 를 abort 하므로 ref 로만 추적 */
+  const simulationIndexForStreetRef = useRef(0);
+  simulationIndexForStreetRef.current = simulation.currentIndex;
 
   useEffect(() => {
     if (rideRearCameraFollow) return;
@@ -2956,6 +2959,8 @@ const App: React.FC = () => {
   }, [simulation.isActive, route?.path]);
 
   // 주행 중: 경로상 위치에 Mapillary 이미지가 있으면 임베드 플로팅 패널 표시
+  // 주의: simulation.currentIndex 를 deps 에 두면 ~33ms 마다 effect cleanup 이 fetch 를 abort 하므로
+  // 최신 인덱스는 simulationIndexForStreetRef + 짧은 interval 로만 반영한다.
   useEffect(() => {
     if (!mapillaryTokenConfigured || !simulation.isActive || !route?.path?.length) {
       lastMapillaryStreetAnchorRef.current = null;
@@ -2966,77 +2971,85 @@ const App: React.FC = () => {
       return;
     }
     const path = route.path;
-    const idx = Math.min(Math.max(0, simulation.currentIndex), path.length - 1);
-    const p = path[idx];
-    if (!p) return;
-    const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
-    const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    const now = Date.now();
-    const anchor = lastMapillaryStreetAnchorRef.current;
-    const movedM = anchor ? computeDistanceBetween({ lat, lng }, anchor) : Infinity;
-    const timeSince = lastMapillaryStreetFetchAtRef.current ? now - lastMapillaryStreetFetchAtRef.current : Infinity;
-    const shouldFetch = movedM >= MAPILLARY_STREET_FETCH_MIN_MOVE_M || timeSince >= MAPILLARY_STREET_FETCH_THROTTLE_MS;
-    if (!shouldFetch) return;
-
-    if (movedM >= 130) {
-      lastMapillaryStreetDismissedKeyRef.current = null;
-    }
-
-    lastMapillaryStreetFetchAtRef.current = now;
-    lastMapillaryStreetAnchorRef.current = { lat, lng };
-
-    const gen = ++mapillaryStreetFetchGenRef.current;
     const ac = new AbortController();
-    void (async () => {
-      try {
-        const rows = await queryMapillaryAlongPathSamples(
-          MAPILLARY_CLIENT_TOKEN,
-          path,
-          idx,
-          [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M],
-          { signal: ac.signal }
-        );
-        if (gen !== mapillaryStreetFetchGenRef.current) return;
-        const dismissed = lastMapillaryStreetDismissedKeyRef.current;
-        const sorted = [...rows].sort((a, b) => a.sampleM - b.sampleM);
-        let chosenKey: string | null = null;
-        let chosenIsPano = false;
-        for (const { sampleM, pick } of sorted) {
-          if (!pick) continue;
-          if (pick.id === dismissed) continue;
-          if (sampleM <= 300) {
-            chosenKey = pick.id;
-            chosenIsPano = pick.isPano;
-            break;
-          }
-        }
-        if (!chosenKey) {
-          const anyHit = sorted.some((r) => r.pick);
-          if (!anyHit) lastMapillaryStreetDismissedKeyRef.current = null;
-          setRideMapillaryStreet((prev) => {
-            if (!prev) return null;
-            const visibleMs = Date.now() - prev.shownAtMs;
-            return visibleMs >= MAPILLARY_STREET_NO_HIT_GRACE_MS ? null : prev;
-          });
-          return;
-        }
-        setRideMapillaryStreet((prev) => {
-          const visibleMs = prev ? Date.now() - prev.shownAtMs : Infinity;
-          if (prev?.imageKey === chosenKey) return prev;
-          if (prev && visibleMs < MAPILLARY_STREET_MIN_HOLD_MS) return prev;
-          return { imageKey: chosenKey, shownAtMs: Date.now(), isPano: chosenIsPano };
-        });
-      } catch {
-        if (gen !== mapillaryStreetFetchGenRef.current) return;
+
+    const tryFetch = () => {
+      const idx = Math.min(Math.max(0, simulationIndexForStreetRef.current), path.length - 1);
+      const p = path[idx];
+      if (!p) return;
+      const lat = typeof p.lat === 'function' ? p.lat() : p.lat;
+      const lng = typeof p.lng === 'function' ? p.lng() : p.lng;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      const now = Date.now();
+      const anchor = lastMapillaryStreetAnchorRef.current;
+      const movedM = anchor ? computeDistanceBetween({ lat, lng }, anchor) : Infinity;
+      const timeSince = lastMapillaryStreetFetchAtRef.current ? now - lastMapillaryStreetFetchAtRef.current : Infinity;
+      const shouldFetch = movedM >= MAPILLARY_STREET_FETCH_MIN_MOVE_M || timeSince >= MAPILLARY_STREET_FETCH_THROTTLE_MS;
+      if (!shouldFetch) return;
+
+      if (movedM >= 130) {
+        lastMapillaryStreetDismissedKeyRef.current = null;
       }
-    })();
+
+      lastMapillaryStreetFetchAtRef.current = now;
+      lastMapillaryStreetAnchorRef.current = { lat, lng };
+
+      const gen = ++mapillaryStreetFetchGenRef.current;
+      void (async () => {
+        try {
+          const rows = await queryMapillaryAlongPathSamples(
+            MAPILLARY_CLIENT_TOKEN,
+            path,
+            idx,
+            [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M],
+            { signal: ac.signal }
+          );
+          if (gen !== mapillaryStreetFetchGenRef.current) return;
+          const dismissed = lastMapillaryStreetDismissedKeyRef.current;
+          const sorted = [...rows].sort((a, b) => a.sampleM - b.sampleM);
+          let chosenKey: string | null = null;
+          let chosenIsPano = false;
+          for (const { sampleM, pick } of sorted) {
+            if (!pick) continue;
+            if (pick.id === dismissed) continue;
+            if (sampleM <= 300) {
+              chosenKey = pick.id;
+              chosenIsPano = pick.isPano;
+              break;
+            }
+          }
+          if (!chosenKey) {
+            const anyHit = sorted.some((r) => r.pick);
+            if (!anyHit) lastMapillaryStreetDismissedKeyRef.current = null;
+            setRideMapillaryStreet((prev) => {
+              if (!prev) return null;
+              const visibleMs = Date.now() - prev.shownAtMs;
+              return visibleMs >= MAPILLARY_STREET_NO_HIT_GRACE_MS ? null : prev;
+            });
+            return;
+          }
+          setRideMapillaryStreet((prev) => {
+            const visibleMs = prev ? Date.now() - prev.shownAtMs : Infinity;
+            if (prev?.imageKey === chosenKey) return prev;
+            if (prev && visibleMs < MAPILLARY_STREET_MIN_HOLD_MS) return prev;
+            return { imageKey: chosenKey, shownAtMs: Date.now(), isPano: chosenIsPano };
+          });
+        } catch {
+          if (gen !== mapillaryStreetFetchGenRef.current) return;
+        }
+      })();
+    };
+
+    tryFetch();
+    const pollMs = Math.min(400, Math.max(120, Math.floor(MAPILLARY_STREET_FETCH_THROTTLE_MS / 2)));
+    const intervalId = window.setInterval(tryFetch, pollMs);
 
     return () => {
+      clearInterval(intervalId);
       ac.abort();
     };
-  }, [mapillaryTokenConfigured, simulation.isActive, simulation.currentIndex, route?.path]);
+  }, [mapillaryTokenConfigured, simulation.isActive, route?.path]);
 
   // Secondary Effect for Timer (same as before)
   useEffect(() => {
