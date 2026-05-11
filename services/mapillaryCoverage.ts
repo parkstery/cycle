@@ -90,12 +90,17 @@ export function stackMapillaryBelowRoutableRoads(map: Map, routableLayerId: stri
   }
 }
 
-export function setMapillaryCoverageVisibility(map: Map, visible: boolean): void {
-  const visibility = visible ? 'visible' : 'none';
+export function setMapillaryCoverageLayersVisibility(
+  map: Map,
+  visibility: { basic: boolean; pano360: boolean }
+): void {
+  const basicVis = visibility.basic ? 'visible' : 'none';
+  const panoVis = visibility.pano360 ? 'visible' : 'none';
   if (map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID)) {
-    map.setLayoutProperty(MAPILLARY_SEQUENCE_LAYER_ID, 'visibility', visibility);
+    map.setLayoutProperty(MAPILLARY_SEQUENCE_LAYER_ID, 'visibility', basicVis);
   }
   if (map.getLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID)) {
-    map.setLayoutProperty(MAPILLARY_PANO_SEQUENCE_LAYER_ID, 'visibility', visibility);
+    map.setLayoutProperty(MAPILLARY_PANO_SEQUENCE_LAYER_ID, 'visibility', panoVis);
   }
 }
+
