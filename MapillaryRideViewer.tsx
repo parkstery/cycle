@@ -201,15 +201,19 @@ export function MapillaryRideViewer({
         return;
       }
 
-      setViewReady(false);
-      lastRealignSnapshotRef.current = null;
-      try {
-        viewer.setTransitionMode(TransitionMode.Instantaneous);
-      } catch {
-        /* ignore */
+      /** 첫 이미지 로드에서만 페이드인 — 이후 전환은 Mapillary 기본(모션·블렌드) 전환으로 이어짐 */
+      const isFirstImageThisSession = lastImageIdRef.current == null;
+      if (isFirstImageThisSession) {
+        setViewReady(false);
       }
+      lastRealignSnapshotRef.current = null;
 
       try {
+        try {
+          viewer.setTransitionMode(TransitionMode.Default);
+        } catch {
+          /* ignore */
+        }
         await viewer.moveTo(imageId);
         lastImageIdRef.current = imageId;
         const s = syncRef.current;
@@ -228,12 +232,6 @@ export function MapillaryRideViewer({
         lastImageIdRef.current = null;
         setViewReady(false);
         return;
-      } finally {
-        try {
-          viewer.setTransitionMode(TransitionMode.Default);
-        } catch {
-          /* ignore */
-        }
       }
       setViewReady(true);
     };
@@ -297,7 +295,7 @@ export function MapillaryRideViewer({
       className={className ?? ''}
       style={{
         opacity: viewReady ? 1 : 0,
-        transition: 'opacity 80ms ease-out',
+        transition: 'opacity 220ms ease-out',
       }}
     />
   );
