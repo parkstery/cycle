@@ -133,7 +133,13 @@ export function MapillaryRideViewer({
     const viewer = new Viewer({
       accessToken: token,
       container: el,
-      component: { cover: false },
+      component: {
+        cover: false,
+        /** 도로 위 전방 이동 화살표(쉐브론) */
+        direction: false,
+        /** 상단 재생·prev·next 시퀀스 컨트롤 */
+        sequence: { visible: false },
+      },
     });
     viewerRef.current = viewer;
     lastImageIdRef.current = null;
