@@ -95,7 +95,8 @@ import {
   setMapillaryCoverageVisibility,
   stackMapillaryBelowRoutableRoads,
 } from './services/mapillaryCoverage';
-import { mapillaryEmbedUrl, queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
+import { queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
+import { MapillaryRideViewer } from './MapillaryRideViewer';
 import { snapRoutingChainToMapillaryParallel } from './services/mapillaryRouteSnap';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
@@ -861,7 +862,9 @@ const App: React.FC = () => {
   const lastMapillaryUiToggleMsRef = useRef(0);
   const lastRouteCoverageUiToggleMsRef = useRef(0);
   /** 주행 중 경로상 Mapillary 임베드 거리뷰(커버리지 있을 때만) */
-  const [rideMapillaryStreet, setRideMapillaryStreet] = useState<null | { imageKey: string; shownAtMs: number }>(null);
+  const [rideMapillaryStreet, setRideMapillaryStreet] = useState<
+    null | { imageKey: string; shownAtMs: number; isPano?: boolean }
+  >(null);
   const lastMapillaryStreetFetchAtRef = useRef(0);
   const lastMapillaryStreetAnchorRef = useRef<{ lat: number; lng: number } | null>(null);
   const mapillaryStreetFetchGenRef = useRef(0);
@@ -2969,11 +2972,13 @@ const App: React.FC = () => {
         const dismissed = lastMapillaryStreetDismissedKeyRef.current;
         const sorted = [...rows].sort((a, b) => a.sampleM - b.sampleM);
         let chosenKey: string | null = null;
+        let chosenIsPano = false;
         for (const { sampleM, pick } of sorted) {
           if (!pick) continue;
           if (pick.id === dismissed) continue;
           if (sampleM <= 300) {
             chosenKey = pick.id;
+            chosenIsPano = pick.isPano;
             break;
           }
         }
@@ -2991,7 +2996,7 @@ const App: React.FC = () => {
           const visibleMs = prev ? Date.now() - prev.shownAtMs : Infinity;
           if (prev?.imageKey === chosenKey) return prev;
           if (prev && visibleMs < MAPILLARY_STREET_MIN_HOLD_MS) return prev;
-          return { imageKey: chosenKey, shownAtMs: Date.now() };
+          return { imageKey: chosenKey, shownAtMs: Date.now(), isPano: chosenIsPano };
         });
       } catch {
         if (gen !== mapillaryStreetFetchGenRef.current) return;
@@ -5000,14 +5005,11 @@ const App: React.FC = () => {
             </button>
           </div>
           <div className="relative w-full aspect-video bg-black shrink-0">
-            <iframe
-              key={rideMapillaryStreet.imageKey}
-              title="Mapillary"
-              src={mapillaryEmbedUrl(rideMapillaryStreet.imageKey, 'photo')}
-              className="absolute inset-0 h-full w-full border-0"
-              loading="eager"
-              referrerPolicy="no-referrer-when-downgrade"
-              allow="fullscreen; autoplay"
+            <MapillaryRideViewer
+              accessToken={MAPILLARY_CLIENT_TOKEN}
+              imageId={rideMapillaryStreet.imageKey}
+              sphericalNavigation={rideMapillaryStreet.isPano === true}
+              className="absolute inset-0 h-full w-full"
             />
           </div>
           <p className="text-[9px] text-white/55 px-2 py-1 border-t border-white/10 shrink-0 leading-tight">
