@@ -27,18 +27,21 @@ async function raf2(): Promise<void> {
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
 
-/** `full`: 이동 직후 — 전방 투영으로 시야 맞춤. `bearingDrift`: 같은 파노에서 전방점 추적(project) 끄고 방위만 큰 편차일 때만 보정 */
+/** `full`: 이동 직후. `bearingDrift`: 같은 파노에서도 전방 project 우선, 실패 시에만 베어링 UV 보정(흔들림 최소화) */
 type AlignMode = 'full' | 'bearingDrift';
 
-/** 한 번의 호출에서 setCenter 는 최대 1회 */
+/** 매 렌더마다 raw 주행 방위를 이 비율만큼 목표 쪽으로 당김(저역 통과) */
+const HEADING_SMOOTH_ALPHA = 0.14;
+
+/** 한 번의 호출에서 setCenter 는 최대 1회 — 가능하면 project 한 번으로 끝내 bearing UV 스냅을 줄임 */
 async function alignViewToRide(
   viewer: Viewer,
   lookAt: { lat: number; lng: number } | null | undefined,
-  driveHeadingDeg: number | null | undefined,
+  bearingTargetDeg: number | null | undefined,
   sphericalNavigation: boolean,
   mode: AlignMode
 ): Promise<void> {
-  const headingOk = driveHeadingDeg != null && Number.isFinite(driveHeadingDeg);
+  const headingOk = bearingTargetDeg != null && Number.isFinite(bearingTargetDeg);
   const lookOk = lookAt && Number.isFinite(lookAt.lat) && Number.isFinite(lookAt.lng);
   const drift = mode === 'bearingDrift';
 
@@ -58,17 +61,17 @@ async function alignViewToRide(
     }
   };
 
-  if (!drift || !sphericalNavigation) {
-    if (await tryProject()) return;
-  }
+  /** drift·full 공통: 공간 목표(전방점) 우선 — 숫자 회전 보정은 폴백으로만 */
+  if (await tryProject()) return;
 
   if (sphericalNavigation && headingOk) {
     try {
       const b = await viewer.getBearing();
       const cur = await viewer.getCenter();
       if (!cur || cur.length < 2) return;
-      const delta = signedBearingDeltaDeg(b, driveHeadingDeg!);
-      const minDeg = drift ? 10 : 5;
+      const delta = signedBearingDeltaDeg(b, bearingTargetDeg!);
+      /** drift에서는 잦은 setCenter 방지, full에서는 초기 정렬만 빠르게 */
+      const minDeg = drift ? 16 : 6;
       if (Math.abs(delta) < minDeg) return;
       const y = Math.min(0.94, Math.max(0.06, cur[1]!));
       viewer.setCenter([wrap01(cur[0]! + delta / 360), y]);
@@ -80,15 +83,16 @@ async function alignViewToRide(
 
 type SyncPayload = {
   lookAt: { lat: number; lng: number } | null;
-  driveHeadingDeg: number | null;
+  /** 저역 통과된 방위 — 정렬·스냅샷 비교에만 사용 */
+  bearingTargetDeg: number | null;
   sphericalNavigation: boolean;
 };
 
-/** 주행 중 재정렬: lookAt 이동(m)·방위 변화(°) 또는 시간이 충분히 지난 경우에만 */
-const REALIGN_MIN_MOVE_M = 7;
-const REALIGN_MIN_HEADING_DEG = 6;
-const REALIGN_MAX_INTERVAL_MS = 3200;
-const REALIGN_DEBOUNCE_MS = 420;
+/** 같은 파노 안 재정렬: 덜 자주·덜 민감하게(setCenter·내부 easing 충돌 완화) */
+const REALIGN_MIN_MOVE_M = 18;
+const REALIGN_MIN_HEADING_DEG = 14;
+const REALIGN_MAX_INTERVAL_MS = 5200;
+const REALIGN_DEBOUNCE_MS = 820;
 
 /**
  * 주행 동기화용 Mapillary JS 뷰어 — iframe 대신 단일 Viewer에서 `moveTo`로 이미지 전환.
@@ -112,14 +116,33 @@ export function MapillaryRideViewer({
     heading: number;
     atMs: number;
   } | null>(null);
+  const smoothedBearingRef = useRef<number | null>(null);
+  const smoothImageIdRef = useRef<string | null>(null);
+
+  if (smoothImageIdRef.current !== imageId) {
+    smoothImageIdRef.current = imageId;
+    smoothedBearingRef.current = null;
+  }
+
+  const rawHeading = driveHeadingDeg != null && Number.isFinite(driveHeadingDeg) ? driveHeadingDeg : null;
+  let bearingTargetDeg: number | null = null;
+  if (rawHeading != null) {
+    const prev = smoothedBearingRef.current;
+    bearingTargetDeg =
+      prev == null ? rawHeading : prev + signedBearingDeltaDeg(prev, rawHeading) * HEADING_SMOOTH_ALPHA;
+    smoothedBearingRef.current = bearingTargetDeg;
+  } else {
+    smoothedBearingRef.current = null;
+  }
+
   const syncRef = useRef<SyncPayload>({
     lookAt: null,
-    driveHeadingDeg: null,
+    bearingTargetDeg: null,
     sphericalNavigation: false,
   });
   syncRef.current = {
     lookAt: lookAt ?? null,
-    driveHeadingDeg: driveHeadingDeg ?? null,
+    bearingTargetDeg,
     sphericalNavigation: sphericalNavigation === true,
   };
 
@@ -145,6 +168,8 @@ export function MapillaryRideViewer({
     lastImageIdRef.current = null;
     filterAppliedRef.current = null;
     lastRealignSnapshotRef.current = null;
+    smoothedBearingRef.current = null;
+    smoothImageIdRef.current = null;
     setViewReady(false);
 
     return () => {
@@ -157,6 +182,8 @@ export function MapillaryRideViewer({
       lastImageIdRef.current = null;
       filterAppliedRef.current = null;
       lastRealignSnapshotRef.current = null;
+      smoothedBearingRef.current = null;
+      smoothImageIdRef.current = null;
     };
   }, [accessToken]);
 
@@ -179,30 +206,8 @@ export function MapillaryRideViewer({
 
     const run = async () => {
       const filterChanged = await applyFilter();
+      /** 같은 파노에서의 시야 보정은 lookAt 이펙트의 디바운스 한 경로로만 처리 — 여기서 즉시 setCenter 하면 이중 보정·툭툭 유발 */
       if (lastImageIdRef.current === imageId && !filterChanged) {
-        const s = syncRef.current;
-        const snap = lastRealignSnapshotRef.current;
-        if (s.lookAt && s.driveHeadingDeg != null && Number.isFinite(s.driveHeadingDeg)) {
-          if (snap) {
-            const d = computeDistanceBetween({ lat: snap.lat, lng: snap.lng }, s.lookAt);
-            const hDiff = Math.abs(signedBearingDeltaDeg(snap.heading, s.driveHeadingDeg));
-            const aged = Date.now() - snap.atMs > REALIGN_MAX_INTERVAL_MS;
-            if (d < REALIGN_MIN_MOVE_M && hDiff < REALIGN_MIN_HEADING_DEG && !aged) {
-              setViewReady(true);
-              return;
-            }
-          }
-        }
-        await alignViewToRide(viewer, s.lookAt, s.driveHeadingDeg, s.sphericalNavigation, 'bearingDrift');
-        const s2 = syncRef.current;
-        if (s2.lookAt && s2.driveHeadingDeg != null && Number.isFinite(s2.driveHeadingDeg)) {
-          lastRealignSnapshotRef.current = {
-            lat: s2.lookAt.lat,
-            lng: s2.lookAt.lng,
-            heading: s2.driveHeadingDeg,
-            atMs: Date.now(),
-          };
-        }
         setViewReady(true);
         return;
       }
@@ -223,13 +228,13 @@ export function MapillaryRideViewer({
         await viewer.moveTo(imageId);
         lastImageIdRef.current = imageId;
         const s = syncRef.current;
-        await alignViewToRide(viewer, s.lookAt, s.driveHeadingDeg, s.sphericalNavigation, 'full');
+        await alignViewToRide(viewer, s.lookAt, s.bearingTargetDeg, s.sphericalNavigation, 'full');
         const s2 = syncRef.current;
-        if (s2.lookAt && s2.driveHeadingDeg != null && Number.isFinite(s2.driveHeadingDeg)) {
+        if (s2.lookAt && s2.bearingTargetDeg != null && Number.isFinite(s2.bearingTargetDeg)) {
           lastRealignSnapshotRef.current = {
             lat: s2.lookAt.lat,
             lng: s2.lookAt.lng,
-            heading: s2.driveHeadingDeg,
+            heading: s2.bearingTargetDeg,
             atMs: Date.now(),
           };
         }
@@ -250,12 +255,12 @@ export function MapillaryRideViewer({
     if (!viewer || !imageId || lastImageIdRef.current !== imageId) return;
 
     const s = syncRef.current;
-    if (!s.lookAt || s.driveHeadingDeg == null || !Number.isFinite(s.driveHeadingDeg)) return;
+    if (!s.lookAt || s.bearingTargetDeg == null || !Number.isFinite(s.bearingTargetDeg)) return;
 
     const snap = lastRealignSnapshotRef.current;
     if (snap) {
       const dMoved = computeDistanceBetween({ lat: snap.lat, lng: snap.lng }, s.lookAt);
-      const hDiff = Math.abs(signedBearingDeltaDeg(snap.heading, s.driveHeadingDeg));
+      const hDiff = Math.abs(signedBearingDeltaDeg(snap.heading, s.bearingTargetDeg));
       const aged = Date.now() - snap.atMs > REALIGN_MAX_INTERVAL_MS;
       if (dMoved < REALIGN_MIN_MOVE_M && hDiff < REALIGN_MIN_HEADING_DEG && !aged) {
         return;
@@ -269,19 +274,19 @@ export function MapillaryRideViewer({
         const v = viewerRef.current;
         if (!v || lastImageIdRef.current !== imageId) return;
         const s2 = syncRef.current;
-        if (!s2.lookAt || s2.driveHeadingDeg == null || !Number.isFinite(s2.driveHeadingDeg)) return;
+        if (!s2.lookAt || s2.bearingTargetDeg == null || !Number.isFinite(s2.bearingTargetDeg)) return;
         const sn = lastRealignSnapshotRef.current;
         if (sn) {
           const dMoved = computeDistanceBetween({ lat: sn.lat, lng: sn.lng }, s2.lookAt);
-          const hDiff = Math.abs(signedBearingDeltaDeg(sn.heading, s2.driveHeadingDeg));
+          const hDiff = Math.abs(signedBearingDeltaDeg(sn.heading, s2.bearingTargetDeg));
           const aged = Date.now() - sn.atMs > REALIGN_MAX_INTERVAL_MS;
           if (dMoved < REALIGN_MIN_MOVE_M && hDiff < REALIGN_MIN_HEADING_DEG && !aged) return;
         }
-        await alignViewToRide(v, s2.lookAt, s2.driveHeadingDeg, s2.sphericalNavigation, 'bearingDrift');
+        await alignViewToRide(v, s2.lookAt, s2.bearingTargetDeg, s2.sphericalNavigation, 'bearingDrift');
         lastRealignSnapshotRef.current = {
           lat: s2.lookAt.lat,
           lng: s2.lookAt.lng,
-          heading: s2.driveHeadingDeg,
+          heading: s2.bearingTargetDeg,
           atMs: Date.now(),
         };
       })();
