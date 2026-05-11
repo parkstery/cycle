@@ -2,7 +2,6 @@ import type { Map } from 'mapbox-gl';
 import { ROUTE_LAYER } from './mapboxRouteLayer';
 
 export const MAPILLARY_VECTOR_SOURCE_ID = 'mapillary-coverage-vtp';
-export const MAPILLARY_PANO_VECTOR_SOURCE_ID = 'mapillary-pano-coverage-vtp';
 export const MAPILLARY_SEQUENCE_LAYER_ID = 'mapillary-sequence-lines';
 export const MAPILLARY_PANO_SEQUENCE_LAYER_ID = 'mapillary-pano-sequence-lines';
 
@@ -16,17 +15,6 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
       type: 'vector',
       tiles: [
         `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${encodeURIComponent(token)}`,
-      ],
-      minzoom: 6,
-      maxzoom: 14,
-    });
-  }
-
-  if (!map.getSource(MAPILLARY_PANO_VECTOR_SOURCE_ID)) {
-    map.addSource(MAPILLARY_PANO_VECTOR_SOURCE_ID, {
-      type: 'vector',
-      tiles: [
-        `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${encodeURIComponent(token)}&is_pano=true`,
       ],
       minzoom: 6,
       maxzoom: 14,
@@ -49,8 +37,8 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
         paint: {
           // OSRM/Mapbox 도로(시안) 위에서도 구분되게 — Mapillary 전용 색
           'line-color': '#f97316',
-          'line-opacity': 0.92,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 5, 16, 7],
+          'line-opacity': 0.82,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 8, 16, 11],
         },
       },
       beforeId
@@ -63,8 +51,14 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
       {
         id: MAPILLARY_PANO_SEQUENCE_LAYER_ID,
         type: 'line',
-        source: MAPILLARY_PANO_VECTOR_SOURCE_ID,
+        source: MAPILLARY_VECTOR_SOURCE_ID,
         'source-layer': 'sequence',
+        filter: [
+          'any',
+          ['==', ['get', 'is_pano'], true],
+          ['==', ['get', 'is_pano'], 1],
+          ['==', ['get', 'is_pano'], 'true'],
+        ],
         layout: {
           visibility: 'none',
           'line-cap': 'round',
@@ -74,7 +68,7 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           // 360도 파노라마 구간은 전체 커버리지 위에 더 밝고 굵게 중첩한다.
           'line-color': '#22d3ee',
           'line-opacity': 0.96,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.4, 14, 7, 16, 10],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 4.4, 16, 6],
         },
       },
       beforeId

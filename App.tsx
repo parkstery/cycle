@@ -92,11 +92,8 @@ import {
   setMapillaryCoverageVisibility,
   stackMapillaryBelowRoutableRoads,
 } from './services/mapillaryCoverage';
-import {
-  fetchMapillaryStreetCandidates,
-  mapillaryEmbedUrl,
-  pickMapillaryStreetCandidate,
-} from './services/mapillaryStreetView';
+import { queryMapillaryAlongPathSamples } from './services/mapillaryStreetView';
+import MapillaryRideViewer from './MapillaryRideViewer';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -126,7 +123,7 @@ const USE_OFFLINE_ROUTE_RESTORE = true;
 const SAVED_ROUTE_PAYLOAD_VERSION = 2 as const;
 
 /** densifiedGeometry 간격(m). calculateRoute 의 segmentLength 와 동일해야 한다. */
-const ROUTE_DENSIFY_INTERVAL_M = 10;
+const ROUTE_DENSIFY_INTERVAL_M = 2;
 /** Slow-route dialog if geocode+OSRM not finished by this time (per-phase; calculation keeps running). */
 const ROUTE_PHASE_SLOW_MODAL_MS = 500;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
@@ -138,11 +135,16 @@ const BUILDING_LAYER_ID = '3d-buildings';
 const RIDE_CAMERA_REAR_OFFSET_M = 5;
 const RIDE_CAMERA_ZOOM = 18;
 const RIDE_CAMERA_PITCH = 62;
+const SIMULATION_MARKER_SIZE_PX = 120;
+const RIDE_CAMERA_TRACK_DURATION_MS = 160;
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
 const SIMULATION_PROGRESS_TICK_MS = 33;
-/** Mapillary Graph 거리뷰 조회: 과도한 호출 방지 */
-const MAPILLARY_STREET_MIN_FETCH_INTERVAL_MS = 3600;
-const MAPILLARY_STREET_MIN_MOVE_M = 44;
+/** 전방 최대 300m 구간을 샘플로 스캔해 Mapillary 유무 확인 */
+const MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M = [0, 70, 140, 210, 280, 300] as const;
+/** 이 거리 이하 전방 샘플에서 맞은 프레임이면 패널을 미리 띄움(늦지 않게) */
+const MAPILLARY_STREET_SHOW_LEAD_MAX_M = 102;
+const MAPILLARY_STREET_FETCH_THROTTLE_MS = 780;
+const MAPILLARY_STREET_FETCH_MIN_MOVE_M = 24;
 
 /** 메뉴·URL과 연동되는 표고 엔진 선택값 (localStorage). */
 const ELEVATION_ENGINE_STORAGE_KEY = 'cycle_elevation_engine';
@@ -180,7 +182,7 @@ const parseSavedRoutes = (raw: string | null): SavedRoute[] => {
   }
 };
 
-/** [lat,lng] 배열을 densify 간격(기본 10m)으로 보간 (calculateRoute 의 densifiedPath 와 동일 로직) */
+/** [lat,lng] 배열을 densify 간격으로 보간 (calculateRoute 의 densifiedPath 와 동일 로직) */
 const densifyLatLngPath = (
   latLngs: [number, number][],
   intervalM: number = ROUTE_DENSIFY_INTERVAL_M
@@ -2550,7 +2552,7 @@ const App: React.FC = () => {
       if (dataUrl) {
         const flip = flipHorizontal ? ' translate(20,20) scale(-1,1) translate(-20,-20)' : '';
         const wobble = '<animateTransform attributeName="transform" type="rotate" values="-3 20 22;3 20 22;-3 20 22" dur="1.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"/>';
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><g transform="' + flip + '"><g>' + wobble + '<image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></g></svg>';
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + SIMULATION_MARKER_SIZE_PX + '" height="' + SIMULATION_MARKER_SIZE_PX + '" viewBox="0 0 40 40"><g transform="' + flip + '"><g>' + wobble + '<image href="' + dataUrl.replace(/"/g, "'") + '" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet"/></g></g></svg>';
         return 'data:image/svg+xml,' + encodeURIComponent(svg);
       }
       return CYCLING_POSITION_MARKER_URL;
@@ -2558,23 +2560,38 @@ const App: React.FC = () => {
     const mbGl = mapboxGlRef.current;
     if (!simulationMarker.current && map && mbGl) {
       const el = document.createElement('div');
-      el.style.width = '40px';
-      el.style.height = '40px';
+      el.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
+      el.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.style.pointerEvents = 'none';
+      el.style.zIndex = '1200';
       const img = document.createElement('img');
-      img.width = 40;
-      img.height = 40;
+      img.width = SIMULATION_MARKER_SIZE_PX;
+      img.height = SIMULATION_MARKER_SIZE_PX;
       img.alt = '';
       img.src = cyclingIconUrl;
       img.style.display = 'block';
+      img.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
+      img.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
       el.appendChild(img);
       simulationMarker.current = new mbGl.Marker({ element: el, anchor: 'center' })
         .setLngLat([lng, lat])
         .addTo(map);
     } else if (simulationMarker.current) {
       simulationMarker.current.setLngLat([lng, lat]);
-      const img = simulationMarker.current.getElement().querySelector('img');
-      if (img) img.src = cyclingIconUrl;
+      const el = simulationMarker.current.getElement();
+      el.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
+      el.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
+      el.style.pointerEvents = 'none';
+      el.style.zIndex = '1200';
+      const img = el.querySelector('img');
+      if (img) {
+        img.src = cyclingIconUrl;
+        img.width = SIMULATION_MARKER_SIZE_PX;
+        img.height = SIMULATION_MARKER_SIZE_PX;
+        img.style.display = 'block';
+        img.style.width = `${SIMULATION_MARKER_SIZE_PX}px`;
+        img.style.height = `${SIMULATION_MARKER_SIZE_PX}px`;
+      }
     }
 
     // 일시정지: 마커·맵 중심만 동기화
@@ -2602,7 +2619,7 @@ const App: React.FC = () => {
       return;
     }
 
-    trackRiderCamera(currentPos, targetPosForHeading, 0);
+    trackRiderCamera(currentPos, targetPosForHeading, RIDE_CAMERA_TRACK_DURATION_MS);
 
       // ---- AI COACHING: Predictive (cachedCoaching) + legacy safety net. 모든 멘트는 브라우저 TTS(speak). ----
       const elevation = routeData.elevation ?? [];
@@ -2792,7 +2809,7 @@ const App: React.FC = () => {
     const anchor = lastMapillaryStreetAnchorRef.current;
     const movedM = anchor ? computeDistanceBetween({ lat, lng }, anchor) : Infinity;
     const timeSince = lastMapillaryStreetFetchAtRef.current ? now - lastMapillaryStreetFetchAtRef.current : Infinity;
-    const shouldFetch = movedM >= MAPILLARY_STREET_MIN_MOVE_M || timeSince >= MAPILLARY_STREET_MIN_FETCH_INTERVAL_MS;
+    const shouldFetch = movedM >= MAPILLARY_STREET_FETCH_MIN_MOVE_M || timeSince >= MAPILLARY_STREET_FETCH_THROTTLE_MS;
     if (!shouldFetch) return;
 
     if (movedM >= 130) {
@@ -2802,33 +2819,36 @@ const App: React.FC = () => {
     lastMapillaryStreetFetchAtRef.current = now;
     lastMapillaryStreetAnchorRef.current = { lat, lng };
 
-    const lookIdx = Math.min(idx + 14, path.length - 1);
-    const look = path[lookIdx];
-    let driveHeading: number | null = null;
-    if (look && lookIdx > idx) {
-      try {
-        driveHeading = computeHeading(p, look);
-      } catch {
-        driveHeading = null;
-      }
-    }
-
     const gen = ++mapillaryStreetFetchGenRef.current;
     const ac = new AbortController();
     void (async () => {
       try {
-        const candidates = await fetchMapillaryStreetCandidates(MAPILLARY_CLIENT_TOKEN, lat, lng, {
-          signal: ac.signal,
-        });
+        const rows = await queryMapillaryAlongPathSamples(
+          MAPILLARY_CLIENT_TOKEN,
+          path,
+          idx,
+          [...MAPILLARY_STREET_LOOKAHEAD_SAMPLES_M],
+          { signal: ac.signal }
+        );
         if (gen !== mapillaryStreetFetchGenRef.current) return;
-        const pick = pickMapillaryStreetCandidate(candidates, { lat, lng }, driveHeading);
-        if (!pick) {
-          lastMapillaryStreetDismissedKeyRef.current = null;
+        const dismissed = lastMapillaryStreetDismissedKeyRef.current;
+        const sorted = [...rows].sort((a, b) => a.sampleM - b.sampleM);
+        let chosenKey: string | null = null;
+        for (const { sampleM, pick } of sorted) {
+          if (!pick) continue;
+          if (pick.id === dismissed) continue;
+          if (sampleM === 0 || sampleM <= MAPILLARY_STREET_SHOW_LEAD_MAX_M) {
+            chosenKey = pick.id;
+            break;
+          }
+        }
+        if (!chosenKey) {
+          const anyHit = sorted.some((r) => r.pick);
+          if (!anyHit) lastMapillaryStreetDismissedKeyRef.current = null;
           setRideMapillaryStreet(null);
           return;
         }
-        if (pick.id === lastMapillaryStreetDismissedKeyRef.current) return;
-        setRideMapillaryStreet({ imageKey: pick.id });
+        setRideMapillaryStreet({ imageKey: chosenKey });
       } catch {
         if (gen !== mapillaryStreetFetchGenRef.current) return;
       }
@@ -3879,7 +3899,7 @@ const App: React.FC = () => {
         }
 
         const densifiedPath = [];
-        const segmentLength = 10;
+        const segmentLength = ROUTE_DENSIFY_INTERVAL_M;
         for (let i = 0; i < path.length - 1; i++) {
           const p1 = path[i];
           const p2 = path[i + 1];
@@ -4809,15 +4829,7 @@ const App: React.FC = () => {
             </button>
           </div>
           <div className="relative w-full aspect-video bg-black shrink-0">
-            <iframe
-              key={rideMapillaryStreet.imageKey}
-              title="Mapillary"
-              src={mapillaryEmbedUrl(rideMapillaryStreet.imageKey, 'photo')}
-              className="absolute inset-0 h-full w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allow="fullscreen"
-            />
+            <MapillaryRideViewer accessToken={MAPILLARY_CLIENT_TOKEN} imageId={rideMapillaryStreet.imageKey} />
           </div>
           <p className="text-[9px] text-white/55 px-2 py-1 border-t border-white/10 shrink-0 leading-tight">
             Imagery © Mapillary contributors

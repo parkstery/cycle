@@ -1,4 +1,4 @@
-import { computeDistanceBetween, computeHeading, type LatLngLike } from './geoUtils';
+import { computeDistanceBetween, computeHeading, computeOffset, type LatLngLike } from './geoUtils';
 
 export type MapillaryStreetCandidate = {
   id: string;
@@ -6,6 +6,7 @@ export type MapillaryStreetCandidate = {
   lng: number;
   lat: number;
   compassAngle?: number;
+  isPano: boolean;
 };
 
 type GeoJsonPoint = { type?: string; coordinates?: [number, number] };
@@ -35,6 +36,7 @@ export async function fetchMapillaryStreetCandidates(
     'computed_geometry',
     'compass_angle',
     'computed_compass_angle',
+    'is_pano',
   ].join(',');
   const url = new URL('https://graph.mapillary.com/images');
   url.searchParams.set('access_token', token);
@@ -53,6 +55,7 @@ export async function fetchMapillaryStreetCandidates(
       computed_geometry?: GeoJsonPoint;
       compass_angle?: number;
       computed_compass_angle?: number;
+      is_pano?: boolean;
     }>;
   };
   const rows = json.data ?? [];
@@ -69,7 +72,8 @@ export async function fetchMapillaryStreetCandidates(
           ? row.compass_angle
           : undefined;
     const thumb1024Url = typeof row.thumb_1024_url === 'string' ? row.thumb_1024_url : undefined;
-    out.push({ id, lng: pt.lng, lat: pt.lat, compassAngle, thumb1024Url });
+    const isPano = row.is_pano === true;
+    out.push({ id, lng: pt.lng, lat: pt.lat, compassAngle, thumb1024Url, isPano });
   }
   return out;
 }
@@ -116,4 +120,93 @@ export function mapillaryEmbedUrl(imageKey: string, style: 'photo' | 'classic' =
   u.searchParams.set('image_key', imageKey);
   u.searchParams.set('style', style);
   return u.toString();
+}
+
+function pathPointLatLng(p: unknown): { lat: number; lng: number } | null {
+  if (p == null || typeof p !== 'object') return null;
+  const o = p as { lat?: unknown; lng?: unknown };
+  const lat = typeof o.lat === 'function' ? (o.lat as () => number)() : (o.lat as number);
+  const lng = typeof o.lng === 'function' ? (o.lng as () => number)() : (o.lng as number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+/** 경로 `startIdx`에서 누적 `forwardMeters` 만큼 앞쪽 좌표(선분 보간). */
+export function pathPointAhead(
+  path: unknown[],
+  startIdx: number,
+  forwardMeters: number
+): { lat: number; lng: number; pathIndex: number } | null {
+  if (!path.length || forwardMeters < 0) return null;
+  const si = Math.min(Math.max(0, Math.floor(startIdx)), path.length - 1);
+  if (forwardMeters === 0) {
+    const cur = pathPointLatLng(path[si]);
+    if (!cur) return null;
+    return { lat: cur.lat, lng: cur.lng, pathIndex: si };
+  }
+  let i = si;
+  let remaining = forwardMeters;
+  while (i < path.length - 1 && remaining > 0) {
+    const p1 = path[i];
+    const p2 = path[i + 1];
+    const ll1 = pathPointLatLng(p1);
+    const ll2 = pathPointLatLng(p2);
+    if (!ll1 || !ll2) {
+      i += 1;
+      continue;
+    }
+    let seg = 2;
+    try {
+      seg = computeDistanceBetween(p1 as LatLngLike, p2 as LatLngLike);
+    } catch {
+      seg = 2;
+    }
+    if (!Number.isFinite(seg) || seg <= 0) seg = 2;
+    if (remaining <= seg) {
+      try {
+        const heading = computeHeading(p1 as LatLngLike, p2 as LatLngLike);
+        const off = computeOffset(p1 as LatLngLike, remaining, heading);
+        return { lat: off.lat, lng: off.lng, pathIndex: i };
+      } catch {
+        return { lat: ll2.lat, lng: ll2.lng, pathIndex: i };
+      }
+    }
+    remaining -= seg;
+    i += 1;
+  }
+  const last = pathPointLatLng(path[path.length - 1]);
+  if (!last) return null;
+  return { lat: last.lat, lng: last.lng, pathIndex: path.length - 1 };
+}
+
+export function driveHeadingAtPathIndex(path: unknown[], idx: number): number | null {
+  const j = Math.min(path.length - 1, Math.max(0, idx) + 14);
+  if (j <= idx) return null;
+  const a = path[idx];
+  const b = path[j];
+  if (!a || !b) return null;
+  try {
+    return computeHeading(a as LatLngLike, b as LatLngLike);
+  } catch {
+    return null;
+  }
+}
+
+/** 전방 샘플 거리(m) 각각에서 Mapillary 후보 조회 — 병렬. */
+export async function queryMapillaryAlongPathSamples(
+  accessToken: string,
+  path: unknown[],
+  startIdx: number,
+  samplesM: number[],
+  init?: { signal?: AbortSignal }
+): Promise<Array<{ sampleM: number; pick: MapillaryStreetCandidate | null }>> {
+  const tasks = samplesM.map(async (sampleM) => {
+    const pt = pathPointAhead(path, startIdx, sampleM);
+    if (!pt) return { sampleM, pick: null as MapillaryStreetCandidate | null };
+    const drive = driveHeadingAtPathIndex(path, pt.pathIndex);
+    const candidates = await fetchMapillaryStreetCandidates(accessToken, pt.lat, pt.lng, init);
+    const pick = pickMapillaryStreetCandidate(candidates, { lat: pt.lat, lng: pt.lng }, drive);
+    return { sampleM, pick };
+  });
+  return Promise.all(tasks);
 }
