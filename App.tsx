@@ -37,6 +37,7 @@ import {
   Bluetooth,
   Box,
   Route,
+  Camera,
   type LucideIcon,
 } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
@@ -74,6 +75,7 @@ import {
 } from './services/geoUtils';
 import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
 import { MAPBOX_ACCESS_TOKEN } from './mapboxToken';
+import { MAPILLARY_CLIENT_TOKEN } from './mapillaryToken';
 import { loadMapboxGl } from './services/mapboxGlLazy';
 import {
   ROUTE_LAYER,
@@ -84,6 +86,7 @@ import {
   setRouteCorridorVisibility,
   setRouteLineGeometry,
 } from './services/mapboxRouteLayer';
+import { ensureMapillaryCoverageLayer, setMapillaryCoverageVisibility } from './services/mapillaryCoverage';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -119,6 +122,7 @@ const ROUTE_PHASE_SLOW_MODAL_MS = 500;
 /** Slow-route dialog if elevation fetch not finished this long after the elevation phase starts. */
 const ELEVATION_PHASE_SLOW_MODAL_MS = 500;
 const ROUTABLE_ROAD_LAYER_ID = 'routable-roads-overlay';
+const MAPBOX_COMPOSITE_SOURCE_ID = 'composite';
 const TERRAIN_SOURCE_ID = 'mapbox-dem';
 const BUILDING_LAYER_ID = '3d-buildings';
 /** 주행 인덱스 갱신 주기(ms): 값이 작을수록 마커 이동이 부드럽다. */
@@ -566,13 +570,13 @@ const App: React.FC = () => {
           });
         }
         target.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: 1.3 });
-        if (!target.getLayer(BUILDING_LAYER_ID)) {
+        if (!target.getLayer(BUILDING_LAYER_ID) && target.getSource(MAPBOX_COMPOSITE_SOURCE_ID)) {
           const layers = target.getStyle().layers || [];
           const labelLayer = layers.find((layer) => layer.type === 'symbol' && !!layer.layout?.['text-field']);
           target.addLayer(
             {
               id: BUILDING_LAYER_ID,
-              source: 'composite',
+              source: MAPBOX_COMPOSITE_SOURCE_ID,
               'source-layer': 'building',
               filter: ['==', 'extrude', 'true'],
               type: 'fill-extrusion',
@@ -686,6 +690,11 @@ const App: React.FC = () => {
   const [routeCorridorVisible, setRouteCorridorVisible] = useState(false);
   const routeCorridorVisibleRef = useRef(false);
   routeCorridorVisibleRef.current = routeCorridorVisible;
+  /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있을 때만 레이어·토글 표시 */
+  const mapillaryTokenConfigured = MAPILLARY_CLIENT_TOKEN.length > 0;
+  const [mapillaryCoverageVisible, setMapillaryCoverageVisible] = useState(mapillaryTokenConfigured);
+  const mapillaryCoverageVisibleRef = useRef(mapillaryCoverageVisible);
+  mapillaryCoverageVisibleRef.current = mapillaryCoverageVisible;
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -1600,19 +1609,22 @@ const App: React.FC = () => {
             style: mapStyleUrl(mapTypeRef.current),
             center: [126.9882, 37.5512],
             zoom: 14,
-            attributionControl: true,
+            attributionControl: MAPILLARY_CLIENT_TOKEN
+              ? { compact: true, customAttribution: 'Imagery © Mapillary' }
+              : true,
           });
           map.on('style.load', () => {
             try {
               ensureRouteLineLayer(map);
               // style 변경 후 road coverage 오버레이 재부착
               const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
-              if (!hasOverlay) {
+              const hasCompositeSource = !!map.getSource(MAPBOX_COMPOSITE_SOURCE_ID);
+              if (!hasOverlay && hasCompositeSource) {
                 map.addLayer(
                   {
                     id: ROUTABLE_ROAD_LAYER_ID,
                     type: 'line',
-                    source: 'composite',
+                    source: MAPBOX_COMPOSITE_SOURCE_ID,
                     'source-layer': 'road',
                     filter: [
                       'in',
@@ -1642,6 +1654,10 @@ const App: React.FC = () => {
                 clearRouteLineGeometry(map);
               }
               setRouteCorridorVisibility(map, routeCorridorVisibleRef.current);
+              if (MAPILLARY_CLIENT_TOKEN) {
+                ensureMapillaryCoverageLayer(map, MAPILLARY_CLIENT_TOKEN);
+                setMapillaryCoverageVisibility(map, mapillaryCoverageVisibleRef.current);
+              }
               map.resize();
             } catch (e) {
               console.warn('[Mapbox] style.load route layer', e);
@@ -1744,6 +1760,17 @@ const App: React.FC = () => {
       /* 레이어 미준비 등 */
     }
   }, [routeCorridorVisible]);
+
+  useEffect(() => {
+    const m = mapboxMapRef.current;
+    if (!m || !m.isStyleLoaded() || !MAPILLARY_CLIENT_TOKEN) return;
+    try {
+      ensureMapillaryCoverageLayer(m, MAPILLARY_CLIENT_TOKEN);
+      setMapillaryCoverageVisibility(m, mapillaryCoverageVisible);
+    } catch {
+      /* 스타일 전환 직전 등 */
+    }
+  }, [mapillaryCoverageVisible]);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -2333,12 +2360,13 @@ const App: React.FC = () => {
     if (!map) return;
     try {
       const hasOverlay = !!map.getLayer(ROUTABLE_ROAD_LAYER_ID);
-      if (!hasOverlay) {
+      const hasCompositeSource = !!map.getSource(MAPBOX_COMPOSITE_SOURCE_ID);
+      if (!hasOverlay && hasCompositeSource) {
         map.addLayer(
           {
             id: ROUTABLE_ROAD_LAYER_ID,
             type: 'line',
-            source: 'composite',
+            source: MAPBOX_COMPOSITE_SOURCE_ID,
             'source-layer': 'road',
             filter: [
               'in',
@@ -4645,6 +4673,22 @@ const App: React.FC = () => {
         >
           <Route size={19} className="pointer-events-none" />
         </button>
+        {mapillaryTokenConfigured && (
+          <button
+            type="button"
+            onPointerDown={stopPointerPropagation}
+            onTouchStart={stopPointerPropagation}
+            onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapillaryCoverageVisible((v) => !v))}
+            onClick={() => setMapillaryCoverageVisible((v) => !v)}
+            title={mapillaryCoverageVisible ? 'Mapillary 커버리지 끄기' : 'Mapillary 커버리지 (촬영 경로)'}
+            aria-pressed={mapillaryCoverageVisible}
+            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+              mapillaryCoverageVisible ? 'bg-emerald-700 text-white' : 'bg-white text-emerald-700'
+            }`}
+          >
+            <Camera size={18} className="pointer-events-none" />
+          </button>
+        )}
       </div>
       {/* 도로 보기(Mapbox routable road 레이어) */}
       <div

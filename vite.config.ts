@@ -218,6 +218,7 @@ export default defineConfig(({ mode }) => {
     define: {
       // Mapbox GL — loadEnv 로 .env.local 까지 읽어 클라이언트에 고정 주입 (일부 환경에서 import.meta.env 만으로 누락될 때 보강)
       'import.meta.env.VITE_MAPBOX_ACCESS_TOKEN': JSON.stringify(env.VITE_MAPBOX_ACCESS_TOKEN ?? ''),
+      'import.meta.env.VITE_MAPILLARY_CLIENT_TOKEN': JSON.stringify(env.VITE_MAPILLARY_CLIENT_TOKEN ?? ''),
       // Android 등 클라이언트에서 Stadia Route 직접 호출 시 — .env 의 STADIA_MAPS_API_KEY 를 VITE_ 없이도 쓰게 함(키는 번들에 포함됨).
       'import.meta.env.VITE_STADIA_MAPS_API_KEY': JSON.stringify(
         env.STADIA_MAPS_API_KEY ?? env.VITE_STADIA_MAPS_API_KEY ?? ''
