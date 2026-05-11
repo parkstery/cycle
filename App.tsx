@@ -36,7 +36,6 @@ import {
   Gauge,
   Bluetooth,
   Box,
-  Route,
   Camera,
   Aperture,
   LocateFixed,
@@ -846,9 +845,6 @@ const App: React.FC = () => {
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
   /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
-  const [routeCorridorVisible, setRouteCorridorVisible] = useState(true);
-  const routeCorridorVisibleRef = useRef(routeCorridorVisible);
-  routeCorridorVisibleRef.current = routeCorridorVisible;
   /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있을 때만 레이어·토글 표시 */
   const mapillaryTokenConfigured = MAPILLARY_CLIENT_TOKEN.length > 0;
   /** Mapillary 시퀀스(일반 촬영 경로) 레이어 */
@@ -1899,7 +1895,7 @@ const App: React.FC = () => {
               } else {
                 clearRouteLineGeometry(map);
               }
-              setRouteCorridorVisibility(map, routeCorridorVisibleRef.current);
+              setRouteCorridorVisibility(map, true);
               if (MAPILLARY_CLIENT_TOKEN) {
                 ensureMapillaryCoverageLayer(map, MAPILLARY_CLIENT_TOKEN);
                 stackMapillaryBelowRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
@@ -2008,16 +2004,6 @@ const App: React.FC = () => {
     if (!isMapReady || !userLocation || !mapboxMapRef.current) return;
     mapboxMapRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 14, duration: 0 });
   }, [isMapReady, userLocation]);
-
-  useEffect(() => {
-    const m = mapboxMapRef.current;
-    if (!m || !m.isStyleLoaded()) return;
-    try {
-      setRouteCorridorVisibility(m, routeCorridorVisible);
-    } catch {
-      /* 레이어 미준비 등 */
-    }
-  }, [routeCorridorVisible]);
 
   useEffect(() => {
     const m = mapboxMapRef.current;
@@ -5125,7 +5111,7 @@ const App: React.FC = () => {
 
 
 
-      {/* 지도 스타일 4종 버튼 + OSRM 경로 코리더 */}
+      {/* 지도 스타일 4종 */}
       <div
         className="fixed z-[1000] pointer-events-auto flex flex-col gap-1.5 items-center"
         style={{
@@ -5157,20 +5143,6 @@ const App: React.FC = () => {
             </button>
           );
         })}
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCorridorVisible((v) => !v))}
-          onClick={() => setRouteCorridorVisible((v) => !v)}
-          title="OSRM 경로(파란 코리더) — 경로 없으면 표시만 없음"
-          aria-pressed={routeCorridorVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            routeCorridorVisible ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'
-          }`}
-        >
-          <Route size={19} className="pointer-events-none" />
-        </button>
       </div>
       {/* OSRM 맵 도로(Mapbox composite) + Mapillary — 나란히 비교, 아래에 3D */}
       <div
