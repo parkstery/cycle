@@ -59,7 +59,6 @@ import {
   type ExploreSceneCategory
 } from './types';
 import { getAdvancedCoaching, getPredictiveCoaching, getCourseBriefing, getRideEncouragement, pickFreshTipForResistance, parseResistanceBand } from './services/aiCoach';
-import * as nominatim from './services/nominatim';
 import * as placeGeocode from './services/placeGeocode';
 import type { SearchSuggestionItem } from './services/placeGeocode';
 import * as openElevation from './services/openElevation';
@@ -2165,7 +2164,7 @@ const App: React.FC = () => {
     };
     let bestCandidate: string | null = null;
     try {
-      const direct = await nominatim.reverse(lat, lng);
+      const direct = await placeGeocode.reverse(lat, lng);
       const s = sanitize(direct.formatted_address);
       if (s) return s;
     } catch {
@@ -2184,7 +2183,7 @@ const App: React.FC = () => {
     ];
     for (const [dLat, dLng] of offsets) {
       try {
-        const r = await nominatim.reverse(lat + dLat, lng + dLng);
+        const r = await placeGeocode.reverse(lat + dLat, lng + dLng);
         const s = sanitize(r.formatted_address);
         if (s) {
           // 가장 먼저 잡히는 도로명/지번 주소를 우선 반환
@@ -2200,7 +2199,7 @@ const App: React.FC = () => {
     // 최후 보정: 도로명까지 못 잡아도 zoom을 낮춰 행정구역 단위 주소를 확보한다.
     for (const z of [16, 14, 12, 10, 8, 6]) {
       try {
-        const r = await nominatim.reverse(lat, lng, { zoom: z });
+        const r = await placeGeocode.reverse(lat, lng, { zoom: z });
         const s = sanitize(r.formatted_address);
         if (s) return s;
         if (r.formatted_address && !isCoordinateLabel(r.formatted_address)) {
