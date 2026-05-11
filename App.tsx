@@ -1,7 +1,44 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Play, Pause, RotateCcw, Trash2, X, MapPin, AreaChart as AreaChartIcon, ChevronRight, ChevronLeft, ChevronsLeft, History, Activity, ShieldAlert, Bike, Footprints, Car, Waypoints, ArrowUpDown, Plus, Minus, Layers, Star, Square, Mic, Music, Menu, MessageSquare, Gauge, Bluetooth, Box, Route } from 'lucide-react';
+import {
+  Search,
+  Play,
+  Pause,
+  RotateCcw,
+  Trash2,
+  X,
+  MapPin,
+  Map as MapIcon,
+  Mountain,
+  Satellite,
+  AreaChart as AreaChartIcon,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  History,
+  Activity,
+  ShieldAlert,
+  Bike,
+  Footprints,
+  Car,
+  Waypoints,
+  ArrowUpDown,
+  Plus,
+  Minus,
+  Layers,
+  Star,
+  Square,
+  Mic,
+  Music,
+  Menu,
+  MessageSquare,
+  Gauge,
+  Bluetooth,
+  Box,
+  Route,
+  type LucideIcon,
+} from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
 import About from './About';
 import MenuPanel from './MenuPanel';
@@ -442,6 +479,18 @@ function ExploreRouteRow({
   );
 }
 
+/** 지도 스타일 4종 — 버튼 순서: 일반 → 아웃도어 → 위성 → 위성+도로 */
+const MAP_STYLE_CONTROLS: {
+  id: 'streets' | 'outdoors' | 'satellite' | 'hybrid';
+  title: string;
+  Icon: LucideIcon;
+}[] = [
+  { id: 'streets', title: '일반 지도', Icon: MapIcon },
+  { id: 'outdoors', title: '아웃도어 맵', Icon: Mountain },
+  { id: 'satellite', title: '위성', Icon: Satellite },
+  { id: 'hybrid', title: '위성 + 도로', Icon: Layers },
+];
+
 const App: React.FC = () => {
   // Map & Service References
   const mapRef = useRef<HTMLDivElement>(null);
@@ -633,7 +682,6 @@ const App: React.FC = () => {
   const [map3DEnabled, setMap3DEnabled] = useState(false);
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
-  const [mapStyleDropdownOpen, setMapStyleDropdownOpen] = useState(false);
   /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
   const [routeCorridorVisible, setRouteCorridorVisible] = useState(false);
   const routeCorridorVisibleRef = useRef(false);
@@ -4222,14 +4270,9 @@ const App: React.FC = () => {
   };
 
   const applyMapStyle = (next: 'streets' | 'outdoors' | 'satellite' | 'hybrid') => {
-    setMapStyleDropdownOpen(false);
     setMapType(next);
     const mmap = mapboxMapRef.current;
     if (mmap) mmap.setStyle(mapStyleUrl(next));
-  };
-
-  const handleToggleMapStyleDropdown = () => {
-    setMapStyleDropdownOpen((prev) => !prev);
   };
 
   // Android WebView에서 일부 터치가 click으로 승격되지 않는 경우가 있어,
@@ -4549,62 +4592,38 @@ const App: React.FC = () => {
 
 
 
-      {/* 지도 스타일 메뉴 + OSRM 경로 코리더(계산된 라인 강조) */}
+      {/* 지도 스타일 4종 버튼 + OSRM 경로 코리더 */}
       <div
-        className="fixed z-[1000] pointer-events-auto relative flex flex-col gap-2 items-center"
+        className="fixed z-[1000] pointer-events-auto flex flex-col gap-1.5 items-center"
         style={{
           right: 'calc(env(safe-area-inset-right, 0px) + 4rem)',
           top: SAFE_TOP_1REM,
         }}
+        role="radiogroup"
+        aria-label="지도 스타일"
       >
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, handleToggleMapStyleDropdown)}
-          onClick={handleToggleMapStyleDropdown}
-          title="Change Map Style"
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${mapStyleDropdownOpen ? 'bg-slate-800 text-white' : 'bg-white text-slate-400'}`}
-        >
-          <Layers size={19} className="pointer-events-none" />
-        </button>
-        {mapStyleDropdownOpen && (
-          <div
-            className="absolute right-0 mt-2 w-[12.5rem] overflow-hidden rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md shadow-2xl"
-            style={{ pointerEvents: 'auto' }}
-            role="menu"
-          >
-            {(
-              [
-                { id: 'streets', label: '일반 지도 (Streets)' },
-                { id: 'outdoors', label: '아웃도어 (Outdoors)' },
-                { id: 'hybrid', label: '위성 + 도로 (Satellite Streets)' },
-                { id: 'satellite', label: '위성 (Satellite)' },
-              ] as const
-            ).map((item) => {
-              const active = mapType === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onPointerDown={stopPointerPropagation}
-                  onTouchStart={stopPointerPropagation}
-                  onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(item.id))}
-                  onClick={() => applyMapStyle(item.id)}
-                  className={`w-full px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
-                    active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50'
-                  }`}
-                  role="menuitem"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{item.label}</span>
-                    {active && <span className="text-[11px] font-black">✓</span>}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
+          const active = mapType === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onPointerDown={stopPointerPropagation}
+              onTouchStart={stopPointerPropagation}
+              onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(id))}
+              onClick={() => applyMapStyle(id)}
+              title={title}
+              aria-label={title}
+              aria-checked={active}
+              role="radio"
+              className={`w-[2.35rem] h-[2.35rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border-2 ${
+                active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
+              }`}
+            >
+              <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
+            </button>
+          );
+        })}
         <button
           type="button"
           onPointerDown={stopPointerPropagation}
