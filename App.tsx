@@ -86,7 +86,12 @@ import {
   setRouteCorridorVisibility,
   setRouteLineGeometry,
 } from './services/mapboxRouteLayer';
-import { ensureMapillaryCoverageLayer, setMapillaryCoverageVisibility } from './services/mapillaryCoverage';
+import {
+  ensureMapillaryCoverageLayer,
+  MAPILLARY_SEQUENCE_LAYER_ID,
+  setMapillaryCoverageVisibility,
+  stackMapillaryAboveRoutableRoads,
+} from './services/mapillaryCoverage';
 import { SensorsModal } from './SensorsModal';
 import { BikeProfileModal } from './BikeProfileModal';
 import { getIndoorBleHub } from './sensor/indoorBleHub';
@@ -698,6 +703,9 @@ const App: React.FC = () => {
   const [mapillaryCoverageVisible, setMapillaryCoverageVisible] = useState(mapillaryTokenConfigured);
   const mapillaryCoverageVisibleRef = useRef(mapillaryCoverageVisible);
   mapillaryCoverageVisibleRef.current = mapillaryCoverageVisible;
+  /** 터치 후 ghost click 으로 Mapillary/OSRM 도로 토글이 두 번 뒤집히는 것 방지 */
+  const lastMapillaryUiToggleMsRef = useRef(0);
+  const lastRouteCoverageUiToggleMsRef = useRef(0);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'list' | 'about' | 'guideSimple' | 'guideDetail' | 'privacy' | 'terms' | 'disclaimer' | 'licenses' | 'contact'>('list');
@@ -1659,6 +1667,7 @@ const App: React.FC = () => {
               setRouteCorridorVisibility(map, routeCorridorVisibleRef.current);
               if (MAPILLARY_CLIENT_TOKEN) {
                 ensureMapillaryCoverageLayer(map, MAPILLARY_CLIENT_TOKEN);
+                stackMapillaryAboveRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
                 setMapillaryCoverageVisibility(map, mapillaryCoverageVisibleRef.current);
               }
               map.resize();
@@ -1766,14 +1775,28 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const m = mapboxMapRef.current;
-    if (!m || !m.isStyleLoaded() || !MAPILLARY_CLIENT_TOKEN) return;
-    try {
-      ensureMapillaryCoverageLayer(m, MAPILLARY_CLIENT_TOKEN);
-      setMapillaryCoverageVisibility(m, mapillaryCoverageVisible);
-    } catch {
-      /* 스타일 전환 직전 등 */
-    }
-  }, [mapillaryCoverageVisible]);
+    if (!m || !MAPILLARY_CLIENT_TOKEN || !isMapReady) return;
+
+    const syncMapillaryToMap = () => {
+      try {
+        if (!m.isStyleLoaded()) return;
+        ensureMapillaryCoverageLayer(m, MAPILLARY_CLIENT_TOKEN);
+        stackMapillaryAboveRoutableRoads(m, ROUTABLE_ROAD_LAYER_ID);
+        setMapillaryCoverageVisibility(m, mapillaryCoverageVisible);
+      } catch {
+        /* 스타일 전환 직전 등 */
+      }
+    };
+
+    syncMapillaryToMap();
+    const onIdleOnce = () => {
+      syncMapillaryToMap();
+    };
+    m.once('idle', onIdleOnce);
+    return () => {
+      m.off('idle', onIdleOnce);
+    };
+  }, [mapillaryCoverageVisible, isMapReady, mapType]);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -2391,6 +2414,9 @@ const App: React.FC = () => {
         );
       } else if (hasOverlay) {
         map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
+      }
+      if (MAPILLARY_CLIENT_TOKEN && map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID) && map.getLayer(ROUTE_LAYER)) {
+        stackMapillaryAboveRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
       }
     } catch (e) {
       console.warn('[Mapbox] road coverage overlay', e);
@@ -4318,6 +4344,21 @@ const App: React.FC = () => {
     action();
   };
 
+  const UI_TOGGLE_DEBOUNCE_MS = 400;
+  const toggleRouteCoverageVisibleUi = useCallback(() => {
+    const n = Date.now();
+    if (n - lastRouteCoverageUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
+    lastRouteCoverageUiToggleMsRef.current = n;
+    setRouteCoverageVisible((v) => !v);
+  }, []);
+  const toggleMapillaryCoverageVisibleUi = useCallback(() => {
+    if (!mapillaryTokenConfigured) return;
+    const n = Date.now();
+    if (n - lastMapillaryUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
+    lastMapillaryUiToggleMsRef.current = n;
+    setMapillaryCoverageVisible((v) => !v);
+  }, [mapillaryTokenConfigured]);
+
   const isSaved = isCurrentRouteSaved();
   return (
     <div className="fixed inset-0 bg-slate-900 overflow-hidden font-sans">
@@ -4682,8 +4723,8 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCoverageVisible((prev) => !prev))}
-          onClick={() => setRouteCoverageVisible((prev) => !prev)}
+          onTouchEnd={(e) => activateFromTouchEnd(e, toggleRouteCoverageVisibleUi)}
+          onClick={toggleRouteCoverageVisibleUi}
           title={
             routeCoverageVisible
               ? 'OSRM/맵 도로 끄기 (Mapbox 주행 가능 도로)'
@@ -4705,14 +4746,8 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => {
-            if (!mapillaryTokenConfigured) return;
-            activateFromTouchEnd(e, () => setMapillaryCoverageVisible((v) => !v));
-          }}
-          onClick={() => {
-            if (!mapillaryTokenConfigured) return;
-            setMapillaryCoverageVisible((v) => !v);
-          }}
+          onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryCoverageVisibleUi)}
+          onClick={toggleMapillaryCoverageVisibleUi}
           disabled={!mapillaryTokenConfigured}
           title={
             mapillaryTokenConfigured

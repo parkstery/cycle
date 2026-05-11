@@ -34,13 +34,25 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           'line-join': 'round',
         },
         paint: {
-          'line-color': '#39c67f',
-          'line-opacity': 0.55,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 3, 16, 5],
+          // OSRM/Mapbox 도로(시안) 위에서도 구분되게 — Mapillary 전용 색
+          'line-color': '#f97316',
+          'line-opacity': 0.92,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 5, 16, 7],
         },
       },
       beforeId
     );
+  }
+}
+
+/** Mapillary 시퀀스를 routable(cyan)보다 위·빨간 경로선 바로 아래로 옮겨 OSRM 맵 도로와 동시 비교 */
+export function stackMapillaryAboveRoutableRoads(map: Map, routableLayerId: string): void {
+  if (!map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID) || !map.getLayer(ROUTE_LAYER)) return;
+  if (routableLayerId && !map.getLayer(routableLayerId)) return;
+  try {
+    map.moveLayer(MAPILLARY_SEQUENCE_LAYER_ID, ROUTE_LAYER);
+  } catch {
+    /* 순서 불가 */
   }
 }
 
