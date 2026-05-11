@@ -351,9 +351,12 @@ const SAFE_TOP_INSET = IS_ANDROID_NATIVE ? '0px' : 'env(safe-area-inset-top, 0px
 /** 네이티브 WebView 패딩 없음 — safe-area는 CSS env()만 사용 (viewport-fit=cover) */
 const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
 const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
-const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 1rem + 2.4rem + 0.5rem)`;
+/** OSRM·Mapillary(2×2.4+gap) + 3D(2.4) 아래 — 우측 1rem 열과 겹치지 않게 */
+const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 9.05rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
+/** OSRM·Mapillary 세로 스택(gap-0.5) 아래 3D 버튼 상단 */
+const SAFE_TOP_3D_BTN = `calc(${SAFE_TOP_INSET} + 6.25rem)`;
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
 const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
 
@@ -687,8 +690,8 @@ const App: React.FC = () => {
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
   /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
-  const [routeCorridorVisible, setRouteCorridorVisible] = useState(false);
-  const routeCorridorVisibleRef = useRef(false);
+  const [routeCorridorVisible, setRouteCorridorVisible] = useState(true);
+  const routeCorridorVisibleRef = useRef(routeCorridorVisible);
   routeCorridorVisibleRef.current = routeCorridorVisible;
   /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있을 때만 레이어·토글 표시 */
   const mapillaryTokenConfigured = MAPILLARY_CLIENT_TOKEN.length > 0;
@@ -723,7 +726,7 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
-  const [routeCoverageVisible, setRouteCoverageVisible] = useState(false);
+  const [routeCoverageVisible, setRouteCoverageVisible] = useState(true);
   const routeCoverageVisibleRef = useRef(routeCoverageVisible);
   routeCoverageVisibleRef.current = routeCoverageVisible;
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
@@ -1644,7 +1647,7 @@ const App: React.FC = () => {
                   },
                   map.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
                 );
-              } else {
+              } else if (hasOverlay) {
                 map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisibleRef.current ? 'visible' : 'none');
               }
               applyMap3DState(map);
@@ -2386,7 +2389,7 @@ const App: React.FC = () => {
           },
           map.getLayer(ROUTE_LAYER) ? ROUTE_LAYER : undefined
         );
-      } else {
+      } else if (hasOverlay) {
         map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
       }
     } catch (e) {
@@ -4656,43 +4659,20 @@ const App: React.FC = () => {
           type="button"
           onPointerDown={stopPointerPropagation}
           onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => {
-            if (!route?.path || route.path.length < 2) return;
-            activateFromTouchEnd(e, () => setRouteCorridorVisible((v) => !v));
-          }}
-          onClick={() => {
-            if (!route?.path || route.path.length < 2) return;
-            setRouteCorridorVisible((v) => !v);
-          }}
-          disabled={!route?.path || route.path.length < 2}
-          title="OSRM 경로 강조 — 현재 계산된 라우트 구간(파란 코리더)"
+          onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCorridorVisible((v) => !v))}
+          onClick={() => setRouteCorridorVisible((v) => !v)}
+          title="OSRM 경로(파란 코리더) — 경로 없으면 표시만 없음"
           aria-pressed={routeCorridorVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation disabled:opacity-40 disabled:pointer-events-none ${
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
             routeCorridorVisible ? 'bg-blue-600 text-white' : 'bg-white text-blue-600'
           }`}
         >
           <Route size={19} className="pointer-events-none" />
         </button>
-        {mapillaryTokenConfigured && (
-          <button
-            type="button"
-            onPointerDown={stopPointerPropagation}
-            onTouchStart={stopPointerPropagation}
-            onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapillaryCoverageVisible((v) => !v))}
-            onClick={() => setMapillaryCoverageVisible((v) => !v)}
-            title={mapillaryCoverageVisible ? 'Mapillary 커버리지 끄기' : 'Mapillary 커버리지 (촬영 경로)'}
-            aria-pressed={mapillaryCoverageVisible}
-            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-              mapillaryCoverageVisible ? 'bg-emerald-700 text-white' : 'bg-white text-emerald-700'
-            }`}
-          >
-            <Camera size={18} className="pointer-events-none" />
-          </button>
-        )}
       </div>
-      {/* 도로 보기(Mapbox routable road 레이어) */}
+      {/* OSRM 맵 도로(Mapbox composite) + Mapillary — 나란히 비교, 아래에 3D */}
       <div
-        className="fixed z-[1000] pointer-events-auto"
+        className="fixed z-[1000] pointer-events-auto flex flex-col gap-0.5 items-center"
         style={{
           right: SAFE_RIGHT_1REM,
           top: SAFE_TOP_1REM,
@@ -4704,10 +4684,15 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, () => setRouteCoverageVisible((prev) => !prev))}
           onClick={() => setRouteCoverageVisible((prev) => !prev)}
-          title={routeCoverageVisible ? '도로 보기 Off' : '도로 보기 On'}
-          aria-label={routeCoverageVisible ? 'Hide road coverage' : 'Show road coverage'}
+          title={
+            routeCoverageVisible
+              ? 'OSRM/맵 도로 끄기 (Mapbox 주행 가능 도로)'
+              : 'OSRM/맵 도로 켜기 — 위성 단독 스타일에서는 도로 벡터가 없을 수 있음'
+          }
+          aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
+          aria-pressed={routeCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            routeCoverageVisible ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-500'
+            routeCoverageVisible ? 'bg-cyan-500 text-white' : 'bg-white text-cyan-700'
           }`}
         >
           <img
@@ -4716,13 +4701,43 @@ const App: React.FC = () => {
             className={`pointer-events-none w-[1.05rem] h-[1.05rem] object-contain ${routeCoverageVisible ? 'opacity-100' : 'opacity-70 grayscale'}`}
           />
         </button>
+        <button
+          type="button"
+          onPointerDown={stopPointerPropagation}
+          onTouchStart={stopPointerPropagation}
+          onTouchEnd={(e) => {
+            if (!mapillaryTokenConfigured) return;
+            activateFromTouchEnd(e, () => setMapillaryCoverageVisible((v) => !v));
+          }}
+          onClick={() => {
+            if (!mapillaryTokenConfigured) return;
+            setMapillaryCoverageVisible((v) => !v);
+          }}
+          disabled={!mapillaryTokenConfigured}
+          title={
+            mapillaryTokenConfigured
+              ? mapillaryCoverageVisible
+                ? 'Mapillary 커버리지 끄기'
+                : 'Mapillary 커버리지 (촬영 경로)'
+              : '.env.local 에 VITE_MAPILLARY_CLIENT_TOKEN 설정'
+          }
+          aria-pressed={mapillaryCoverageVisible}
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+            mapillaryTokenConfigured
+              ? mapillaryCoverageVisible
+                ? 'bg-emerald-700 text-white'
+                : 'bg-white text-emerald-700'
+              : 'bg-slate-200 text-slate-400 opacity-60'
+          }`}
+        >
+          <Camera size={18} className="pointer-events-none" />
+        </button>
       </div>
-      {/* 3D map toggle */}
       <div
         className="fixed z-[1000] pointer-events-auto"
         style={{
           right: SAFE_RIGHT_1REM,
-          top: `calc(${SAFE_TOP_1REM} + 3rem)`,
+          top: SAFE_TOP_3D_BTN,
         }}
       >
         <button
