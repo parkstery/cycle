@@ -538,10 +538,10 @@ const MAP_STYLE_CONTROLS: {
   title: string;
   Icon: LucideIcon;
 }[] = [
-  { id: 'streets', title: 'Streets map', Icon: MapIcon },
-  { id: 'outdoors', title: 'Outdoor map', Icon: Mountain },
+  { id: 'streets', title: 'Streets', Icon: MapIcon },
+  { id: 'outdoors', title: 'Outdoors', Icon: Mountain },
   { id: 'satellite', title: 'Satellite', Icon: Satellite },
-  { id: 'hybrid', title: 'Satellite + roads', Icon: Layers },
+  { id: 'hybrid', title: 'Hybrid', Icon: Layers },
 ];
 
 const App: React.FC = () => {
@@ -5248,11 +5248,7 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, toggleRouteCoverageVisibleUi)}
           onClick={toggleRouteCoverageVisibleUi}
-          title={
-            routeCoverageVisible
-              ? 'Hide OSRM / map roads overlay (Mapbox drivable roads)'
-              : 'Show OSRM / map roads — satellite-only styles may lack road vectors'
-          }
+          title={routeCoverageVisible ? 'Hide road overlay' : 'Show road overlay'}
           aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
           aria-pressed={routeCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
@@ -5275,9 +5271,9 @@ const App: React.FC = () => {
           title={
             mapillaryTokenConfigured
               ? mapillaryBasicCoverageVisible
-                ? 'Hide Mapillary default coverage (capture paths)'
-                : 'Show Mapillary default coverage'
-              : 'Set VITE_MAPILLARY_CLIENT_TOKEN in .env.local'
+                ? 'Hide paths'
+                : 'Show paths'
+              : 'No Mapillary token'
           }
           aria-pressed={mapillaryBasicCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
@@ -5300,9 +5296,9 @@ const App: React.FC = () => {
           title={
             mapillaryTokenConfigured
               ? mapillaryPanoCoverageVisible
-                ? 'Hide Mapillary 360° coverage'
-                : 'Show Mapillary 360° coverage (panoramic segments)'
-              : 'Set VITE_MAPILLARY_CLIENT_TOKEN in .env.local'
+                ? 'Hide 360°'
+                : 'Show 360°'
+              : 'No Mapillary token'
           }
           aria-pressed={mapillaryPanoCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
@@ -5324,11 +5320,7 @@ const App: React.FC = () => {
               activateFromTouchEnd(e, () => setRideRearCameraFollow((v) => !v))
             }
             onClick={() => setRideRearCameraFollow((v) => !v)}
-            title={
-              rideRearCameraFollow
-                ? 'Turn off rear follow camera — pan and zoom the map freely'
-                : 'Turn on rear follow camera — map follows behind the rider'
-            }
+            title={rideRearCameraFollow ? 'Free map' : 'Rear follow'}
             aria-pressed={rideRearCameraFollow}
             aria-label={
               rideRearCameraFollow ? 'Turn off rear follow camera' : 'Turn on rear follow camera'
@@ -5352,7 +5344,7 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, () => setMap3DEnabled((prev) => !prev))}
           onClick={() => setMap3DEnabled((prev) => !prev)}
-          title={map3DEnabled ? '3D view off' : '3D view on'}
+          title={map3DEnabled ? '3D off' : '3D on'}
           aria-label={map3DEnabled ? 'Disable 3D map' : 'Enable 3D map'}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
             map3DEnabled ? 'bg-sky-100 text-sky-700' : 'bg-white text-slate-500'
@@ -5378,7 +5370,7 @@ const App: React.FC = () => {
             sensorPrefs.sensorDriveEnabled && sensorHubConnected ? '' : 'invisible pointer-events-none'
           }`}
           style={{ pointerEvents: sensorPrefs.sensorDriveEnabled && sensorHubConnected ? 'auto' : 'none' }}
-          title={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? 'Feel adjust: subtle speed multiplier' : undefined}
+          title={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? 'Feel trim' : undefined}
           aria-hidden={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected)}
         >
           <button
@@ -5397,7 +5389,7 @@ const App: React.FC = () => {
             disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected)}
             className="text-[12px] font-black text-white tabular-nums leading-none px-1 [text-shadow:0_0_2px_#000] disabled:opacity-40"
             aria-label="Reset feel"
-            title="Long-press/tap to reset"
+            title="Reset"
             tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             {Math.round((sensorPrefs.feelK ?? 1) * 100)}%
@@ -5413,19 +5405,19 @@ const App: React.FC = () => {
             +
           </button>
         </div>
-        <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Current speed">
+        <div className="flex items-center gap-1" style={{ pointerEvents: 'auto' }} title="Speed">
           {/* 아이콘+ON/OFF 한 버튼: 연결 시 ON·녹색, 미연결 시 OFF·(모드·상태에 따라 흰색/녹색 점멸 동일) */}
           <button
             type="button"
             onClick={() => void toggleSensorQuickMode()}
             title={
               !sensorPrefs.sensorDriveEnabled
-                ? 'Turn on sensors (scan, connect, speed)'
+                ? 'Sensors on'
                 : sensorBleBusyHud
-                  ? 'Scanning or connecting… tap to turn sensors off'
+                  ? 'Busy — tap off'
                   : sensorHubConnected
-                    ? 'Turn off sensors (stop scan and connection)'
-                    : 'No sensor connected · tap to turn sensors off'
+                    ? 'Sensors off'
+                    : 'No sensor — off'
             }
             aria-label={
               sensorPrefs.sensorDriveEnabled
@@ -5458,13 +5450,13 @@ const App: React.FC = () => {
         </div>
         <span
           className="mt-0.5 text-[14px] font-black text-sky-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-          title="Average speed"
+          title="Avg speed"
         >
           {(elapsedTime > 0 ? (coveredDistance / 1000) / (elapsedTime / 3600) : 0).toFixed(1)} km/h
         </span>
         <span
           className="mt-0.5 text-[14px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-          title="Current cadence (RPM)"
+          title="Cadence"
         >
           {speedSource === 'wheel' && !hasCadenceSignal
             ? '---'
@@ -5472,7 +5464,7 @@ const App: React.FC = () => {
         </span>
         <span
           className="mt-0.5 text-[14px] font-black text-green-400 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-          title="Average cadence (RPM)"
+          title="Avg cadence"
         >
           {averageRpm >= SENSOR_DISPLAY_ZERO_RPM ? Math.round(averageRpm) : '0'} RPM
         </span>
@@ -5480,13 +5472,13 @@ const App: React.FC = () => {
           <>
             <span
               className="mt-1 text-[13px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000]"
-              title="Covered / total distance"
+              title="Distance"
             >
               {(coveredDistance / 1000).toFixed(1)}/{(parseFloat(route.distance) || 0).toFixed(1)}km
             </span>
             <span
               className={`mt-0.5 text-[13px] font-black text-blue-300 tabular-nums leading-none [text-shadow:0_0_2px_#000,0_0_4px_#000,1px_0_0_#000,-1px_0_0_#000,0_1px_0_#000,0_-1px_0_#000] ${simulation.isActive ? 'animate-pulse' : ''}`}
-              title="Elapsed time"
+              title="Time"
             >
               {formatTime(elapsedTime)}
             </span>
@@ -5509,7 +5501,7 @@ const App: React.FC = () => {
               onTouchStart={stopPointerPropagation}
               onTouchEnd={(e) => activateFromTouchEnd(e, () => setSearchExpanded((v) => !v))}
               onClick={() => setSearchExpanded(!searchExpanded)}
-              title="Search places (Mapbox)"
+              title="Search"
               className="flex-shrink-0 w-[2.4rem] h-[2.4rem] flex items-center justify-center text-slate-500 hover:text-blue-600 touch-manipulation"
             >
               {searchExpanded ? <ChevronLeft size={16} className="pointer-events-none" /> : <Search size={16} className="pointer-events-none" />}
@@ -5554,7 +5546,7 @@ const App: React.FC = () => {
               className="flex-1 bg-transparent border-none outline-none text-slate-900 font-bold text-[12px] pr-2 min-w-0"
             />
             {searchTerm && (
-              <button type="button" onClick={handleClearSearch} title="Clear Search" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500 touch-manipulation">
+              <button type="button" onClick={handleClearSearch} title="Clear" className="flex-shrink-0 w-8 h-full flex items-center justify-center text-slate-400 hover:text-red-500 touch-manipulation">
                 <X size={14} />
               </button>
             )}
@@ -5601,10 +5593,10 @@ const App: React.FC = () => {
       >
         <div className={`bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl flex flex-row w-full border border-slate-200 px-1 py-0.5 relative items-center ${routeInputExpanded ? '' : 'h-full'}`}>
           <div className={`flex flex-col items-center shrink-0 z-10 ${routeInputExpanded ? 'w-4 self-stretch justify-start' : 'w-full h-full justify-center'}`}>
-            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route Settings" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[6px] ${routeInputExpanded ? 'w-[1rem] h-[1rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={14} /> : <Waypoints size={16} className="text-blue-600" />}</button>
+            <button onClick={() => setRouteInputExpanded(!routeInputExpanded)} title="Route" className={`flex items-center justify-center text-slate-400 hover:text-slate-600 shrink-0 mt-[6px] ${routeInputExpanded ? 'w-[1rem] h-[1rem]' : 'w-full h-full'}`}>{routeInputExpanded ? <ChevronsLeft size={14} /> : <Waypoints size={16} className="text-blue-600" />}</button>
             {routeInputExpanded && (
               <div className="flex-1 flex items-center justify-center min-h-0">
-              <button onClick={() => { if (!historyExpanded && routeSettingsPanelExpanded) { setRouteInputExpanded(false); } else { setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded); } }} title={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-15px]" aria-label={routeSettingsPanelExpanded ? "Collapse Route Details" : "Expand Route Details"}>
+              <button onClick={() => { if (!historyExpanded && routeSettingsPanelExpanded) { setRouteInputExpanded(false); } else { setRouteSettingsPanelExpanded(!routeSettingsPanelExpanded); } }} title={routeSettingsPanelExpanded ? 'Hide details' : 'Show details'} className="w-4 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 shrink-0 mt-[-15px]" aria-label={routeSettingsPanelExpanded ? "Collapse route details" : "Expand route details"}>
                 {routeSettingsPanelExpanded ? <ChevronLeft size={14} className="opacity-80" /> : <ChevronRight size={14} className="opacity-80" />}
               </button>
               </div>
@@ -5612,9 +5604,9 @@ const App: React.FC = () => {
             {routeInputExpanded && !routeSettingsPanelExpanded && (
               <button
                 onClick={() => setHistoryExpanded(!historyExpanded)}
-                title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                title={historyExpanded ? 'Hide routes' : 'Show routes'}
                 className="hidden w-4 h-8 flex items-center justify-center text-slate-300 hover:text-slate-500 rounded hover:bg-slate-100 transition-colors shrink-0"
-                aria-label={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                aria-label={historyExpanded ? 'Hide saved routes list' : 'Show saved routes list'}
               >
                 {historyExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
               </button>
@@ -5754,8 +5746,8 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSensorsModalOpen(true)}
-                    title="Sensors & speed"
-                    aria-label="Sensors & speed"
+                    title="Sensors"
+                    aria-label="Sensors"
                     className="relative shrink-0 h-7 min-w-[34px] px-2 flex items-center justify-center gap-1 rounded-md border border-blue-300 bg-white shadow-sm text-blue-600 hover:bg-slate-50 active:scale-95 transition-transform"
                   >
                     <Gauge size={16} strokeWidth={2.2} />
@@ -5765,7 +5757,7 @@ const App: React.FC = () => {
                       aria-hidden
                     />
                   </button>
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Decrease speed" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.max(10, prev - 1))} title="Slower" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH <= 10} aria-label="Decrease speed"><Minus size={10} /></button>
                   <input
                     type="number"
                     min={10}
@@ -5779,15 +5771,15 @@ const App: React.FC = () => {
                     className="speed-input-no-spinner w-[29px] h-6 text-[11px] font-bold text-center bg-white border border-slate-300 rounded-md text-slate-700 focus:outline-none focus:border-blue-500 px-1 shrink-0"
                     aria-label="Speed"
                   />
-                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Increase speed" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
+                  <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Faster" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
                   <div className="flex items-center gap-1 ml-auto shrink-0">
-                    <button onClick={handleSwapEndpoints} title="Swap Origin & Destination" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
+                    <button onClick={handleSwapEndpoints} title="Swap ends" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><ArrowUpDown size={12} className="text-slate-600" /></button>
 
-                    <button onClick={handleToggleFavorite} title={isSaved ? "My Routes" : "Add to Favorites"} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
+                    <button onClick={handleToggleFavorite} title={isSaved ? 'Saved' : 'Save'} className={`w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform ${isSaved ? 'border-amber-200' : ''}`}>
                       <Star size={12} className={isSaved ? "text-amber-400 fill-amber-400" : "text-slate-400"} />
                     </button>
 
-                    <button onClick={clearMapOverlays} title="Delete Route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
+                    <button onClick={clearMapOverlays} title="Clear route" className="w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-md hover:bg-slate-50 active:scale-95 transition-transform"><Trash2 size={12} className="text-slate-600" /></button>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 w-full">
@@ -5796,13 +5788,13 @@ const App: React.FC = () => {
                     <div className="h-3 w-px bg-slate-300 shrink-0"></div>
                     <span className="text-[10px] font-bold text-slate-500 truncate">{route ? route.duration : '0:00'}</span>
                   </div>
-                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Car'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.DRIVING); calculateRoute(TravelMode.DRIVING, false); }} title={lockedRouteProfile ? 'Locked' : 'Car'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 0 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.DRIVING ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Car size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Bike'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.BICYCLING); calculateRoute(TravelMode.BICYCLING, false); }} title={lockedRouteProfile ? 'Locked' : 'Bike'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 1 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.BICYCLING ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Bike size={14} />
                   </button>
-                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title={lockedRouteProfile ? 'Saved route mode is locked' : 'Foot'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setMode(TravelMode.WALKING); calculateRoute(TravelMode.WALKING, false); }} title={lockedRouteProfile ? 'Locked' : 'Foot'} disabled={loading || !origin || !destination || !!lockedRouteProfile} className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center border-2 active:scale-95 transition-transform duration-200 ${modeButtonPulseIndex === 2 ? 'scale-[1.2]' : 'scale-100'} ${mode === TravelMode.WALKING ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'}`}>
                     <Footprints size={14} />
                   </button>
                   <button onClick={() => { if (route && lastRouteRequestRef.current && inputsMatch(origin, destination, waypoints, mode, lastRouteRequestRef.current)) { countdownDoneRef.current = () => startSimulationOnly(route); setCountdown(3); } else { calculateRoute(mode, true); } }} title="Go" disabled={loading || !origin || !destination || !route} className={`ml-auto w-7 bg-blue-700 text-white rounded-lg h-7 text-xs font-bold shadow-md active:scale-95 transition-transform duration-200 flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${goButtonPulse ? 'scale-[1.2]' : 'scale-100'}`}>{loading ? <Activity size={14} className="animate-spin" /> : 'Go'}</button>
@@ -5814,7 +5806,7 @@ const App: React.FC = () => {
               <div className="w-4 shrink-0 flex items-center justify-center">
                 <button
                   onClick={() => setHistoryExpanded(!historyExpanded)}
-                  title={historyExpanded ? "Collapse My Routes" : "Expand My Routes"}
+                  title={historyExpanded ? 'Hide routes' : 'Show routes'}
                   className="w-4 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
                 >
                   {historyExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -5847,7 +5839,7 @@ const App: React.FC = () => {
                 {historyPanelTab === 'my_routes' ? (
                   favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
                     <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
-                      <button onClick={() => handleLoadFavorite(route)} title={`${route.origin} → ${route.destination}`} className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
+                      <button onClick={() => handleLoadFavorite(route)} title="Load" className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
                         <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
                           {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
                         </span>
@@ -5897,7 +5889,7 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={() => setElevationExpanded(!elevationExpanded)}
-              title="Elevation Profile"
+              title="Elevation"
               className={`rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 ${elevationExpanded ? 'shrink-0 order-last min-w-[2.4rem] min-h-[2.4rem] max-w-[2.4rem] max-h-[2.4rem] w-[2.4rem] h-[2.4rem]' : 'h-full w-full min-h-0 min-w-0'}`}
               aria-label={elevationExpanded ? "Collapse Elevation" : "Elevation Profile"}
             >
@@ -5914,18 +5906,18 @@ const App: React.FC = () => {
               // <div className="flex-1 min-w-0 pl-3 pr-0 py-1 flex flex-col gap-1.5">
               <div className="flex-1 min-w-0 pl-1 pr-0 py-1 flex flex-col gap-1.5">
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? "Hide coaching text" : "Show coaching text"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
+                  <button type="button" onClick={() => setCoachingMentVisible(!coachingMentVisible)} title={coachingMentVisible ? 'Hide tips' : 'Show tips'} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingMentVisible ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`} aria-label={coachingMentVisible ? "Hide coaching text" : "Show coaching text"}>
                     <MessageSquare size={16} />
                   </button>
-                  <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
+                  <button type="button" onClick={() => setCoachingOn(!coachingOn)} title={coachingOn ? 'Mute coach' : 'Coach on'} aria-label={coachingOn ? "Mute coaching voice" : "Unmute coaching voice"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${coachingOn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>
                     <Mic size={16} />
                   </button>
-                  <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? "Mute music" : "Unmute music"} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-amber-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
+                  <button type="button" onClick={() => setMusicOn(!musicOn)} title={musicOn ? 'Mute music' : 'Music on'} className={`w-8 h-8 rounded-full flex items-center justify-center shadow transition-all active:scale-95 ${musicOn ? 'bg-amber-100 text-blue-700' : 'bg-slate-200 text-slate-400'}`}>
                     <Music size={16} />
                   </button>
-                  <button onClick={restartSimulation} title="Restart Simulation" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
-                  <button onClick={handleToggleSimulation} title={simulation.isActive ? "Pause Simulation" : "Start Simulation"} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
-                  <button onClick={handleStopSimulation} title="Stop Simulation" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
+                  <button onClick={restartSimulation} title="Restart" className="w-8 h-8 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-200"><RotateCcw size={14} /></button>
+                  <button onClick={handleToggleSimulation} title={simulation.isActive ? 'Pause' : 'Play'} className={`w-8 h-8 rounded-xl flex items-center justify-center ${simulation.isActive ? 'bg-amber-100 text-amber-600' : 'bg-blue-600 text-white'}`}>{simulation.isActive ? <Pause size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+                  <button onClick={handleStopSimulation} title="Stop" className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-200">
                     <Square size={14} fill="currentColor" />
                   </button>
                 </div>
@@ -5936,7 +5928,7 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.max(0, simulation.currentIndex - STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex <= 0}
-                      title="Step back"
+                      title="Back"
                       className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-[19.2px] h-[19.2px] flex items-center justify-center rounded-md bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Step back"
                     >
@@ -5946,7 +5938,7 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => jumpToRouteIndex(Math.min(route.path.length - 1, simulation.currentIndex + STEP_OFFSET))}
                       disabled={!route?.path?.length || simulation.currentIndex >= route.path.length - 1}
-                      title="Fast Forward"
+                      title="Forward"
                       className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-[19.2px] h-[19.2px] flex items-center justify-center rounded-md bg-white/80 text-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-all opacity-60 hover:opacity-100"
                       aria-label="Fast Forward"
                     >
