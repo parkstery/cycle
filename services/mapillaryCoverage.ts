@@ -65,14 +65,22 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           'line-join': 'round',
         },
         paint: {
-          // 360도 파노라마 구간은 전체 커버리지 위에 더 밝고 굵게 중첩한다.
-          'line-color': '#22d3ee',
+          // 360° 구간 — OSRM 시안(#22d3ee)과 구분되게 노란색
+          'line-color': '#facc15',
           'line-opacity': 0.96,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 4.4, 16, 6],
         },
       },
       beforeId
     );
+  }
+  // 스타일 재로드 없이도 색 변경이 반영되도록(이미 레이어가 있을 때)
+  if (map.getLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID)) {
+    try {
+      map.setPaintProperty(MAPILLARY_PANO_SEQUENCE_LAYER_ID, 'line-color', '#facc15');
+    } catch {
+      /* ignore */
+    }
   }
 }
 

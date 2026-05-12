@@ -37,9 +37,10 @@ import {
   Bluetooth,
   Box,
   Camera,
-  Aperture,
   LocateFixed,
   Move,
+  Route,
+  RotateCw,
   type LucideIcon,
 } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
@@ -5284,11 +5285,7 @@ const App: React.FC = () => {
             routeCoverageVisible ? 'bg-cyan-500 text-white' : 'bg-white text-cyan-700'
           }`}
         >
-          <img
-            src="/cycle_road.png"
-            alt=""
-            className={`pointer-events-none w-[1.05rem] h-[1.05rem] object-contain ${routeCoverageVisible ? 'opacity-100' : 'opacity-70 grayscale'}`}
-          />
+          <Route size={18} className="pointer-events-none shrink-0" strokeWidth={routeCoverageVisible ? 2.4 : 2} />
         </button>
         <button
           type="button"
@@ -5328,11 +5325,14 @@ const App: React.FC = () => {
           aria-pressed={mapillaryPanoCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
             mapillaryPanoCoverageVisible
-              ? 'bg-sky-600 text-white'
-              : 'bg-white text-sky-600'
+              ? 'bg-yellow-500 text-white'
+              : 'bg-white text-yellow-600'
           }`}
         >
-          <Aperture size={18} className="pointer-events-none" />
+          <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px]">
+            <Camera size={15} strokeWidth={2} />
+            <RotateCw size={9} strokeWidth={2.6} />
+          </span>
         </button>
         {simulation.isActive && (
           <button
