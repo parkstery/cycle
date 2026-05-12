@@ -5257,14 +5257,14 @@ const App: React.FC = () => {
 
 
 
-      {/* 우측 상단: 맵 스타일 + 노선/Mapillary/3D — 접기 시 레이어 한 버튼으로 숨김 */}
+      {/* 우측: 맵 스타일 + 노선/Mapillary/3D — SAFE_TOP+2.4rem, 접기 시 레이어 한 버튼 */}
       <div
         className={`fixed z-[1000] pointer-events-auto flex items-start gap-2 transition-all duration-300 ease-out ${
           mapRightToolbarExpanded ? '' : 'w-[2.4rem] h-[2.4rem] group'
         }`}
         style={{
           right: SAFE_RIGHT_1REM,
-          top: SAFE_TOP_1REM,
+          top: `calc(${SAFE_TOP_1REM} + 2.4rem)`,
         }}
       >
         {!mapRightToolbarExpanded ? (
@@ -5410,11 +5410,11 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM — 맵 오버레이(Layers) 왼쪽·한 버튼(2.4rem) 아래; 펼침 시 툴바 전체 왼쪽에 붙여 Route/3D 열과 비겹침 */}
+      {/* Current Speed / Avg Speed / Current RPM — 맵 오버레이(Layers) 왼쪽·Layers 행 한 버튼(2.4rem) 아래; 펼침 시 툴바 전체 왼쪽에 붙여 Route/3D 열과 비겹침 */}
       <div
         className="fixed z-[1001] flex flex-col items-end leading-none select-none max-w-[min(11rem,calc(100vw-6rem))]"
         style={{
-          top: `calc(${SAFE_TOP_1REM} + 2.4rem + 0.375rem)`,
+          top: `calc(${SAFE_TOP_1REM} + 4.8rem + 0.375rem)`,
           right: mapRightToolbarExpanded ? RIDE_STATS_PANEL_RIGHT_EXPANDED_MAP_TOOLBAR : RIDE_STATS_PANEL_RIGHT_COLLAPSED_MAP_TOOLBAR,
           left: 'auto',
           bottom: 'auto',
