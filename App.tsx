@@ -39,7 +39,6 @@ import {
   LocateFixed,
   Move,
   Route,
-  RotateCw,
   Layers,
   type LucideIcon,
 } from 'lucide-react';
@@ -947,13 +946,8 @@ const App: React.FC = () => {
   const [mapillaryBasicCoverageVisible, setMapillaryBasicCoverageVisible] = useState(false);
   const mapillaryBasicCoverageVisibleRef = useRef(mapillaryBasicCoverageVisible);
   mapillaryBasicCoverageVisibleRef.current = mapillaryBasicCoverageVisible;
-  /** Mapillary 360°(파노) 구간 강조 레이어 — 기본은 끔, 버튼으로 켬 */
-  const [mapillaryPanoCoverageVisible, setMapillaryPanoCoverageVisible] = useState(false);
-  const mapillaryPanoCoverageVisibleRef = useRef(mapillaryPanoCoverageVisible);
-  mapillaryPanoCoverageVisibleRef.current = mapillaryPanoCoverageVisible;
   /** 터치 후 ghost click 으로 Mapillary/OSRM 도로 토글이 두 번 뒤집히는 것 방지 */
   const lastMapillaryBasicUiToggleMsRef = useRef(0);
-  const lastMapillaryPanoUiToggleMsRef = useRef(0);
   const lastRouteCoverageUiToggleMsRef = useRef(0);
   /** 주행 중 경로상 Mapillary 임베드 거리뷰(커버리지 있을 때만) */
   const [rideMapillaryStreet, setRideMapillaryStreet] = useState<
@@ -1135,7 +1129,7 @@ const App: React.FC = () => {
         stackMapillaryAboveRoutableBelowRoute(mmap, ROUTE_LAYER);
         setMapillaryCoverageLayersVisibility(mmap, {
           basic: mapillaryBasicCoverageVisibleRef.current,
-          pano360: mapillaryPanoCoverageVisibleRef.current,
+          pano360: false,
         });
       } catch (e) {
         console.warn('[Mapillary] coverage sync failed', e);
@@ -1150,7 +1144,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!MAPILLARY_CLIENT_TOKEN) {
       setMapillaryBasicCoverageVisible(false);
-      setMapillaryPanoCoverageVisible(false);
     }
   }, []);
   const [mapRevealed, setMapRevealed] = useState(false);
@@ -2152,7 +2145,7 @@ const App: React.FC = () => {
     return () => {
       m.off('idle', onIdleOnce);
     };
-  }, [mapillaryBasicCoverageVisible, mapillaryPanoCoverageVisible, isMapReady, mapType, flushMapillaryCoverageToMap]);
+  }, [mapillaryBasicCoverageVisible, isMapReady, mapType, flushMapillaryCoverageToMap]);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -4208,7 +4201,7 @@ const App: React.FC = () => {
               coverage: {
                 osrmCoverage: routeCoverageVisibleRef.current,
                 mapillaryBasic: mapillaryBasicCoverageVisibleRef.current,
-                mapillaryPano360: mapillaryPanoCoverageVisibleRef.current,
+                mapillaryPano360: false,
               },
             });
           } catch {
@@ -4944,28 +4937,11 @@ const App: React.FC = () => {
       const next = !prev;
       if (next && !MAPILLARY_CLIENT_TOKEN) {
         setMapBootstrapError(
-          'Mapillary 촬영 노선·360°를 지도에 표시하려면 VITE_MAPILLARY_CLIENT_TOKEN이 필요합니다. 프로젝트 루트 .env.local 에 토큰을 넣고 개발 서버(npm run dev)를 다시 실행하세요.'
+          'Mapillary 촬영 노선을 지도에 표시하려면 VITE_MAPILLARY_CLIENT_TOKEN이 필요합니다. 프로젝트 루트 .env.local 에 토큰을 넣고 개발 서버(npm run dev)를 다시 실행하세요.'
         );
         return false;
       }
       mapillaryBasicCoverageVisibleRef.current = next;
-      queueMicrotask(() => flushMapillaryCoverageToMap());
-      return next;
-    });
-  }, [flushMapillaryCoverageToMap]);
-  const toggleMapillaryPanoCoverageVisibleUi = useCallback(() => {
-    const n = Date.now();
-    if (n - lastMapillaryPanoUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
-    lastMapillaryPanoUiToggleMsRef.current = n;
-    setMapillaryPanoCoverageVisible((prev) => {
-      const next = !prev;
-      if (next && !MAPILLARY_CLIENT_TOKEN) {
-        setMapBootstrapError(
-          'Mapillary 360° 강조를 켜려면 VITE_MAPILLARY_CLIENT_TOKEN이 필요합니다. .env.local 에 토큰을 넣고 개발 서버를 다시 실행하세요.'
-        );
-        return false;
-      }
-      mapillaryPanoCoverageVisibleRef.current = next;
       queueMicrotask(() => flushMapillaryCoverageToMap());
       return next;
     });
@@ -5410,31 +5386,6 @@ const App: React.FC = () => {
                 }`}
               >
                 <Camera size={18} className="pointer-events-none" />
-              </button>
-              <button
-                type="button"
-                onPointerDown={stopPointerPropagation}
-                onTouchStart={stopPointerPropagation}
-                onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryPanoCoverageVisibleUi)}
-                onClick={toggleMapillaryPanoCoverageVisibleUi}
-                title={
-                  mapillaryPanoCoverageVisible
-                    ? 'Hide 360°'
-                    : mapillaryTokenConfigured
-                      ? 'Show 360°'
-                      : 'Show 360° (Mapillary token)'
-                }
-                aria-pressed={mapillaryPanoCoverageVisible}
-                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
-                  mapillaryPanoCoverageVisible
-                    ? 'bg-[#2563eb] text-white border-blue-700'
-                    : 'bg-white text-[#22d3ee] border-slate-200'
-                }`}
-              >
-                <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px] text-inherit">
-                  <Camera size={15} strokeWidth={2} />
-                  <RotateCw size={9} strokeWidth={2.6} />
-                </span>
               </button>
               {simulation.isActive && (
                 <button
