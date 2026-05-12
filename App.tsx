@@ -400,12 +400,8 @@ const SAFE_TOP_INSET = IS_ANDROID_NATIVE ? '0px' : 'env(safe-area-inset-top, 0px
 /** 네이티브 WebView 패딩 없음 — safe-area는 CSS env()만 사용 (viewport-fit=cover) */
 const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
 const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
-/** 우측 아이콘 스택(맵 스타일 + OSRM/Mapillary/3D) 아래 — 동일 열·gap 기준으로 여백 */
-const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 15rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
-/** 주행 수치 패널: 우측 맵스타일+노선 열(접기/펼침 최대 ~3×2.4rem+gap) 왼쪽에 두어 표고 패널·아이콘과 겹치지 않게 */
-const SAFE_RIGHT_RIDE_STATS_PANEL = 'calc(env(safe-area-inset-right, 0px) + 1rem + 7.75rem)';
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
 const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
 
@@ -5499,12 +5495,12 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
+      {/* Current Speed / Avg Speed / Current RPM — 하단 좌측(경로·표고 독 위), 지도 중앙·라이더와 겹치지 않게 */}
       <div
-        className="fixed z-[1000] flex flex-col items-end leading-none select-none"
+        className="fixed z-[1000] flex flex-col items-start leading-none select-none max-w-[min(11rem,calc(100vw-6rem))]"
         style={{
-          right: SAFE_RIGHT_RIDE_STATS_PANEL,
-          top: SAFE_TOP_SPEED_PANEL,
+          left: SAFE_LEFT_1REM,
+          bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${Math.max(routePanelHeightPx, elevationPanelHeightPx)}px, 2.4rem) + 8px + ${rideMapillaryStreet && route?.path?.length ? 'min(280px, max(150px, 32dvh))' : '0px'})`,
           pointerEvents: 'none',
         }}
       >
