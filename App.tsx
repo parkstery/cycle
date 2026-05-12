@@ -5493,7 +5493,7 @@ const App: React.FC = () => {
               aria-expanded={true}
               className="w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation shrink-0 bg-white border-2 border-slate-200 text-slate-500 hover:text-slate-700"
             >
-              <ChevronLeft size={18} className="pointer-events-none shrink-0" />
+              <ChevronRight size={18} className="pointer-events-none shrink-0" />
             </button>
           </div>
         )}
