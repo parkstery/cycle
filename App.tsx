@@ -5322,8 +5322,10 @@ const App: React.FC = () => {
           title={routeCoverageVisible ? 'Hide road overlay' : 'Show road overlay'}
           aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
           aria-pressed={routeCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            routeCoverageVisible ? 'bg-cyan-500 text-white' : 'bg-white text-cyan-700'
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
+            routeCoverageVisible
+              ? 'bg-[#22d3ee] text-white border-[#06b6d4]'
+              : 'bg-white text-[#22d3ee] border-slate-200'
           }`}
         >
           <Route size={18} className="pointer-events-none shrink-0" strokeWidth={routeCoverageVisible ? 2.4 : 2} />
@@ -5342,10 +5344,10 @@ const App: React.FC = () => {
                 : 'Show paths (Mapillary token)'
           }
           aria-pressed={mapillaryBasicCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
             mapillaryBasicCoverageVisible
-              ? 'bg-emerald-700 text-white'
-              : 'bg-white text-emerald-700'
+              ? 'bg-[#f97316] text-white border-orange-600'
+              : 'bg-white text-[#22d3ee] border-slate-200'
           }`}
         >
           <Camera size={18} className="pointer-events-none" />
@@ -5364,13 +5366,13 @@ const App: React.FC = () => {
                 : 'Show 360° (Mapillary token)'
           }
           aria-pressed={mapillaryPanoCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
             mapillaryPanoCoverageVisible
-              ? 'bg-yellow-500 text-white'
-              : 'bg-white text-yellow-600'
+              ? 'bg-[#facc15] text-slate-900 border-amber-500'
+              : 'bg-white text-[#22d3ee] border-slate-200'
           }`}
         >
-          <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px]">
+          <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px] text-inherit">
             <Camera size={15} strokeWidth={2} />
             <RotateCw size={9} strokeWidth={2.6} />
           </span>
