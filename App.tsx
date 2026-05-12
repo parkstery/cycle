@@ -10,7 +10,6 @@ import {
   X,
   MapPin,
   Map as MapIcon,
-  Mountain,
   Satellite,
   AreaChart as AreaChartIcon,
   ChevronRight,
@@ -567,12 +566,11 @@ function HybridMapStyleGlyph({ active, className }: { active: boolean; className
 
 /** 지도 스타일 4종 — 버튼 순서: 일반 → 아웃도어 → 위성 → 위성+도로 */
 const MAP_STYLE_CONTROLS: {
-  id: 'streets' | 'outdoors' | 'satellite' | 'hybrid';
+  id: 'streets' | 'satellite' | 'hybrid';
   title: string;
   Icon: LucideIcon | null;
 }[] = [
   { id: 'streets', title: 'Streets', Icon: MapIcon },
-  { id: 'outdoors', title: 'Outdoors', Icon: Mountain },
   { id: 'satellite', title: 'Satellite', Icon: Satellite },
   { id: 'hybrid', title: 'Satellite + roads', Icon: null },
 ];
@@ -920,7 +918,7 @@ const App: React.FC = () => {
     }, 5000);
   }, []);
   const [routeSource, setRouteSource] = useState<'OSRM' | null>(null);
-  const [mapType, setMapType] = useState<'streets' | 'outdoors' | 'satellite' | 'hybrid'>('streets');
+  const [mapType, setMapType] = useState<'streets' | 'satellite' | 'hybrid'>('streets');
   const mapTypeRef = useRef(mapType);
   mapTypeRef.current = mapType;
   const [map3DEnabled, setMap3DEnabled] = useState(false);
@@ -4891,7 +4889,7 @@ const App: React.FC = () => {
     clearPlaceSearchMarker();
   };
 
-  const applyMapStyle = (next: 'streets' | 'outdoors' | 'satellite' | 'hybrid') => {
+  const applyMapStyle = (next: 'streets' | 'satellite' | 'hybrid') => {
     setMapType(next);
     const mmap = mapboxMapRef.current;
     if (mmap) mmap.setStyle(mapStyleUrl(next));

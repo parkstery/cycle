@@ -7,8 +7,6 @@ export const ROUTE_LAYER = 'cycle-route-line';
 
 export function mapStyleUrl(mapType: string): string {
   switch (mapType) {
-    case 'outdoors':
-      return 'mapbox://styles/mapbox/outdoors-v12';
     case 'satellite':
       return 'mapbox://styles/mapbox/satellite-v9';
     case 'hybrid':
