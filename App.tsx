@@ -532,9 +532,10 @@ function ExploreRouteRow({
   );
 }
 
-/** 위성 + 도로 하이브리드 — 상단 위성 느낌 패치, 하단 곡선 두 줄(도로) */
+/** 위성 + 도로 하이브리드 — 상단 위성 패치, 하단 곡선 도로(양측 실선·가운데 점선) */
 function HybridMapStyleGlyph({ active, className }: { active: boolean; className?: string }) {
   const satId = React.useId().replace(/:/g, '');
+  const roadStroke = active ? '#ffffff' : '#22d3ee';
   return (
     <svg
       viewBox="0 0 24 24"
@@ -550,21 +551,29 @@ function HybridMapStyleGlyph({ active, className }: { active: boolean; className
           <stop offset="100%" stopColor={active ? '#bfdbfe' : '#1d4ed8'} stopOpacity={active ? 1 : 0.88} />
         </linearGradient>
       </defs>
-      <rect x="2" y="2" width="20" height="10" rx="2" fill={`url(#${satId})`} />
+      <rect x="2" y="2" width="20" height="9" rx="2" fill={`url(#${satId})`} />
+      {/* 도로: 바깥 두 실선(연석), 가운데 점선(차선) — 동일 곡률 Q */}
       <path
-        d="M4 15.5 Q12 12.2 20 16.3"
-        stroke="currentColor"
-        strokeWidth="2.15"
+        d="M 3.4 14.4 Q 12 11.4 20.6 16.9"
+        stroke={roadStroke}
+        strokeWidth="1.65"
         strokeLinecap="round"
         fill="none"
       />
       <path
-        d="M4 19.2 Q12 16.4 20 20.3"
-        stroke="currentColor"
-        strokeWidth="1.85"
+        d="M 3.4 18.9 Q 12 15.9 20.6 21.4"
+        stroke={roadStroke}
+        strokeWidth="1.65"
         strokeLinecap="round"
         fill="none"
-        opacity={0.88}
+      />
+      <path
+        d="M 3.4 16.65 Q 12 13.65 20.6 19.15"
+        stroke={roadStroke}
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeDasharray="2.6 2.4"
+        fill="none"
       />
     </svg>
   );
