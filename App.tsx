@@ -404,6 +404,8 @@ const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
 const SAFE_TOP_SPEED_PANEL = `calc(${SAFE_TOP_INSET} + 15rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
+/** 주행 수치 패널: 우측 맵스타일+노선 열(접기/펼침 최대 ~3×2.4rem+gap) 왼쪽에 두어 표고 패널·아이콘과 겹치지 않게 */
+const SAFE_RIGHT_RIDE_STATS_PANEL = 'calc(env(safe-area-inset-right, 0px) + 1rem + 7.75rem)';
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
 const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
 
@@ -5501,7 +5503,7 @@ const App: React.FC = () => {
       <div
         className="fixed z-[1000] flex flex-col items-end leading-none select-none"
         style={{
-          right: SAFE_RIGHT_1REM,
+          right: SAFE_RIGHT_RIDE_STATS_PANEL,
           top: SAFE_TOP_SPEED_PANEL,
           pointerEvents: 'none',
         }}
