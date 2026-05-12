@@ -86,17 +86,17 @@
 
   <h1>Ride the World – Indoor Cycling</h1>
   <p>
-    An immersive indoor cycling experience powered by Google Maps Street View.
-    Ride anywhere in the world with real-time slope analysis and AI coaching.
+    Plan routes on real maps, review elevation, and simulate rides indoors. Where Mapillary coverage exists,
+    optional street-level imagery can play along the route together with slope-aware coaching.
   </p>
 
   <h2>Features</h2>
   <div class="section">
     <ul>
-      <li>Virtual riding on any route worldwide</li>
-      <li>Real-time gradient simulation & resistance coaching</li>
-      <li>Interactive Street View playback</li>
-      <li>Elevation profile analysis</li>
+      <li>Virtual riding on routes worldwide (subject to app restrictions)</li>
+      <li>Gradient-aware coaching and elevation profiles</li>
+      <li>Optional Mapillary street-level imagery along the route</li>
+      <li>Interactive Mapbox map (standard and satellite-style layers)</li>
       <li>Optional BLE sensors or smart trainers (read-only); preferences and calibration stay on your device</li>
     </ul>
   </div>
@@ -108,31 +108,36 @@
       React 18, TypeScript, Vite, Tailwind CSS
     </div>
     <div class="credit-item">
-      <strong>Maps & Data</strong><br />
-      Google Maps Platform (JS API, Street View Service)<br />
+      <strong>Maps &amp; Data</strong><br />
+      Mapbox GL JS; OSRM routing; Mapbox Geocoding and/or Nominatim (OpenStreetMap); Open-Elevation / OpenTopoData (and optional Valhalla-based height); Mapillary imagery API when used.
     </div>
   </div>
 
-  <h2>Credits & Licenses</h2>
+  <h2>Credits &amp; Licenses</h2>
   <div class="section">
     <div class="credit-item">
-      <strong>Map Data</strong><br />
-      Map data ©2024 Google. Street View imagery ©2024 Google.
+      <strong>Maps</strong><br />
+      Mapbox (Mapbox GL, styles/tiles). Subject to Mapbox terms; on-map attribution may include © Mapbox, © OpenStreetMap, and other data owners as applicable.
     </div>
 
     <div class="credit-item">
-      <strong>Geocoding Service</strong><br />
-      Search provided by Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.
+      <strong>Geocoding</strong><br />
+      Mapbox Geocoding when configured; otherwise Nominatim (OpenStreetMap). Where OSM data applies: © OpenStreetMap contributors.
     </div>
 
     <div class="credit-item">
       <strong>Routing Engine</strong><br />
-      Routes calculated by OSRM. Data © OpenStreetMap contributors.
+      OSRM via public endpoints (e.g. routing.openstreetmap.de, with fallback). Route data © OpenStreetMap contributors.
     </div>
 
     <div class="credit-item">
       <strong>Elevation Data</strong><br />
-      Elevation provided by Open-Elevation API.
+      Open-Elevation API; OpenTopoData when used via app proxy; optional Valhalla height (e.g. Stadia Maps or a custom HTTPS endpoint) when configured.
+    </div>
+
+    <div class="credit-item">
+      <strong>Street-level imagery</strong><br />
+      Mapillary when used — subject to Mapillary / Meta terms and imagery notices.
     </div>
 
     <div class="credit-item">
@@ -143,8 +148,8 @@
 
   <h2>Disclaimer</h2>
   <p>
-    This application is for educational and fitness entertainment purposes only.
-    Use at your own risk. Always consult with a physician before starting any exercise program.
+    This application is for route exploration, simulation, and fitness entertainment only.
+    Map, route, and elevation data may be inaccurate or incomplete. Use at your own risk. Consult a physician before starting exercise if needed.
   </p>
   <p style="font-size: 13px; color: #64748b; margin-top: 40px;">
     Ride the World – Indoor Cycling v1.0.0 &copy; 2026 LiveOnSoft

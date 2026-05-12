@@ -1,7 +1,7 @@
 # 소개 (About)
 
 **Ride the World – Indoor Cycling**  
-최종 업데이트: 2026년 3월
+최종 업데이트: 2026년 5월
 
 ---
 
@@ -22,8 +22,8 @@
 - **주행 시뮬레이션**  
   선택한 경로를 따라 속도를 조절하며 실내에서 주행을 시뮬레이션합니다.
 
-- **거리뷰(Street View)**  
-  경로 상의 실제 풍경을 거리뷰로 재생하며 주행감을 더할 수 있습니다.
+- **거리 이미지(Mapillary)**  
+  커버리지가 있는 구간에서 경로를 따라 거리 수준 이미지를 재생할 수 있습니다.
 
 - **AI 코칭·배경 음악**  
   (해당 기능이 포함된 경우) 주행 중 코칭 및 배경 음악 등 부가 기능을 이용할 수 있습니다.
@@ -45,7 +45,7 @@
   React 18, TypeScript, Vite, Tailwind CSS
 
 - **지도·데이터**  
-  지도 렌더링(Leaflet 등), 경로·지도·표고·거리뷰 등은 외부 API를 통해 제공됩니다.
+  지도 표시는 Mapbox GL JS; 경로·표고·지오코딩·거리 이미지는 외부 API(Mapbox, OSRM, OpenStreetMap/Nominatim, Open-Elevation, OpenTopoData, Mapillary, 설정 시 Valhalla/Stadia 등)로 제공됩니다.
 
 ---
 
@@ -53,11 +53,11 @@
 
 | 구분 | 설명 |
 |------|------|
-| **지도 데이터** | OpenStreetMap 기반. Map data © OpenStreetMap contributors. |
-| **경로 검색(라우팅)** | OSRM(Open Source Routing Machine). Data © OpenStreetMap contributors. |
-| **주소·장소 검색(지오코딩)** | Nominatim(OpenStreetMap). Data © OpenStreetMap contributors. |
-| **표고(고도) 데이터** | Open-Elevation API |
-| **거리뷰** | (사용 시) Google Maps Street View 등 해당 서비스의 이용 약관 및 저작권 표시를 따릅니다. |
+| **지도** | Mapbox(스타일/타일 및 Mapbox GL). Mapbox 이용약관 적용; 지도 고지에 © Mapbox, © OpenStreetMap 등이 표시될 수 있습니다. |
+| **경로 검색(라우팅)** | OSRM. 공개 서비스(예: routing.openstreetmap.de 및 폴백) 사용. Data © OpenStreetMap contributors. |
+| **주소·장소 검색(지오코딩)** | 토큰 설정 시 Mapbox Geocoding; 그 외 Nominatim(OpenStreetMap). OSM 기반 결과: © OpenStreetMap contributors. |
+| **표고(고도) 데이터** | Open-Elevation API; 앱 표고 프록시 사용 시 OpenTopoData; 설정 시 Valhalla 기반 표고 API(예: Stadia Maps 등 HTTPS 엔드포인트). |
+| **거리 이미지** | 사용 시 Mapillary; Mapillary / Meta 약관 및 이미지 고지를 따릅니다. |
 | **아이콘** | Lucide Icons (Lucide React) |
 
 각 서비스의 이용 조건·저작권·면책 사항은 해당 제공처의 정책을 따릅니다.

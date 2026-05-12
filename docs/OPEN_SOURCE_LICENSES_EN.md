@@ -1,27 +1,30 @@
 # Open Source Licenses
 
 **Ride the World – Indoor Cycling**  
-Last updated: March 2026
+Last updated: May 2026
 
 ---
 
 ## 1. Overview
 
-This App (**Ride the World – Indoor Cycling**) is built using several open source software components and map/data services. Below we list **map, routing, and elevation data services** and **software packages** with their applicable licenses and terms.
+This App (**Ride the World – Indoor Cycling**) is built using several open source software components and map/data services. Below we list **map, geocoding, routing, elevation, street-level imagery**, and **software packages** with their applicable licenses and terms.
 
 ---
 
 ## 2. Map & Data Services
 
-Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service’s terms, copyright, and attribution requirements.
+Map display, geocoding, route search, elevation, and street-level imagery in the App rely on the following services. We comply with each provider’s terms, copyright, and attribution requirements (including on-map notices).
 
 | Service | Purpose | License / Terms |
 |--------|------|---------------------|
-| **OpenStreetMap (OSM)** | Map tiles, geographic data | © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). ODbL and other OSM policies apply. |
-| **Nominatim** | Address and place search (geocoding) | OSM-based. See [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/). |
-| **OSRM** (Open Source Routing Machine) | Car / bike / foot route calculation | OSM-based. Subject to the deployment or service terms. |
-| **Open-Elevation** | Elevation data along the route | Subject to the API provider’s terms and attribution. |
-| **Google Maps / Street View** | Map display, Street View imagery (when used) | © Google. [Google Maps Platform Terms](https://cloud.google.com/maps-platform/terms), [Google Privacy Policy](https://policies.google.com/privacy). Acknowledged here in addition to any on-map attribution. |
+| **Mapbox** | Interactive maps (Mapbox GL), styles/tiles; Mapbox Geocoding when a token is configured | [Mapbox Terms of Service](https://www.mapbox.com/legal/tos). Attribution may include © Mapbox and third-party data (e.g. OpenStreetMap) as shown in-app. |
+| **OpenStreetMap (OSM)** | Underlying geographic data (via Mapbox, OSRM, and related services) | © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). ODbL and OSM attribution guidelines apply where OSM data is used. |
+| **Nominatim** | Geocoding fallback (search / reverse) when Mapbox is unavailable | OSM-based. See [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/). |
+| **OSRM** (Open Source Routing Machine) | Car / bike / foot route calculation (public instances, e.g. routing.openstreetmap.de with fallback) | OSM-based. Subject to the respective public instance’s terms. |
+| **Open-Elevation** | Elevation lookup along the route | Subject to the API provider’s terms and attribution. |
+| **OpenTopoData** | Elevation via server/app proxy when used | Subject to OpenTopoData and underlying dataset licenses (see provider site). |
+| **Valhalla / Stadia Maps** (optional) | Alternative elevation (height along route) when a Valhalla endpoint (e.g. Stadia) is configured | Subject to the operator you configure (e.g. [Stadia Maps](https://stadiamaps.com/terms/) terms) and Valhalla/OSM data notices. |
+| **Mapillary** | Street-level sequences and 360° imagery in the viewer when coverage exists | Subject to Mapillary / Meta terms, API rules, and imagery attribution. |
 
 - **Accuracy and availability** of map, route, and elevation data are the responsibility of the respective providers; the App operator does not guarantee them.
 - For full license text and current policies, see each service’s official site.
@@ -36,8 +39,11 @@ Map display, route search, elevation data, and Street View in the App rely on th
 |---------|------|----------|
 | react | User interface library | MIT |
 | react-dom | DOM renderer for React | MIT |
+| mapbox-gl | Interactive map rendering (WebGL) | See `LICENSE.txt` in the package (Mapbox GL JS) |
+| mapillary-js | Street-level imagery viewer | MIT |
 | lucide-react | Icon component library | ISC |
 | recharts | Chart and data visualization library | MIT |
+| @capacitor/*, firebase, community plugins | Native bridges, analytics/ads as configured | See each package on [npm](https://www.npmjs.com) |
 
 ### 3.2 Development Dependencies (devDependencies)
 

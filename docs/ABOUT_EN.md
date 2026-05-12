@@ -1,7 +1,7 @@
 # About
 
 **Ride the World – Indoor Cycling**  
-Last updated: March 2026
+Last updated: May 2026
 
 ---
 
@@ -22,8 +22,8 @@ Last updated: March 2026
 - **Ride simulation**  
   Simulate the ride indoors along the selected route while adjusting speed.
 
-- **Street View**  
-  Play Street View along the route to enhance the riding experience.
+- **Street-level imagery**  
+  Mapillary along the route when coverage is available.
 
 - **AI coaching and background music**  
   (When available) Use coaching and background music during the ride.
@@ -45,7 +45,7 @@ Last updated: March 2026
   React 18, TypeScript, Vite, Tailwind CSS
 
 - **Maps and data**  
-  Map rendering (e.g. Leaflet); routes, maps, elevation, and Street View are provided via external APIs.
+  Mapbox GL JS for map display; routes, elevation, geocoding, and street-level imagery are provided via external APIs (Mapbox, OSRM, OpenStreetMap/Nominatim, Open-Elevation, OpenTopoData, Mapillary, optional Valhalla/Stadia or custom endpoints).
 
 ---
 
@@ -53,11 +53,11 @@ Last updated: March 2026
 
 | Item | Description |
 |------|------|
-| **Map data** | OpenStreetMap. Map data © OpenStreetMap contributors. |
-| **Routing** | OSRM (Open Source Routing Machine). Data © OpenStreetMap contributors. |
-| **Geocoding** | Nominatim (OpenStreetMap). Data © OpenStreetMap contributors. |
-| **Elevation data** | Open-Elevation API |
-| **Street View** | (When used) Subject to the terms and copyright of the respective service (e.g. Google Maps Street View). |
+| **Maps** | Mapbox (styles/tiles and Mapbox GL). Subject to Mapbox terms; on-map attribution may include © Mapbox, © OpenStreetMap, and other sources as applicable. |
+| **Routing** | OSRM (Open Source Routing Machine) via public services (e.g. routing.openstreetmap.de, with fallback). Data © OpenStreetMap contributors. |
+| **Geocoding** | Mapbox Geocoding when a token is configured; otherwise Nominatim (OpenStreetMap). OSM-based results: © OpenStreetMap contributors. |
+| **Elevation data** | Open-Elevation API; OpenTopoData when served via the app elevation proxy; optional Valhalla height API (e.g. Stadia Maps or another HTTPS endpoint) when configured. |
+| **Street-level imagery** | Mapillary when used; subject to Mapillary / Meta terms and imagery attribution. |
 | **Icons** | Lucide Icons (Lucide React) |
 
 Terms, copyright, and disclaimers of each service follow that provider’s policy.

@@ -215,7 +215,7 @@ function AboutContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>About</h2>
-      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: March 2026.</p>
+      <p className={docBody}>Ride the World – Indoor Cycling. Last updated: May 2026.</p>
       <h3 className={docTitle}>1. App Overview</h3>
       <p className={docBody}>Ride the World – Indoor Cycling lets you plan cycling routes on real maps, check elevation, and simulate the chosen route indoors. Set a route anywhere in the world (excluding certain countries and regions) and experience riding that section as if on an indoor bike.</p>
       <h3 className={docTitle}>2. Main Features</h3>
@@ -223,7 +223,7 @@ function AboutContent() {
         <li><strong>Route planning on real maps</strong> — Enter or select start, end, and waypoints on the map to search for car, bike, or foot routes.</li>
         <li><strong>Elevation analysis</strong> — View the elevation chart along the route to see climbs and descents in advance.</li>
         <li><strong>Ride simulation</strong> — Simulate the ride indoors along the selected route while adjusting speed.</li>
-        <li><strong>Street View</strong> — Play Street View along the route to enhance the riding experience.</li>
+        <li><strong>Street-level imagery</strong> — Along-route Mapillary imagery when coverage is available.</li>
         <li><strong>AI coaching and background music</strong> — (When available) Use coaching and background music during the ride.</li>
       </ul>
       <h3 className={docTitle}>3. Who It's For</h3>
@@ -236,13 +236,13 @@ function AboutContent() {
       </ul>
       <h3 className={docTitle}>4. Map / Route</h3>
       <p className={docBody}><strong>Front end</strong> — React 18, TypeScript, Vite, Tailwind CSS</p>
-      <p className={docBody}><strong>Maps and data</strong> — Map rendering (e.g. Leaflet); routes, maps, elevation, and Street View are provided via external APIs.</p>
+      <p className={docBody}><strong>Maps and data</strong> — Mapbox GL JS for map display; routes, elevation, geocoding, and street-level imagery are provided via external APIs (Mapbox, OSRM, OpenStreetMap/Nominatim, Open-Elevation, OpenTopoData, Mapillary, optional Valhalla/Stadia or custom endpoints).</p>
       <h3 className={docTitle}>5. Data Sources and Credits</h3>
-      <p className={docBody}><strong>Map data</strong> — OpenStreetMap. Map data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Routing</strong> — OSRM (Open Source Routing Machine). Data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Geocoding</strong> — Nominatim (OpenStreetMap). Data © OpenStreetMap contributors.</p>
-      <p className={docBody}><strong>Elevation data</strong> — Open-Elevation API</p>
-      <p className={docBody}><strong>Street View</strong> — (When used) Subject to the terms and copyright of the respective service (e.g. Google Maps Street View).</p>
+      <p className={docBody}><strong>Maps</strong> — Mapbox (styles/tiles and Mapbox GL). Subject to Mapbox terms; attribution on the map may include © Mapbox, © OpenStreetMap, and other sources as applicable.</p>
+      <p className={docBody}><strong>Routing</strong> — OSRM (Open Source Routing Machine) via public services (e.g. routing.openstreetmap.de, with fallback). Data © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Geocoding</strong> — Mapbox Geocoding when a token is configured; otherwise Nominatim (OpenStreetMap). OSM-based results: © OpenStreetMap contributors.</p>
+      <p className={docBody}><strong>Elevation data</strong> — Open-Elevation API; OpenTopoData when served via the app elevation proxy; optional Valhalla height API (e.g. Stadia Maps or another HTTPS endpoint) when configured.</p>
+      <p className={docBody}><strong>Street-level imagery</strong> — Mapillary when used; subject to Mapillary / Meta terms and imagery attribution.</p>
       <p className={docBody}><strong>Icons</strong> — Lucide Icons (Lucide React)</p>
       <p className={docBody}>Terms, copyright, and disclaimers of each service follow that provider's policy.</p>
       <h3 className={docTitle}>6. Disclaimer</h3>
@@ -325,20 +325,23 @@ function LicensesContent() {
   return (
     <div className="pb-6">
       <h2 className={docTitle}>1. Open Source Licenses</h2>
-      <p className={docBody}>Last updated: March 2026. This App is built using open source software and map/data services. Below we list map, routing, and elevation data services and software packages with their applicable licenses and terms.</p>
+      <p className={docBody}>Last updated: May 2026. This App is built using open source software and map/data services. Below we list map, routing, geocoding, elevation, street-level imagery, and software packages with their applicable licenses and terms.</p>
 
       <h3 className={docTitle}>2. Map & Data Services</h3>
-      <p className={docBody}>Map display, route search, elevation data, and Street View in the App rely on the following services. We comply with each service's terms, copyright, and attribution requirements.</p>
+      <p className={docBody}>Map display, geocoding, route search, elevation, and street-level imagery rely on the following services. We comply with each provider's terms, copyright, and attribution requirements (including on-map notices).</p>
       <table className={docTable}>
         <thead>
           <tr><th className={docTableTh}>Service</th><th className={docTableTh}>Purpose</th><th className={docTableTh}>License / Terms</th></tr>
         </thead>
         <tbody>
-          <tr><td className={docTableTd}><strong>OpenStreetMap (OSM)</strong></td><td className={docTableTd}>Map tiles, geographic data</td><td className={docTableTd}>© OpenStreetMap contributors. ODbL and other OSM policies apply.</td></tr>
-          <tr><td className={docTableTd}><strong>Nominatim</strong></td><td className={docTableTd}>Address and place search (geocoding)</td><td className={docTableTd}>OSM-based. See Nominatim usage policy.</td></tr>
-          <tr><td className={docTableTd}><strong>OSRM</strong></td><td className={docTableTd}>Car / bike / foot route calculation</td><td className={docTableTd}>OSM-based. Subject to the deployment or service terms.</td></tr>
-          <tr><td className={docTableTd}><strong>Open-Elevation</strong></td><td className={docTableTd}>Elevation data along the route</td><td className={docTableTd}>Subject to the API provider's terms and attribution.</td></tr>
-          <tr><td className={docTableTd}><strong>Google Maps / Street View</strong></td><td className={docTableTd}>Map display, Street View imagery (when used)</td><td className={docTableTd}>© Google. Google Maps Platform Terms, Google Privacy Policy. Acknowledged here in addition to any on-map attribution.</td></tr>
+          <tr><td className={docTableTd}><strong>Mapbox</strong></td><td className={docTableTd}>Interactive maps (Mapbox GL), styles/tiles; Mapbox Geocoding when a token is configured</td><td className={docTableTd}>Mapbox Terms of Service and policies. Attribution may include © Mapbox and third-party data (e.g. OpenStreetMap) as shown in-app.</td></tr>
+          <tr><td className={docTableTd}><strong>OpenStreetMap (OSM)</strong></td><td className={docTableTd}>Underlying map and routing data (via Mapbox/OSRM and related services)</td><td className={docTableTd}>© OpenStreetMap contributors. ODbL and OSM attribution guidelines apply where OSM data is used.</td></tr>
+          <tr><td className={docTableTd}><strong>Nominatim</strong></td><td className={docTableTd}>Geocoding fallback (search / reverse) when Mapbox is unavailable</td><td className={docTableTd}>OSM-based. See Nominatim usage policy.</td></tr>
+          <tr><td className={docTableTd}><strong>OSRM</strong></td><td className={docTableTd}>Car / bike / foot route calculation (public endpoints, e.g. routing.openstreetmap.de with fallback)</td><td className={docTableTd}>OSM-based. Subject to the respective public instance's terms.</td></tr>
+          <tr><td className={docTableTd}><strong>Open-Elevation</strong></td><td className={docTableTd}>Elevation lookup along the route</td><td className={docTableTd}>Subject to the API provider's terms and attribution.</td></tr>
+          <tr><td className={docTableTd}><strong>OpenTopoData</strong></td><td className={docTableTd}>Elevation via server/app proxy when used</td><td className={docTableTd}>Subject to OpenTopoData and underlying dataset licenses (see provider site).</td></tr>
+          <tr><td className={docTableTd}><strong>Valhalla / Stadia Maps</strong> (optional)</td><td className={docTableTd}>Alternative elevation (height along route) when a Valhalla endpoint (e.g. Stadia) is configured</td><td className={docTableTd}>Subject to the operator you configure (e.g. Stadia Maps terms) and Valhalla/OSM data notices.</td></tr>
+          <tr><td className={docTableTd}><strong>Mapillary</strong></td><td className={docTableTd}>Street-level sequences and 360° imagery in the viewer when coverage exists</td><td className={docTableTd}>Subject to Mapillary / Meta terms, API rules, and imagery attribution.</td></tr>
         </tbody>
       </table>
       <ul className={docList}>
@@ -347,7 +350,7 @@ function LicensesContent() {
       </ul>
 
       <h3 className={docTitle}>3. Open Source Software Used (Packages)</h3>
-      <p className={docBody}>Runtime: react, react-dom (MIT), lucide-react (ISC), recharts (MIT). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
+      <p className={docBody}>Runtime: react, react-dom (MIT), mapbox-gl (see package LICENSE.txt), mapillary-js (MIT), lucide-react (ISC), recharts (MIT), Capacitor and related plugins, Firebase (see each package on npm). Development: typescript (Apache-2.0), vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer (MIT), @types/node (MIT).</p>
       <h3 className={docTitle}>4. Summary of Main Licenses</h3>
       
       <p className={docBody}>MIT: Use, copy, modify, distribute with license and copyright notice. Apache-2.0: Similar with change notice and license text. ISC: Similarly permissive with notice. This App complies with the above terms. For exact text, please refer to the official repository for each package or npm.</p>

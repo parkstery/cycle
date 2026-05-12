@@ -90,24 +90,28 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
 
         {/* Data Sources */}
         <Section title="Data Sources">
-          <Credit title="Map Data">
-            OpenStreetMap contributors
+          <Credit title="Maps (display & styles)">
+            Mapbox (Mapbox GL JS). Use is subject to Mapbox terms; on-map attribution may include © Mapbox, © OpenStreetMap, and other data owners as applicable.
+          </Credit>
+
+          <Credit title="Geocoding (search & reverse)">
+            Mapbox Geocoding API when configured; otherwise Nominatim (OpenStreetMap). Where OSM data applies: © OpenStreetMap contributors.
           </Credit>
 
           <Credit title="Routing Engine">
-            OSRM (Open Source Routing Machine)
+            OSRM (Open Source Routing Machine) via public endpoints (e.g. routing.openstreetmap.de, with fallback). Route geometry is OSM-based: © OpenStreetMap contributors.
           </Credit>
 
           <Credit title="Elevation Data">
-            Open-Elevation API
+            Open-Elevation API and/or OpenTopoData (via app proxy when used); optionally Valhalla-based height (e.g. Stadia Maps or a custom HTTPS endpoint) when configured.
           </Credit>
 
-          <Credit title="Map Rendering">
-            Leaflet JS
+          <Credit title="Street-level imagery">
+            Mapillary (street sequences / 360° when available), subject to Mapillary / Meta terms and imagery notices.
           </Credit>
 
           <Credit title="Icons">
-            Lucide Icons
+            Lucide Icons (Lucide React)
           </Credit>
         </Section>
 
