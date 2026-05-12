@@ -26,7 +26,6 @@ import {
   ArrowUpDown,
   Plus,
   Minus,
-  Layers,
   Star,
   Square,
   Mic,
@@ -533,16 +532,54 @@ function ExploreRouteRow({
   );
 }
 
+/** 위성 + 도로 하이브리드 — 상단 위성 느낌 패치, 하단 곡선 두 줄(도로) */
+function HybridMapStyleGlyph({ active, className }: { active: boolean; className?: string }) {
+  const satId = React.useId().replace(/:/g, '');
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      className={className}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={satId} x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={active ? '#bbf7d0' : '#15803d'} stopOpacity={active ? 1 : 0.95} />
+          <stop offset="42%" stopColor={active ? '#fde68a' : '#ca8a04'} stopOpacity={active ? 1 : 0.9} />
+          <stop offset="100%" stopColor={active ? '#bfdbfe' : '#1d4ed8'} stopOpacity={active ? 1 : 0.88} />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="20" height="10" rx="2" fill={`url(#${satId})`} />
+      <path
+        d="M4 15.5 Q12 12.2 20 16.3"
+        stroke="currentColor"
+        strokeWidth="2.15"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M4 19.2 Q12 16.4 20 20.3"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.88}
+      />
+    </svg>
+  );
+}
+
 /** 지도 스타일 4종 — 버튼 순서: 일반 → 아웃도어 → 위성 → 위성+도로 */
 const MAP_STYLE_CONTROLS: {
   id: 'streets' | 'outdoors' | 'satellite' | 'hybrid';
   title: string;
-  Icon: LucideIcon;
+  Icon: LucideIcon | null;
 }[] = [
   { id: 'streets', title: 'Streets', Icon: MapIcon },
   { id: 'outdoors', title: 'Outdoors', Icon: Mountain },
   { id: 'satellite', title: 'Satellite', Icon: Satellite },
-  { id: 'hybrid', title: 'Hybrid', Icon: Layers },
+  { id: 'hybrid', title: 'Hybrid', Icon: null },
 ];
 
 const App: React.FC = () => {
@@ -5266,7 +5303,11 @@ const App: React.FC = () => {
                   active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
                 }`}
               >
-                <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
+                {Icon == null ? (
+                  <HybridMapStyleGlyph active={active} className="pointer-events-none shrink-0" />
+                ) : (
+                  <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
+                )}
               </button>
             );
           })}
