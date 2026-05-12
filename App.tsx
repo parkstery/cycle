@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -1101,6 +1101,9 @@ const App: React.FC = () => {
   const closeDestSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closePlaceSuggestRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const routeInputContainerRef = useRef<HTMLDivElement | null>(null);
+  /** 경로 설정 패널(접기/펼침·높이 변화) — Mapillary 거리뷰 bottom 오프셋용 */
+  const routeSettingsShellRef = useRef<HTMLDivElement | null>(null);
+  const [routePanelHeightPx, setRoutePanelHeightPx] = useState(0);
   const searchBarContainerRef = useRef<HTMLDivElement | null>(null);
   const originSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
   const destSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
@@ -2286,6 +2289,18 @@ const App: React.FC = () => {
     ro.observe(el);
     return () => ro.disconnect();
   }, [mapRevealed, isMapReady, triggerMapResize]);
+
+  useLayoutEffect(() => {
+    const el = routeSettingsShellRef.current;
+    if (!el) return;
+    const sync = () => {
+      setRoutePanelHeightPx(Math.ceil(el.getBoundingClientRect().height));
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const resolveNearestAddress = useCallback(async (lat: number, lng: number): Promise<string> => {
     const sanitize = (v?: string | null): string | null => {
@@ -5239,11 +5254,11 @@ const App: React.FC = () => {
       />
       {rideMapillaryStreet && route?.path?.length ? (
         <div
-          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(42vh,300px)]"
+          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(28vh,200px)]"
           style={{
             left: SAFE_LEFT_1REM,
-            top: SAFE_TOP_SPEED_PANEL,
-            width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 360px)',
+            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${routePanelHeightPx}px, 2.4rem) + 8px)`,
+            width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 240px)',
           }}
           role="dialog"
           aria-label="Mapillary street view"
@@ -5664,6 +5679,7 @@ const App: React.FC = () => {
         )}
       </div>
       <div
+        ref={routeSettingsShellRef}
         className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out ${(showOriginSuggestions || showDestinationSuggestions) ? 'overflow-visible' : 'overflow-hidden'} pointer-events-auto ${routeInputExpanded ? (historyExpanded ? (routeSettingsPanelExpanded ? 'w-[598px] min-w-[598px] max-w-[598px]' : 'w-[370px] min-w-[370px] max-w-[370px]') : (routeSettingsPanelExpanded ? 'w-[282px] min-w-[282px] max-w-[282px]' : 'w-[80px] min-w-[80px] max-w-[80px]')) : 'w-[2.4rem] h-[2.4rem] border-2 border-blue-600 rounded-full group'}`}
         style={{ left: SAFE_LEFT_1REM, bottom: SAFE_BOTTOM_25 }}
       >
