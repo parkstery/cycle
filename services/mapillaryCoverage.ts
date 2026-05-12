@@ -38,7 +38,7 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           // OSRM/Mapbox 도로(시안) 위에서도 구분되게 — Mapillary 전용 색
           'line-color': '#f97316',
           'line-opacity': 0.82,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 8, 16, 11],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 10, 16, 14],
         },
       },
       beforeId

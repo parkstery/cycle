@@ -894,7 +894,7 @@ const App: React.FC = () => {
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
   /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
-  /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있으면 지도에 반영, 없어도 토글은 동작 */
+  /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있어야 지도에 소스·레이어가 생김 */
   const mapillaryTokenConfigured = MAPILLARY_CLIENT_TOKEN.length > 0;
   /** Mapillary 시퀀스(일반 촬영 경로) 레이어 — 기본은 끔, 버튼으로 켬 */
   const [mapillaryBasicCoverageVisible, setMapillaryBasicCoverageVisible] = useState(false);
@@ -1070,6 +1070,35 @@ const App: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   /** Maps JS/키/컨테이너 준비 실패 시 사용자에게 표시(인트로는 걷어서 콘트롤은 보이게 함). */
   const [mapBootstrapError, setMapBootstrapError] = useState<string | null>(null);
+  /** Mapillary 벡터 소스·레이어 부착 + 현재 토글(refs)로 visibility 적용. 스타일 미로드 시 idle 한 번 더 시도. */
+  const flushMapillaryCoverageToMap = useCallback(() => {
+    const mmap = mapboxMapRef.current;
+    if (!mmap || !MAPILLARY_CLIENT_TOKEN) return;
+    const run = () => {
+      try {
+        if (!mmap.isStyleLoaded()) return;
+        ensureMapillaryCoverageLayer(mmap, MAPILLARY_CLIENT_TOKEN);
+        stackMapillaryAboveRoutableBelowRoute(mmap, ROUTE_LAYER);
+        setMapillaryCoverageLayersVisibility(mmap, {
+          basic: mapillaryBasicCoverageVisibleRef.current,
+          pano360: mapillaryPanoCoverageVisibleRef.current,
+        });
+      } catch (e) {
+        console.warn('[Mapillary] coverage sync failed', e);
+      }
+    };
+    queueMicrotask(() => {
+      run();
+      if (!mmap.isStyleLoaded()) mmap.once('idle', run);
+    });
+  }, []);
+  /** 토큰이 없으면 UI 토글만 켜진 채 레이어가 없는 상태를 막는다 */
+  useEffect(() => {
+    if (!MAPILLARY_CLIENT_TOKEN) {
+      setMapillaryBasicCoverageVisible(false);
+      setMapillaryPanoCoverageVisible(false);
+    }
+  }, []);
   const [mapRevealed, setMapRevealed] = useState(false);
   /** 브라우저 Geolocation API로 얻은 사용자 현재 위치 (지도 초기 중심용) */
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -1952,12 +1981,7 @@ const App: React.FC = () => {
               }
               setRouteCorridorVisibility(map, true);
               if (MAPILLARY_CLIENT_TOKEN) {
-                ensureMapillaryCoverageLayer(map, MAPILLARY_CLIENT_TOKEN);
-                stackMapillaryAboveRoutableBelowRoute(map, ROUTE_LAYER);
-                setMapillaryCoverageLayersVisibility(map, {
-                  basic: mapillaryBasicCoverageVisibleRef.current,
-                  pano360: mapillaryPanoCoverageVisibleRef.current,
-                });
+                flushMapillaryCoverageToMap();
               }
               ensureMapInteractionsEnabled();
               map.resize();
@@ -2052,7 +2076,7 @@ const App: React.FC = () => {
       }
       setIsMapReady(false);
     };
-  }, [mapRevealed, applyMap3DState]);
+  }, [mapRevealed, applyMap3DState, flushMapillaryCoverageToMap]);
 
   // 사용자 위치를 받으면 지도 중심을 해당 위치로 이동
   useEffect(() => {
@@ -2062,31 +2086,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const m = mapboxMapRef.current;
-    if (!m || !MAPILLARY_CLIENT_TOKEN || !isMapReady) return;
-
-    const syncMapillaryToMap = () => {
-      try {
-        if (!m.isStyleLoaded()) return;
-        ensureMapillaryCoverageLayer(m, MAPILLARY_CLIENT_TOKEN);
-        stackMapillaryAboveRoutableBelowRoute(m, ROUTE_LAYER);
-        setMapillaryCoverageLayersVisibility(m, {
-          basic: mapillaryBasicCoverageVisible,
-          pano360: mapillaryPanoCoverageVisible,
-        });
-      } catch {
-        /* 스타일 전환 직전 등 */
-      }
-    };
-
-    syncMapillaryToMap();
+    if (!m || !isMapReady || !MAPILLARY_CLIENT_TOKEN) return;
+    flushMapillaryCoverageToMap();
     const onIdleOnce = () => {
-      syncMapillaryToMap();
+      flushMapillaryCoverageToMap();
     };
     m.once('idle', onIdleOnce);
     return () => {
       m.off('idle', onIdleOnce);
     };
-  }, [mapillaryBasicCoverageVisible, mapillaryPanoCoverageVisible, isMapReady, mapType]);
+  }, [mapillaryBasicCoverageVisible, mapillaryPanoCoverageVisible, isMapReady, mapType, flushMapillaryCoverageToMap]);
 
   // 출발지 입력 디바운스 → Nominatim 추천 목록 (맵 클릭/스왑으로 설정된 경우 추천 목록 표시 안 함)
   useEffect(() => {
@@ -4852,14 +4861,36 @@ const App: React.FC = () => {
     const n = Date.now();
     if (n - lastMapillaryBasicUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
     lastMapillaryBasicUiToggleMsRef.current = n;
-    setMapillaryBasicCoverageVisible((v) => !v);
-  }, []);
+    setMapillaryBasicCoverageVisible((prev) => {
+      const next = !prev;
+      if (next && !MAPILLARY_CLIENT_TOKEN) {
+        setMapBootstrapError(
+          'Mapillary 촬영 노선·360°를 지도에 표시하려면 VITE_MAPILLARY_CLIENT_TOKEN이 필요합니다. 프로젝트 루트 .env.local 에 토큰을 넣고 개발 서버(npm run dev)를 다시 실행하세요.'
+        );
+        return false;
+      }
+      mapillaryBasicCoverageVisibleRef.current = next;
+      queueMicrotask(() => flushMapillaryCoverageToMap());
+      return next;
+    });
+  }, [flushMapillaryCoverageToMap]);
   const toggleMapillaryPanoCoverageVisibleUi = useCallback(() => {
     const n = Date.now();
     if (n - lastMapillaryPanoUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
     lastMapillaryPanoUiToggleMsRef.current = n;
-    setMapillaryPanoCoverageVisible((v) => !v);
-  }, []);
+    setMapillaryPanoCoverageVisible((prev) => {
+      const next = !prev;
+      if (next && !MAPILLARY_CLIENT_TOKEN) {
+        setMapBootstrapError(
+          'Mapillary 360° 강조를 켜려면 VITE_MAPILLARY_CLIENT_TOKEN이 필요합니다. .env.local 에 토큰을 넣고 개발 서버를 다시 실행하세요.'
+        );
+        return false;
+      }
+      mapillaryPanoCoverageVisibleRef.current = next;
+      queueMicrotask(() => flushMapillaryCoverageToMap());
+      return next;
+    });
+  }, [flushMapillaryCoverageToMap]);
 
   const isSaved = isCurrentRouteSaved();
   return (
