@@ -400,6 +400,12 @@ const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
 const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
+/** 주행 수치 패널 `right`: Layers 한 줄만일 때 그 왼쪽 0.5rem 간격 */
+const RIDE_STATS_PANEL_RIGHT_COLLAPSED_MAP_TOOLBAR =
+  'calc(env(safe-area-inset-right, 0px) + 1rem + 2.4rem + 0.5rem)';
+/** 맵 오버레이 펼침: 툴바 우측패딩 1rem + 3×2.4rem + 열간 gap 2×0.5rem + 수치와 툴바 간 0.5rem */
+const RIDE_STATS_PANEL_RIGHT_EXPANDED_MAP_TOOLBAR =
+  'calc(env(safe-area-inset-right, 0px) + 9.7rem)';
 const SAFE_BOTTOM_25 = 'calc(25px + env(safe-area-inset-bottom, 0px))';
 const SAFE_BOTTOM_EXIT_TOAST = 'calc(6rem + env(safe-area-inset-bottom, 0px))';
 
@@ -5404,12 +5410,14 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM — 하단 좌측(경로·표고 독 위), 지도 중앙·라이더와 겹치지 않게 */}
+      {/* Current Speed / Avg Speed / Current RPM — 맵 오버레이(Layers) 왼쪽·한 버튼(2.4rem) 아래; 펼침 시 툴바 전체 왼쪽에 붙여 Route/3D 열과 비겹침 */}
       <div
-        className="fixed z-[1000] flex flex-col items-start leading-none select-none max-w-[min(11rem,calc(100vw-6rem))]"
+        className="fixed z-[1001] flex flex-col items-end leading-none select-none max-w-[min(11rem,calc(100vw-6rem))]"
         style={{
-          left: SAFE_LEFT_1REM,
-          bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${Math.max(routePanelHeightPx, elevationPanelHeightPx)}px, 2.4rem) + 8px + ${rideMapillaryStreet && route?.path?.length ? 'min(280px, max(150px, 32dvh))' : '0px'})`,
+          top: `calc(${SAFE_TOP_1REM} + 2.4rem + 0.375rem)`,
+          right: mapRightToolbarExpanded ? RIDE_STATS_PANEL_RIGHT_EXPANDED_MAP_TOOLBAR : RIDE_STATS_PANEL_RIGHT_COLLAPSED_MAP_TOOLBAR,
+          left: 'auto',
+          bottom: 'auto',
           pointerEvents: 'none',
         }}
       >
