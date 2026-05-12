@@ -40,6 +40,7 @@ import {
   Move,
   Route,
   RotateCw,
+  Layers,
   type LucideIcon,
 } from 'lucide-react';
 import ElevationChartView from './ElevationChartView';
@@ -1049,6 +1050,8 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
+  /** 우측 상단: 맵 스타일 + 노선/Mapillary/3D 묶음 접기(한 버튼으로 숨김) */
+  const [mapRightToolbarExpanded, setMapRightToolbarExpanded] = useState(false);
   const [routeCoverageVisible, setRouteCoverageVisible] = useState(false);
   const routeCoverageVisibleRef = useRef(routeCoverageVisible);
   routeCoverageVisibleRef.current = routeCoverageVisible;
@@ -1214,6 +1217,7 @@ const App: React.FC = () => {
     routeInputExpanded: true,
     hasRoute: false,
     elevationExpanded: true,
+    mapRightToolbarExpanded: false,
     sensorsModalOpen: false,
     bikeProfileModalOpen: false,
     explorePickerOpen: false,
@@ -1309,6 +1313,7 @@ const App: React.FC = () => {
       routeInputExpanded,
       hasRoute: route !== null,
       elevationExpanded,
+      mapRightToolbarExpanded,
       sensorsModalOpen,
       bikeProfileModalOpen,
       explorePickerOpen,
@@ -1331,6 +1336,7 @@ const App: React.FC = () => {
     routeInputExpanded,
     route,
     elevationExpanded,
+    mapRightToolbarExpanded,
     sensorsModalOpen,
     bikeProfileModalOpen,
     explorePickerOpen,
@@ -2449,7 +2455,8 @@ const App: React.FC = () => {
       !s.historyExpanded &&
       s.routeSettingsPanelExpanded &&
       s.routeInputExpanded &&
-      (!s.hasRoute || s.elevationExpanded);
+      (!s.hasRoute || s.elevationExpanded) &&
+      !s.mapRightToolbarExpanded;
 
     let listenerHandle: PluginListenerHandle | undefined;
 
@@ -2553,6 +2560,11 @@ const App: React.FC = () => {
       if (s.hasRoute && !s.elevationExpanded) {
         lastAndroidExitPressRef.current = 0;
         setElevationExpanded(true);
+        return;
+      }
+      if (s.mapRightToolbarExpanded) {
+        lastAndroidExitPressRef.current = 0;
+        setMapRightToolbarExpanded(false);
         return;
       }
 
@@ -5307,149 +5319,182 @@ const App: React.FC = () => {
 
 
 
-      {/* 우측 상단: 맵 스타일(안쪽 열) + OSRM/Mapillary/3D(바깥 열) — 가로·세로 gap 통일 */}
+      {/* 우측 상단: 맵 스타일 + 노선/Mapillary/3D — 접기 시 레이어 한 버튼으로 숨김 */}
       <div
-        className="fixed z-[1000] pointer-events-auto flex flex-row-reverse items-start gap-2"
+        className={`fixed z-[1000] pointer-events-auto flex items-start gap-2 transition-all duration-300 ease-out ${
+          mapRightToolbarExpanded ? '' : 'w-[2.4rem] h-[2.4rem] group'
+        }`}
         style={{
           right: SAFE_RIGHT_1REM,
           top: SAFE_TOP_1REM,
         }}
       >
-        <div className="flex flex-col gap-1.5 items-center" role="radiogroup" aria-label="Map style">
-          {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
-            const active = mapType === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onPointerDown={stopPointerPropagation}
-                onTouchStart={stopPointerPropagation}
-                onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(id))}
-                onClick={() => applyMapStyle(id)}
-                title={title}
-                aria-label={title}
-                aria-checked={active}
-                role="radio"
-                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border-2 ${
-                  active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
-                }`}
-              >
-                {Icon == null ? (
-                  <HybridMapStyleGlyph active={active} className="pointer-events-none shrink-0" />
-                ) : (
-                  <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex flex-col gap-1.5 items-center">
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, toggleRouteCoverageVisibleUi)}
-          onClick={toggleRouteCoverageVisibleUi}
-          title={routeCoverageVisible ? 'Hide road overlay' : 'Show road overlay'}
-          aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
-          aria-pressed={routeCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
-            routeCoverageVisible
-              ? 'bg-[#22d3ee] text-white border-[#06b6d4]'
-              : 'bg-white text-[#22d3ee] border-slate-200'
-          }`}
-        >
-          <Route size={18} className="pointer-events-none shrink-0" strokeWidth={routeCoverageVisible ? 2.4 : 2} />
-        </button>
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryBasicCoverageVisibleUi)}
-          onClick={toggleMapillaryBasicCoverageVisibleUi}
-          title={
-            mapillaryBasicCoverageVisible
-              ? 'Hide paths'
-              : mapillaryTokenConfigured
-                ? 'Show paths'
-                : 'Show paths (Mapillary token)'
-          }
-          aria-pressed={mapillaryBasicCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
-            mapillaryBasicCoverageVisible
-              ? 'bg-[#f97316] text-white border-orange-600'
-              : 'bg-white text-[#22d3ee] border-slate-200'
-          }`}
-        >
-          <Camera size={18} className="pointer-events-none" />
-        </button>
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryPanoCoverageVisibleUi)}
-          onClick={toggleMapillaryPanoCoverageVisibleUi}
-          title={
-            mapillaryPanoCoverageVisible
-              ? 'Hide 360°'
-              : mapillaryTokenConfigured
-                ? 'Show 360°'
-                : 'Show 360° (Mapillary token)'
-          }
-          aria-pressed={mapillaryPanoCoverageVisible}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
-            mapillaryPanoCoverageVisible
-              ? 'bg-[#2563eb] text-white border-blue-700'
-              : 'bg-white text-[#22d3ee] border-slate-200'
-          }`}
-        >
-          <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px] text-inherit">
-            <Camera size={15} strokeWidth={2} />
-            <RotateCw size={9} strokeWidth={2.6} />
-          </span>
-        </button>
-        {simulation.isActive && (
+        {!mapRightToolbarExpanded ? (
           <button
             type="button"
             onPointerDown={stopPointerPropagation}
             onTouchStart={stopPointerPropagation}
-            onTouchEnd={(e) =>
-              activateFromTouchEnd(e, () => setRideRearCameraFollow((v) => !v))
-            }
-            onClick={() => setRideRearCameraFollow((v) => !v)}
-            title={rideRearCameraFollow ? 'Free map' : 'Rear follow'}
-            aria-pressed={rideRearCameraFollow}
-            aria-label={
-              rideRearCameraFollow ? 'Turn off rear follow camera' : 'Turn on rear follow camera'
-            }
-            className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-              rideRearCameraFollow
-                ? 'bg-violet-600 text-white border-2 border-violet-700'
-                : 'bg-white text-slate-600 border-2 border-slate-200'
-            }`}
+            onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapRightToolbarExpanded(true))}
+            onClick={() => setMapRightToolbarExpanded(true)}
+            title="맵·오버레이"
+            aria-label="Show map style and road overlay controls"
+            aria-expanded={false}
+            className="w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation bg-white border-2 border-slate-200 text-emerald-600"
           >
-            {rideRearCameraFollow ? (
-              <LocateFixed size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
-            ) : (
-              <Move size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
-            )}
+            <Layers size={18} className="pointer-events-none shrink-0" strokeWidth={2} />
           </button>
+        ) : (
+          <div className="flex flex-row-reverse items-start gap-2">
+            <div className="flex flex-col gap-1.5 items-center" role="radiogroup" aria-label="Map style">
+              {MAP_STYLE_CONTROLS.map(({ id, title, Icon }) => {
+                const active = mapType === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onPointerDown={stopPointerPropagation}
+                    onTouchStart={stopPointerPropagation}
+                    onTouchEnd={(e) => activateFromTouchEnd(e, () => applyMapStyle(id))}
+                    onClick={() => applyMapStyle(id)}
+                    title={title}
+                    aria-label={title}
+                    aria-checked={active}
+                    role="radio"
+                    className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border-2 ${
+                      active ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-white border-slate-200 text-slate-500'
+                    }`}
+                  >
+                    {Icon == null ? (
+                      <HybridMapStyleGlyph active={active} className="pointer-events-none shrink-0" />
+                    ) : (
+                      <Icon size={17} className="pointer-events-none shrink-0" strokeWidth={active ? 2.4 : 2} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-col gap-1.5 items-center">
+              <button
+                type="button"
+                onPointerDown={stopPointerPropagation}
+                onTouchStart={stopPointerPropagation}
+                onTouchEnd={(e) => activateFromTouchEnd(e, toggleRouteCoverageVisibleUi)}
+                onClick={toggleRouteCoverageVisibleUi}
+                title={routeCoverageVisible ? 'Hide road overlay' : 'Show road overlay'}
+                aria-label={routeCoverageVisible ? 'Hide OSRM map roads overlay' : 'Show OSRM map roads overlay'}
+                aria-pressed={routeCoverageVisible}
+                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
+                  routeCoverageVisible
+                    ? 'bg-[#22d3ee] text-white border-[#06b6d4]'
+                    : 'bg-white text-[#22d3ee] border-slate-200'
+                }`}
+              >
+                <Route size={18} className="pointer-events-none shrink-0" strokeWidth={routeCoverageVisible ? 2.4 : 2} />
+              </button>
+              <button
+                type="button"
+                onPointerDown={stopPointerPropagation}
+                onTouchStart={stopPointerPropagation}
+                onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryBasicCoverageVisibleUi)}
+                onClick={toggleMapillaryBasicCoverageVisibleUi}
+                title={
+                  mapillaryBasicCoverageVisible
+                    ? 'Hide paths'
+                    : mapillaryTokenConfigured
+                      ? 'Show paths'
+                      : 'Show paths (Mapillary token)'
+                }
+                aria-pressed={mapillaryBasicCoverageVisible}
+                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
+                  mapillaryBasicCoverageVisible
+                    ? 'bg-[#f97316] text-white border-orange-600'
+                    : 'bg-white text-[#22d3ee] border-slate-200'
+                }`}
+              >
+                <Camera size={18} className="pointer-events-none" />
+              </button>
+              <button
+                type="button"
+                onPointerDown={stopPointerPropagation}
+                onTouchStart={stopPointerPropagation}
+                onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryPanoCoverageVisibleUi)}
+                onClick={toggleMapillaryPanoCoverageVisibleUi}
+                title={
+                  mapillaryPanoCoverageVisible
+                    ? 'Hide 360°'
+                    : mapillaryTokenConfigured
+                      ? 'Show 360°'
+                      : 'Show 360° (Mapillary token)'
+                }
+                aria-pressed={mapillaryPanoCoverageVisible}
+                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
+                  mapillaryPanoCoverageVisible
+                    ? 'bg-[#2563eb] text-white border-blue-700'
+                    : 'bg-white text-[#22d3ee] border-slate-200'
+                }`}
+              >
+                <span className="pointer-events-none flex flex-col items-center justify-center leading-none gap-[1px] text-inherit">
+                  <Camera size={15} strokeWidth={2} />
+                  <RotateCw size={9} strokeWidth={2.6} />
+                </span>
+              </button>
+              {simulation.isActive && (
+                <button
+                  type="button"
+                  onPointerDown={stopPointerPropagation}
+                  onTouchStart={stopPointerPropagation}
+                  onTouchEnd={(e) =>
+                    activateFromTouchEnd(e, () => setRideRearCameraFollow((v) => !v))
+                  }
+                  onClick={() => setRideRearCameraFollow((v) => !v)}
+                  title={rideRearCameraFollow ? 'Free map' : 'Rear follow'}
+                  aria-pressed={rideRearCameraFollow}
+                  aria-label={
+                    rideRearCameraFollow ? 'Turn off rear follow camera' : 'Turn on rear follow camera'
+                  }
+                  className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+                    rideRearCameraFollow
+                      ? 'bg-violet-600 text-white border-2 border-violet-700'
+                      : 'bg-white text-slate-600 border-2 border-slate-200'
+                  }`}
+                >
+                  {rideRearCameraFollow ? (
+                    <LocateFixed size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
+                  ) : (
+                    <Move size={18} className="pointer-events-none shrink-0" strokeWidth={2.2} />
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onPointerDown={stopPointerPropagation}
+                onTouchStart={stopPointerPropagation}
+                onTouchEnd={(e) => activateFromTouchEnd(e, () => setMap3DEnabled((prev) => !prev))}
+                onClick={() => setMap3DEnabled((prev) => !prev)}
+                title={map3DEnabled ? '3D off' : '3D on'}
+                aria-label={map3DEnabled ? 'Disable 3D map' : 'Enable 3D map'}
+                className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
+                  map3DEnabled ? 'bg-sky-100 text-sky-700' : 'bg-white text-slate-500'
+                }`}
+              >
+                <Box size={16} className="pointer-events-none" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onPointerDown={stopPointerPropagation}
+              onTouchStart={stopPointerPropagation}
+              onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapRightToolbarExpanded(false))}
+              onClick={() => setMapRightToolbarExpanded(false)}
+              title="맵·오버레이 숨기기"
+              aria-label="Hide map style and road overlay controls"
+              aria-expanded={true}
+              className="w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation shrink-0 bg-white border-2 border-slate-200 text-slate-500 hover:text-slate-700"
+            >
+              <ChevronLeft size={18} className="pointer-events-none shrink-0" />
+            </button>
+          </div>
         )}
-        <button
-          type="button"
-          onPointerDown={stopPointerPropagation}
-          onTouchStart={stopPointerPropagation}
-          onTouchEnd={(e) => activateFromTouchEnd(e, () => setMap3DEnabled((prev) => !prev))}
-          onClick={() => setMap3DEnabled((prev) => !prev)}
-          title={map3DEnabled ? '3D off' : '3D on'}
-          aria-label={map3DEnabled ? 'Disable 3D map' : 'Enable 3D map'}
-          className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            map3DEnabled ? 'bg-sky-100 text-sky-700' : 'bg-white text-slate-500'
-          }`}
-        >
-          <Box size={16} className="pointer-events-none" />
-        </button>
-        </div>
       </div>
 
       {/* Current Speed / Avg Speed / Current RPM - top-right overlay */}
