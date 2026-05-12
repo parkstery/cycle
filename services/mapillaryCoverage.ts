@@ -38,7 +38,8 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           // OSRM/Mapbox 도로(시안) 위에서도 구분되게 — Mapillary 전용 색
           'line-color': '#f97316',
           'line-opacity': 0.82,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 10, 16, 14],
+          // 이전 대비 폭 1/3 (색은 유지)
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5 / 3, 14, 10 / 3, 16, 14 / 3],
         },
       },
       beforeId
@@ -73,6 +74,24 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
       },
       beforeId
     );
+  }
+  // 이미 붙어 있는 레이어도 폭만 갱신(스타일 재로드 없이)
+  if (map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID)) {
+    try {
+      map.setPaintProperty(MAPILLARY_SEQUENCE_LAYER_ID, 'line-width', [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        10,
+        5 / 3,
+        14,
+        10 / 3,
+        16,
+        14 / 3,
+      ]);
+    } catch {
+      /* ignore */
+    }
   }
   // 스타일 재로드 없이도 색 변경이 반영되도록(이미 레이어가 있을 때)
   if (map.getLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID)) {
