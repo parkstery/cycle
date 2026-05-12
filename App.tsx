@@ -5197,17 +5197,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Elevation: 디버그 배지 (어떤 공급자가 응답했는지) — 작게 우상단 보조 위치. */}
-      {elevationStatus?.kind === 'ok' && elevationStatus.provider && (
-        <div
-          className="absolute z-[55] pointer-events-none"
-          style={{ right: SAFE_RIGHT_1REM, bottom: '6.5rem' }}
-        >
-          <div className="bg-black/55 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded-md">
-            <span className="text-white/85 text-[10px] font-mono">elev: {elevationStatus.provider === 'open-elevation' ? 'open' : 'topo'}</span>
-          </div>
-        </div>
-      )}
       {/* 맵: inset-0 + 명시 높이. opacity/transform 트랜지션 금지 — Mapbox WebGL이 페이드 중·transition-all 중 치수 0으로 그리는 경우가 있음. */}
       <div
         ref={mapRef}
