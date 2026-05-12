@@ -5410,11 +5410,11 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Current Speed / Avg Speed / Current RPM — 맵 오버레이(Layers) 왼쪽·Layers 행 한 버튼(2.4rem) 아래; 펼침 시 툴바 전체 왼쪽에 붙여 Route/3D 열과 비겹침 */}
+      {/* Current Speed / Avg Speed / Current RPM — 맵 오버레이(Layers) 왼쪽; 세로는 기준에서 버튼 반 칸(1.2rem) 위. 펼침 시 툴바 왼쪽·Route/3D와 비겹침 */}
       <div
         className="fixed z-[1001] flex flex-col items-end leading-none select-none max-w-[min(11rem,calc(100vw-6rem))]"
         style={{
-          top: `calc(${SAFE_TOP_1REM} + 4.8rem + 0.375rem)`,
+          top: `calc(${SAFE_TOP_1REM} + 3.6rem + 0.375rem)`,
           right: mapRightToolbarExpanded ? RIDE_STATS_PANEL_RIGHT_EXPANDED_MAP_TOOLBAR : RIDE_STATS_PANEL_RIGHT_COLLAPSED_MAP_TOOLBAR,
           left: 'auto',
           bottom: 'auto',
