@@ -5274,7 +5274,7 @@ const App: React.FC = () => {
             onTouchStart={stopPointerPropagation}
             onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapRightToolbarExpanded(true))}
             onClick={() => setMapRightToolbarExpanded(true)}
-            title="맵·오버레이"
+            title="Map overlays"
             aria-label="Show map style and road overlay controls"
             aria-expanded={false}
             className="w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation bg-white border-2 border-slate-200 text-emerald-600"
@@ -5399,7 +5399,7 @@ const App: React.FC = () => {
               onTouchStart={stopPointerPropagation}
               onTouchEnd={(e) => activateFromTouchEnd(e, () => setMapRightToolbarExpanded(false))}
               onClick={() => setMapRightToolbarExpanded(false)}
-              title="맵·오버레이 숨기기"
+              title="Hide toolbar"
               aria-label="Hide map style and road overlay controls"
               aria-expanded={true}
               className="w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation shrink-0 bg-white border-2 border-slate-200 text-slate-500 hover:text-slate-700"
