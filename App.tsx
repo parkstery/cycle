@@ -5251,7 +5251,7 @@ const App: React.FC = () => {
       ) : null}
       {simulation.isActive && coachData && coachingMentVisible && (
         <div className="absolute left-1/2 -translate-x-1/2 z-[9999] pointer-events-none px-2 text-center" style={{ top: SAFE_TOP_1REM }}>
-          <span className="text-white font-bold text-sm text-glow-black">{coachData.tip}</span>
+          <span className="font-bold text-sm text-[#1cff25] text-glow-black">{coachData.tip}</span>
         </div>
       )}
 
