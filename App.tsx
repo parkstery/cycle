@@ -530,41 +530,25 @@ function ExploreRouteRow({
 }
 
 /**
- * 위성+도로(하이브리드) 맵 스타일 버튼 아이콘 — 사용자 제공 스케치(after):
- * 위성 본체 + 좌하단에서 우상향으로 뻗는 대각선 3줄(스캔/신호선).
+ * 위성+도로(하이브리드) 맵 스타일 — Streamline Sharp Remix「World Home」에셋(PNG).
+ * @see https://www.streamlinehq.com/icons/download/world-home--28817
  */
 function HybridMapStyleGlyph({ active, className }: { active: boolean; className?: string }) {
-  const stroke = 'currentColor';
-  const fillSat = active ? '#ecfdf5' : '#94a3b8';
-  const fillPanel = active ? '#ffffff' : '#cbd5e1';
   return (
-    <svg
-      viewBox="0 0 24 24"
+    <img
+      src="/icons/world-home-streamline.png?v=1"
       width={18}
       height={18}
-      className={className}
+      alt=""
+      className={`${className ?? ''} pointer-events-none object-contain h-[18px] w-[18px] shrink-0 ${
+        active ? 'brightness-0 invert opacity-95' : 'opacity-[0.88]'
+      }`}
       aria-hidden
-    >
-      {/* 좌하단 → 우상향 대각선 3개 (after 레퍼런스) */}
-      <path
-        d="M2 21 L10.5 12.5 M3.4 21 L11.9 12.5 M4.8 21 L13.3 12.5"
-        stroke={stroke}
-        strokeWidth="1.35"
-        strokeLinecap="round"
-        fill="none"
-        opacity={active ? 1 : 0.92}
-      />
-      {/* 위성 본체 + 패널 */}
-      <ellipse cx="15.2" cy="8.2" rx="4.6" ry="2.85" fill={fillSat} stroke={stroke} strokeWidth="1.25" />
-      <rect x="11.2" y="6.9" width="3.2" height="2.6" rx="0.45" fill={fillPanel} stroke={stroke} strokeWidth="0.9" />
-      <rect x="17.8" y="6.9" width="3.2" height="2.6" rx="0.45" fill={fillPanel} stroke={stroke} strokeWidth="0.9" />
-      <path d="M15.2 11v2.2" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="15.2" cy="5.1" r="1.05" fill={fillPanel} stroke={stroke} strokeWidth="0.85" />
-    </svg>
+    />
   );
 }
 
-/** 지도 스타일 4종 — 버튼 순서: 일반 → 아웃도어 → 위성 → 위성+도로 */
+/** 지도 스타일 3종 — 버튼 순서: 일반 → 위성 → 위성+도로 */
 const MAP_STYLE_CONTROLS: {
   id: 'streets' | 'satellite' | 'hybrid';
   title: string;
