@@ -530,10 +530,14 @@ function ExploreRouteRow({
   );
 }
 
-/** 위성 + 도로 하이브리드 — 상단 위성 타일, 하단 도로(양쪽 실선·가운데 점선) 곡선 */
+/**
+ * 위성+도로(하이브리드) 맵 스타일 버튼 아이콘 — 사용자 제공 스케치(after):
+ * 위성 본체 + 좌하단에서 우상향으로 뻗는 대각선 3줄(스캔/신호선).
+ */
 function HybridMapStyleGlyph({ active, className }: { active: boolean; className?: string }) {
-  const satId = React.useId().replace(/:/g, '');
-  const roadStroke = active ? '#ffffff' : '#22d3ee';
+  const stroke = 'currentColor';
+  const fillSat = active ? '#ecfdf5' : '#94a3b8';
+  const fillPanel = active ? '#ffffff' : '#cbd5e1';
   return (
     <svg
       viewBox="0 0 24 24"
@@ -542,38 +546,21 @@ function HybridMapStyleGlyph({ active, className }: { active: boolean; className
       className={className}
       aria-hidden
     >
-      <defs>
-        <linearGradient id={satId} x1="2" y1="1.5" x2="22" y2="9" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={active ? '#bbf7d0' : '#15803d'} stopOpacity={active ? 1 : 0.95} />
-          <stop offset="42%" stopColor={active ? '#fde68a' : '#ca8a04'} stopOpacity={active ? 1 : 0.9} />
-          <stop offset="100%" stopColor={active ? '#bfdbfe' : '#1d4ed8'} stopOpacity={active ? 1 : 0.88} />
-        </linearGradient>
-      </defs>
-      {/* 위성 영역(위에서 본 타일 느낌) */}
-      <rect x="2" y="1.5" width="20" height="8.5" rx="1.75" fill={`url(#${satId})`} />
-      {/* 도로: 하단에 세 줄이 함께 휘어짐 — 바깥 두 줄 실선, 가운데만 점선(차선) */}
+      {/* 좌하단 → 우상향 대각선 3개 (after 레퍼런스) */}
       <path
-        d="M 2.5 14 Q 12 19.5 21.5 14"
-        stroke={roadStroke}
-        strokeWidth="1.55"
+        d="M2 21 L10.5 12.5 M3.4 21 L11.9 12.5 M4.8 21 L13.3 12.5"
+        stroke={stroke}
+        strokeWidth="1.35"
         strokeLinecap="round"
         fill="none"
+        opacity={active ? 1 : 0.92}
       />
-      <path
-        d="M 2.5 17.5 Q 12 23 21.5 17.5"
-        stroke={roadStroke}
-        strokeWidth="1.55"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M 2.5 15.75 Q 12 21.25 21.5 15.75"
-        stroke={roadStroke}
-        strokeWidth="1.15"
-        strokeLinecap="round"
-        strokeDasharray="1.1 2.5"
-        fill="none"
-      />
+      {/* 위성 본체 + 패널 */}
+      <ellipse cx="15.2" cy="8.2" rx="4.6" ry="2.85" fill={fillSat} stroke={stroke} strokeWidth="1.25" />
+      <rect x="11.2" y="6.9" width="3.2" height="2.6" rx="0.45" fill={fillPanel} stroke={stroke} strokeWidth="0.9" />
+      <rect x="17.8" y="6.9" width="3.2" height="2.6" rx="0.45" fill={fillPanel} stroke={stroke} strokeWidth="0.9" />
+      <path d="M15.2 11v2.2" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="15.2" cy="5.1" r="1.05" fill={fillPanel} stroke={stroke} strokeWidth="0.85" />
     </svg>
   );
 }
