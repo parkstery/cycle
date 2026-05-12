@@ -95,7 +95,7 @@ import {
   ensureMapillaryCoverageLayer,
   MAPILLARY_SEQUENCE_LAYER_ID,
   setMapillaryCoverageLayersVisibility,
-  stackMapillaryBelowRoutableRoads,
+  stackMapillaryAboveRoutableBelowRoute,
 } from './services/mapillaryCoverage';
 import {
   chooseMapillaryPickAlongPath,
@@ -1953,7 +1953,7 @@ const App: React.FC = () => {
               setRouteCorridorVisibility(map, true);
               if (MAPILLARY_CLIENT_TOKEN) {
                 ensureMapillaryCoverageLayer(map, MAPILLARY_CLIENT_TOKEN);
-                stackMapillaryBelowRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
+                stackMapillaryAboveRoutableBelowRoute(map, ROUTE_LAYER);
                 setMapillaryCoverageLayersVisibility(map, {
                   basic: mapillaryBasicCoverageVisibleRef.current,
                   pano360: mapillaryPanoCoverageVisibleRef.current,
@@ -2068,7 +2068,7 @@ const App: React.FC = () => {
       try {
         if (!m.isStyleLoaded()) return;
         ensureMapillaryCoverageLayer(m, MAPILLARY_CLIENT_TOKEN);
-        stackMapillaryBelowRoutableRoads(m, ROUTABLE_ROAD_LAYER_ID);
+        stackMapillaryAboveRoutableBelowRoute(m, ROUTE_LAYER);
         setMapillaryCoverageLayersVisibility(m, {
           basic: mapillaryBasicCoverageVisible,
           pano360: mapillaryPanoCoverageVisible,
@@ -2699,7 +2699,7 @@ const App: React.FC = () => {
         map.setLayoutProperty(ROUTABLE_ROAD_LAYER_ID, 'visibility', routeCoverageVisible ? 'visible' : 'none');
       }
       if (MAPILLARY_CLIENT_TOKEN && map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID) && map.getLayer(ROUTE_LAYER)) {
-        stackMapillaryBelowRoutableRoads(map, ROUTABLE_ROAD_LAYER_ID);
+        stackMapillaryAboveRoutableBelowRoute(map, ROUTE_LAYER);
       }
     } catch (e) {
       console.warn('[Mapbox] road coverage overlay', e);

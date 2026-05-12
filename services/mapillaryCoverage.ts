@@ -76,14 +76,17 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
   }
 }
 
-/** Mapillary(위성 스트리트뷰) 커버리지를 OSRM routable(시안) 오버레이 아래에 둔다 — 커버리지 “레벨”이 OSRM보다 높지 않게 유지 */
-export function stackMapillaryBelowRoutableRoads(map: Map, routableLayerId: string): void {
+/**
+ * Mapillary 커버리지를 OSRM 시안 도로(ROUTABLE) 위로 올리고, 주 경로선(ROUTE_LAYER) 바로 아래에 둔다.
+ * 예전처럼 시안 “아래”에 두면 불투명에 가까운 시안 라인에 가려져 도시 구간에서 거의 보이지 않는다.
+ */
+export function stackMapillaryAboveRoutableBelowRoute(map: Map, routeLayerId: string = ROUTE_LAYER): void {
   if (!map.getLayer(MAPILLARY_SEQUENCE_LAYER_ID)) return;
-  if (!routableLayerId || !map.getLayer(routableLayerId)) return;
+  if (!routeLayerId || !map.getLayer(routeLayerId)) return;
   try {
-    map.moveLayer(MAPILLARY_SEQUENCE_LAYER_ID, routableLayerId);
+    map.moveLayer(MAPILLARY_SEQUENCE_LAYER_ID, routeLayerId);
     if (map.getLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID)) {
-      map.moveLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID, routableLayerId);
+      map.moveLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID, routeLayerId);
     }
   } catch {
     /* 순서 불가 */
