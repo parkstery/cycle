@@ -894,14 +894,14 @@ const App: React.FC = () => {
   const map3DEnabledRef = useRef(map3DEnabled);
   map3DEnabledRef.current = map3DEnabled;
   /** OSRM으로 계산된 경로를 파란 코리더로 강조 (Street View 커버리지와 별개 — 실제 라우트 구간만) */
-  /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있을 때만 레이어·토글 표시 */
+  /** Mapillary 시퀀스 커버리지(벡터 타일). 토큰이 있으면 지도에 반영, 없어도 토글은 동작 */
   const mapillaryTokenConfigured = MAPILLARY_CLIENT_TOKEN.length > 0;
-  /** Mapillary 시퀀스(일반 촬영 경로) 레이어 */
-  const [mapillaryBasicCoverageVisible, setMapillaryBasicCoverageVisible] = useState(mapillaryTokenConfigured);
+  /** Mapillary 시퀀스(일반 촬영 경로) 레이어 — 기본은 끔, 버튼으로 켬 */
+  const [mapillaryBasicCoverageVisible, setMapillaryBasicCoverageVisible] = useState(false);
   const mapillaryBasicCoverageVisibleRef = useRef(mapillaryBasicCoverageVisible);
   mapillaryBasicCoverageVisibleRef.current = mapillaryBasicCoverageVisible;
-  /** Mapillary 360°(파노) 구간 강조 레이어 — 기본 커버리지와 별도 토글 */
-  const [mapillaryPanoCoverageVisible, setMapillaryPanoCoverageVisible] = useState(mapillaryTokenConfigured);
+  /** Mapillary 360°(파노) 구간 강조 레이어 — 기본은 끔, 버튼으로 켬 */
+  const [mapillaryPanoCoverageVisible, setMapillaryPanoCoverageVisible] = useState(false);
   const mapillaryPanoCoverageVisibleRef = useRef(mapillaryPanoCoverageVisible);
   mapillaryPanoCoverageVisibleRef.current = mapillaryPanoCoverageVisible;
   /** 터치 후 ghost click 으로 Mapillary/OSRM 도로 토글이 두 번 뒤집히는 것 방지 */
@@ -1001,7 +1001,7 @@ const App: React.FC = () => {
   const [routeInputExpanded, setRouteInputExpanded] = useState(true);
   const [routeSettingsPanelExpanded, setRouteSettingsPanelExpanded] = useState(true); // 왼쪽 '경로설정' 패널만 접기/펼치기
   const [elevationExpanded, setElevationExpanded] = useState(true);
-  const [routeCoverageVisible, setRouteCoverageVisible] = useState(true);
+  const [routeCoverageVisible, setRouteCoverageVisible] = useState(false);
   const routeCoverageVisibleRef = useRef(routeCoverageVisible);
   routeCoverageVisibleRef.current = routeCoverageVisible;
   const [historyExpanded, setHistoryExpanded] = useState(false); // 초기 실행 시 My Routes 패널 접힌 상태
@@ -4849,19 +4849,17 @@ const App: React.FC = () => {
     setRouteCoverageVisible((v) => !v);
   }, []);
   const toggleMapillaryBasicCoverageVisibleUi = useCallback(() => {
-    if (!mapillaryTokenConfigured) return;
     const n = Date.now();
     if (n - lastMapillaryBasicUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
     lastMapillaryBasicUiToggleMsRef.current = n;
     setMapillaryBasicCoverageVisible((v) => !v);
-  }, [mapillaryTokenConfigured]);
+  }, []);
   const toggleMapillaryPanoCoverageVisibleUi = useCallback(() => {
-    if (!mapillaryTokenConfigured) return;
     const n = Date.now();
     if (n - lastMapillaryPanoUiToggleMsRef.current < UI_TOGGLE_DEBOUNCE_MS) return;
     lastMapillaryPanoUiToggleMsRef.current = n;
     setMapillaryPanoCoverageVisible((v) => !v);
-  }, [mapillaryTokenConfigured]);
+  }, []);
 
   const isSaved = isCurrentRouteSaved();
   return (
@@ -5267,21 +5265,18 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryBasicCoverageVisibleUi)}
           onClick={toggleMapillaryBasicCoverageVisibleUi}
-          disabled={!mapillaryTokenConfigured}
           title={
-            mapillaryTokenConfigured
-              ? mapillaryBasicCoverageVisible
-                ? 'Hide paths'
-                : 'Show paths'
-              : 'No Mapillary token'
+            mapillaryBasicCoverageVisible
+              ? 'Hide paths'
+              : mapillaryTokenConfigured
+                ? 'Show paths'
+                : 'Show paths (Mapillary token)'
           }
           aria-pressed={mapillaryBasicCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            mapillaryTokenConfigured
-              ? mapillaryBasicCoverageVisible
-                ? 'bg-emerald-700 text-white'
-                : 'bg-white text-emerald-700'
-              : 'bg-slate-200 text-slate-400 opacity-60'
+            mapillaryBasicCoverageVisible
+              ? 'bg-emerald-700 text-white'
+              : 'bg-white text-emerald-700'
           }`}
         >
           <Camera size={18} className="pointer-events-none" />
@@ -5292,21 +5287,18 @@ const App: React.FC = () => {
           onTouchStart={stopPointerPropagation}
           onTouchEnd={(e) => activateFromTouchEnd(e, toggleMapillaryPanoCoverageVisibleUi)}
           onClick={toggleMapillaryPanoCoverageVisibleUi}
-          disabled={!mapillaryTokenConfigured}
           title={
-            mapillaryTokenConfigured
-              ? mapillaryPanoCoverageVisible
-                ? 'Hide 360°'
-                : 'Show 360°'
-              : 'No Mapillary token'
+            mapillaryPanoCoverageVisible
+              ? 'Hide 360°'
+              : mapillaryTokenConfigured
+                ? 'Show 360°'
+                : 'Show 360° (Mapillary token)'
           }
           aria-pressed={mapillaryPanoCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation ${
-            mapillaryTokenConfigured
-              ? mapillaryPanoCoverageVisible
-                ? 'bg-sky-600 text-white'
-                : 'bg-white text-sky-600'
-              : 'bg-slate-200 text-slate-400 opacity-60'
+            mapillaryPanoCoverageVisible
+              ? 'bg-sky-600 text-white'
+              : 'bg-white text-sky-600'
           }`}
         >
           <Aperture size={18} className="pointer-events-none" />
