@@ -399,6 +399,8 @@ const SAFE_TOP_INSET = IS_ANDROID_NATIVE ? '0px' : 'env(safe-area-inset-top, 0px
 const SAFE_TOP_1REM = `calc(${SAFE_TOP_INSET} + 1rem)`;
 const SAFE_TOP_4_25REM = `calc(${SAFE_TOP_INSET} + 4.25rem)`;
 const SAFE_LEFT_1REM = 'calc(env(safe-area-inset-left, 0px) + 1rem)';
+/** 주행 Mapillary 거리뷰 패널 `top` — 좌상단 menu·search(2.4rem) 하단 + 6px, 세로 중첩 방지 */
+const MAPILLARY_RIDE_STREET_PANEL_TOP = `calc(${SAFE_TOP_1REM} + 2.4rem + 6px)`;
 const SAFE_RIGHT_1REM = 'calc(env(safe-area-inset-right, 0px) + 1rem)';
 /** 주행 수치 패널 `right`: Layers 한 줄만일 때 — 우측으로 2.4rem(버튼 1칸) 당김 후 FAB 왼쪽 0.5rem */
 const RIDE_STATS_PANEL_RIGHT_COLLAPSED_MAP_TOOLBAR =
@@ -5210,9 +5212,10 @@ const App: React.FC = () => {
       />
       {rideMapillaryStreet && route?.path?.length ? (
         <div
-          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(50dvh,300px)] landscape:max-h-[min(82dvh,440px)]"
+          className="fixed z-[1005] pointer-events-auto flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(50dvh,300px)] landscape:max-h-[min(82dvh,440px)]"
           style={{
             left: SAFE_LEFT_1REM,
+            top: MAPILLARY_RIDE_STREET_PANEL_TOP,
             bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${Math.max(routePanelHeightPx, elevationPanelHeightPx)}px, 2.4rem) + 8px)`,
             width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 240px)',
           }}
@@ -5234,7 +5237,7 @@ const App: React.FC = () => {
               <X size={16} />
             </button>
           </div>
-          <div className="relative w-full aspect-video bg-black shrink-0">
+          <div className="relative min-h-[100px] w-full flex-1 overflow-hidden bg-black">
             <MapillaryRideViewer
               accessToken={MAPILLARY_CLIENT_TOKEN}
               imageId={rideMapillaryStreet.imageKey}
