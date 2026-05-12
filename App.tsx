@@ -5377,7 +5377,7 @@ const App: React.FC = () => {
           aria-pressed={mapillaryPanoCoverageVisible}
           className={`w-[2.4rem] h-[2.4rem] rounded-full shadow-2xl transition-all active:scale-95 flex items-center justify-center touch-manipulation border ${
             mapillaryPanoCoverageVisible
-              ? 'bg-[#facc15] text-slate-900 border-amber-500'
+              ? 'bg-[#2563eb] text-white border-blue-700'
               : 'bg-white text-[#22d3ee] border-slate-200'
           }`}
         >

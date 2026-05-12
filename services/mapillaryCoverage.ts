@@ -66,8 +66,8 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
           'line-join': 'round',
         },
         paint: {
-          // 360° 구간 — OSRM 시안(#22d3ee)과 구분되게 노란색
-          'line-color': '#facc15',
+          // 360° 구간 — OSRM 시안(#22d3ee)과 구분되는 파랑
+          'line-color': '#2563eb',
           'line-opacity': 0.96,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 4.4, 16, 6],
         },
@@ -96,7 +96,7 @@ export function ensureMapillaryCoverageLayer(map: Map, accessToken: string): voi
   // 스타일 재로드 없이도 색 변경이 반영되도록(이미 레이어가 있을 때)
   if (map.getLayer(MAPILLARY_PANO_SEQUENCE_LAYER_ID)) {
     try {
-      map.setPaintProperty(MAPILLARY_PANO_SEQUENCE_LAYER_ID, 'line-color', '#facc15');
+      map.setPaintProperty(MAPILLARY_PANO_SEQUENCE_LAYER_ID, 'line-color', '#2563eb');
     } catch {
       /* ignore */
     }
