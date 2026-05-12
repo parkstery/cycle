@@ -532,47 +532,48 @@ function ExploreRouteRow({
   );
 }
 
-/** 위성 + 도로 하이브리드 — 상단 위성 패치, 하단 곡선 도로(양측 실선·가운데 점선) */
+/** 위성 + 도로 하이브리드 — 상단 위성 타일, 하단 도로(양쪽 실선·가운데 점선) 곡선 */
 function HybridMapStyleGlyph({ active, className }: { active: boolean; className?: string }) {
   const satId = React.useId().replace(/:/g, '');
   const roadStroke = active ? '#ffffff' : '#22d3ee';
   return (
     <svg
       viewBox="0 0 24 24"
-      width={17}
-      height={17}
+      width={18}
+      height={18}
       className={className}
       aria-hidden
     >
       <defs>
-        <linearGradient id={satId} x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
+        <linearGradient id={satId} x1="2" y1="1.5" x2="22" y2="9" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={active ? '#bbf7d0' : '#15803d'} stopOpacity={active ? 1 : 0.95} />
           <stop offset="42%" stopColor={active ? '#fde68a' : '#ca8a04'} stopOpacity={active ? 1 : 0.9} />
           <stop offset="100%" stopColor={active ? '#bfdbfe' : '#1d4ed8'} stopOpacity={active ? 1 : 0.88} />
         </linearGradient>
       </defs>
-      <rect x="2" y="2" width="20" height="9" rx="2" fill={`url(#${satId})`} />
-      {/* 도로: 바깥 두 실선(연석), 가운데 점선(차선) — 동일 곡률 Q */}
+      {/* 위성 영역(위에서 본 타일 느낌) */}
+      <rect x="2" y="1.5" width="20" height="8.5" rx="1.75" fill={`url(#${satId})`} />
+      {/* 도로: 하단에 세 줄이 함께 휘어짐 — 바깥 두 줄 실선, 가운데만 점선(차선) */}
       <path
-        d="M 3.4 14.4 Q 12 11.4 20.6 16.9"
+        d="M 2.5 14 Q 12 19.5 21.5 14"
         stroke={roadStroke}
-        strokeWidth="1.65"
+        strokeWidth="1.55"
         strokeLinecap="round"
         fill="none"
       />
       <path
-        d="M 3.4 18.9 Q 12 15.9 20.6 21.4"
+        d="M 2.5 17.5 Q 12 23 21.5 17.5"
         stroke={roadStroke}
-        strokeWidth="1.65"
+        strokeWidth="1.55"
         strokeLinecap="round"
         fill="none"
       />
       <path
-        d="M 3.4 16.65 Q 12 13.65 20.6 19.15"
+        d="M 2.5 15.75 Q 12 21.25 21.5 15.75"
         stroke={roadStroke}
-        strokeWidth="1.2"
+        strokeWidth="1.15"
         strokeLinecap="round"
-        strokeDasharray="2.6 2.4"
+        strokeDasharray="1.1 2.5"
         fill="none"
       />
     </svg>
@@ -588,7 +589,7 @@ const MAP_STYLE_CONTROLS: {
   { id: 'streets', title: 'Streets', Icon: MapIcon },
   { id: 'outdoors', title: 'Outdoors', Icon: Mountain },
   { id: 'satellite', title: 'Satellite', Icon: Satellite },
-  { id: 'hybrid', title: 'Hybrid', Icon: null },
+  { id: 'hybrid', title: 'Satellite + roads', Icon: null },
 ];
 
 const App: React.FC = () => {
