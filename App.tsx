@@ -1103,7 +1103,9 @@ const App: React.FC = () => {
   const routeInputContainerRef = useRef<HTMLDivElement | null>(null);
   /** 경로 설정 패널(접기/펼침·높이 변화) — Mapillary 거리뷰 bottom 오프셋용 */
   const routeSettingsShellRef = useRef<HTMLDivElement | null>(null);
+  const elevationShellRef = useRef<HTMLDivElement | null>(null);
   const [routePanelHeightPx, setRoutePanelHeightPx] = useState(0);
+  const [elevationPanelHeightPx, setElevationPanelHeightPx] = useState(0);
   const searchBarContainerRef = useRef<HTMLDivElement | null>(null);
   const originSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
   const destSuggestionItemRef = useRef<HTMLButtonElement | null>(null);
@@ -2291,16 +2293,20 @@ const App: React.FC = () => {
   }, [mapRevealed, isMapReady, triggerMapResize]);
 
   useLayoutEffect(() => {
-    const el = routeSettingsShellRef.current;
-    if (!el) return;
     const sync = () => {
-      setRoutePanelHeightPx(Math.ceil(el.getBoundingClientRect().height));
+      const routeEl = routeSettingsShellRef.current;
+      const elevEl = elevationShellRef.current;
+      setRoutePanelHeightPx(routeEl ? Math.ceil(routeEl.getBoundingClientRect().height) : 0);
+      setElevationPanelHeightPx(elevEl ? Math.ceil(elevEl.getBoundingClientRect().height) : 0);
     };
     sync();
     const ro = new ResizeObserver(sync);
-    ro.observe(el);
+    const routeEl = routeSettingsShellRef.current;
+    const elevEl = elevationShellRef.current;
+    if (routeEl) ro.observe(routeEl);
+    if (elevEl) ro.observe(elevEl);
     return () => ro.disconnect();
-  }, []);
+  }, [route]);
 
   const resolveNearestAddress = useCallback(async (lat: number, lng: number): Promise<string> => {
     const sanitize = (v?: string | null): string | null => {
@@ -5254,10 +5260,10 @@ const App: React.FC = () => {
       />
       {rideMapillaryStreet && route?.path?.length ? (
         <div
-          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(28vh,200px)]"
+          className="fixed z-[1005] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-slate-600/80 bg-black/90 shadow-2xl max-h-[min(50dvh,300px)] landscape:max-h-[min(82dvh,440px)]"
           style={{
             left: SAFE_LEFT_1REM,
-            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${routePanelHeightPx}px, 2.4rem) + 8px)`,
+            bottom: `calc(25px + env(safe-area-inset-bottom, 0px) + max(${Math.max(routePanelHeightPx, elevationPanelHeightPx)}px, 2.4rem) + 8px)`,
             width: 'min(calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 240px)',
           }}
           role="dialog"
@@ -5971,6 +5977,7 @@ const App: React.FC = () => {
       </div>
       {route && (
         <div
+          ref={elevationShellRef}
           className={`absolute z-[1000] flex items-end transition-all duration-300 ease-out pointer-events-auto ${elevationExpanded ? 'justify-end w-fit max-w-[90vw] [@media(orientation:landscape)]:max-w-[80vw]' : 'w-[2.4rem] h-[2.4rem] group'}`}
           style={{ right: SAFE_RIGHT_1REM, bottom: SAFE_BOTTOM_25 }}
         >
