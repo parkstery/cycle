@@ -460,6 +460,7 @@ export default function MenuPanel({
             {!isList && (
               <button
                 onClick={backToMenu}
+                title="Back"
                 className="flex items-center gap-1 text-slate-700"
               >
                 <ChevronLeft size={18} />
@@ -469,6 +470,7 @@ export default function MenuPanel({
 
             <button
               onClick={onClose}
+              title="Close menu"
               className="flex items-center gap-1 text-slate-700"
             >
               {/* Rrturn */}
@@ -497,6 +499,7 @@ export default function MenuPanel({
               <li>
                 <button
                   onClick={() => setMenuView("about")}
+                  title="About"
                   className="w-full text-left ps-4 pe-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
                 >
                   About
@@ -519,6 +522,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("guideSimple")}
+                      title="Quick guide"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Quick Guide
@@ -528,6 +532,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("guideDetail")}
+                      title="Detailed guide"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Detailed Guide
@@ -552,6 +557,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("privacy")}
+                      title="Privacy policy"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Privacy Policy
@@ -561,6 +567,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("terms")}
+                      title="Terms of service"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Terms of Service
@@ -570,6 +577,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("disclaimer")}
+                      title="Disclaimer"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Disclaimer
@@ -579,6 +587,7 @@ export default function MenuPanel({
                   <li>
                     <button
                       onClick={() => setMenuView("licenses")}
+                      title="Open source licenses"
                       className="w-full text-left ps-4 pe-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between"
                     >
                       Open Source Licenses
@@ -591,6 +600,7 @@ export default function MenuPanel({
               <li>
                 <button
                   onClick={() => setMenuView("contact")}
+                  title="Contact"
                   className="w-full text-left ps-4 pe-4 py-3 font-medium hover:bg-slate-100 flex items-center justify-between"
                 >
                   Contact

@@ -40,6 +40,7 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
             onClick={onDismiss}
             className="p-1 rounded hover:bg-slate-100 text-slate-500"
             aria-label="Skip for now"
+            title="Skip"
           >
             <X size={18} />
           </button>
@@ -54,6 +55,7 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
             {OPTIONS.map((opt) => (
               <label
                 key={opt.id}
+                title={opt.label}
                 className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
                   selected === opt.id ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200 hover:bg-slate-50'
                 }`}
@@ -80,6 +82,7 @@ export const BikeProfileModal: React.FC<BikeProfileModalProps> = ({ open, onSave
             <button
               type="button"
               onClick={onDismiss}
+              title="Set later"
               className="w-full px-3 py-1.5 text-[12px] font-bold text-slate-600 bg-white border border-slate-200 rounded-md active:scale-[0.98]"
             >
               I&apos;ll set later

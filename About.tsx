@@ -30,6 +30,7 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
           {onBackToMenu ? (
             <button
               onClick={onBackToMenu}
+              title="Back to menu"
               className="text-slate-700 font-medium hover:opacity-70"
             >
               ← <span className="ml-1">Back to Menu</span>
@@ -41,6 +42,7 @@ const About: React.FC<AboutProps> = ({ onClose, onBackToMenu }) => {
         <div className="flex items-center">
           <button
             onClick={onClose}
+            title="Back to simulator"
             className="text-slate-700 font-medium hover:opacity-70"
           >
             <span>Back to Simulator</span>

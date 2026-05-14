@@ -515,6 +515,7 @@ function ExploreRouteRow({
     <button
       type="button"
       onClick={() => onPick(route)}
+      title={`Load explore route: ${d.title}`}
       className={`w-full rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100 ${compact ? 'py-2 px-2.5' : 'py-2.5 px-3'}`}
     >
       <div className="flex min-w-0 gap-2.5">
@@ -4948,6 +4949,7 @@ const App: React.FC = () => {
             type="button"
             className="shrink-0 text-amber-200 underline text-[11px] px-1"
             onClick={() => setMapBootstrapError(null)}
+            title="Dismiss"
           >
             닫기
           </button>
@@ -5055,6 +5057,7 @@ const App: React.FC = () => {
                 type="button"
                 onClick={rewardOfferModalStage === 'FIRST' ? handleRewardWatchFirst : handleRewardWatchSecond}
                 disabled={rewardAdInFlightRef.current}
+                title="Watch ad for more distance"
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {rewardAdInFlightRef.current ? 'Loading...' : 'Watch Ad'}
@@ -5065,6 +5068,7 @@ const App: React.FC = () => {
                   type="button"
                   onClick={handleRewardStartWithDefault}
                   disabled={rewardAdInFlightRef.current}
+                  title="Start with 5 km limit"
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Start with 5 km
@@ -5074,6 +5078,7 @@ const App: React.FC = () => {
                   type="button"
                   onClick={handleRewardDeclineSecond}
                   disabled={rewardAdInFlightRef.current}
+                  title="No thanks"
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   No thanks
@@ -5094,6 +5099,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setMaxRideLimitMessage(null); }}
+                title="OK"
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl px-4 py-2"
               >
                 OK
@@ -5113,6 +5119,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setRideLimitMessage(null); }}
+                title="OK"
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl px-4 py-2"
               >
                 OK
@@ -5133,6 +5140,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRouteSlowModalKeepWaiting}
+                title="Keep waiting"
                 className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold text-[13px] rounded-xl py-2.5"
               >
                 Keep waiting
@@ -5140,6 +5148,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRouteSlowModalRideExplore}
+                title="Open Explore routes"
                 className="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-bold text-[13px] rounded-xl py-2.5"
               >
                 Ride Explore route
@@ -5157,6 +5166,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 aria-label="Close"
+                title="Close"
                 onClick={() => setExplorePickerOpen(false)}
                 className="rounded-full p-2.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200"
               >
@@ -5438,6 +5448,7 @@ const App: React.FC = () => {
             disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected) || (sensorPrefs.feelK ?? 1) <= FEEL_K_MIN + 1e-6}
             className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
             aria-label="Decrease feel"
+            title="Softer feel"
             tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             −
@@ -5459,6 +5470,7 @@ const App: React.FC = () => {
             disabled={!(sensorPrefs.sensorDriveEnabled && sensorHubConnected) || (sensorPrefs.feelK ?? 1) >= FEEL_K_MAX - 1e-6}
             className="w-5 h-5 flex items-center justify-center rounded-full bg-white text-slate-800 text-[12px] font-black leading-none disabled:opacity-40"
             aria-label="Increase feel"
+            title="Harder feel"
             tabIndex={sensorPrefs.sensorDriveEnabled && sensorHubConnected ? undefined : -1}
           >
             +
@@ -5568,6 +5580,7 @@ const App: React.FC = () => {
             <input
               type="text"
               placeholder="Search places…"
+              title="Search places"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => searchExpanded && placeSearchSuggestions.length > 0 && setShowPlaceSearchSuggestions(true)}
@@ -5622,6 +5635,7 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     ref={idx === placeSearchHighlightIndex ? (el) => { el?.scrollIntoView({ block: 'nearest' }); } : undefined}
+                    title="Pick place"
                     className={`w-full text-left px-2 py-2 text-[11px] leading-snug flex items-start gap-2 ${placeSearchHighlightIndex === idx ? 'bg-emerald-100 text-emerald-900' : 'text-slate-700 hover:bg-slate-50'}`}
                     onMouseDown={(ev) => {
                       ev.preventDefault();
@@ -5641,7 +5655,7 @@ const App: React.FC = () => {
           <div className="w-full flex flex-col px-2 pb-2 gap-1 border-t border-slate-100">
             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider px-1 mt-1">Recent</span>
             {recentPlaceSearches.map((term, idx) => (
-              <button key={idx} onClick={() => handlePlaceHistoryClick(term)} className="text-left w-full truncate text-[11px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-1 transition-colors flex items-center gap-2"><History size={10} className="text-slate-400" />{term}</button>
+              <button key={idx} type="button" title={`Search: ${term}`} onClick={() => handlePlaceHistoryClick(term)} className="text-left w-full truncate text-[11px] text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-1 py-1 transition-colors flex items-center gap-2"><History size={10} className="text-slate-400" />{term}</button>
             ))}
           </div>
         )}
@@ -5683,6 +5697,7 @@ const App: React.FC = () => {
                       <input
                         className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                         placeholder="Start"
+                        title="Start location"
                         value={origin}
                         onChange={(e) => { setOrigin(e.target.value); originLocationRef.current = null; }}
                         onFocus={() => originSuggestions.length > 0 && setShowOriginSuggestions(true)}
@@ -5724,7 +5739,7 @@ const App: React.FC = () => {
                       <ul className="absolute top-full left-0 w-[156%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={originHighlightIndex >= 0 ? `origin-suggestion-${originHighlightIndex}` : undefined}>
                         {originSuggestions.map((item, idx) => (
                           <li key={idx} id={`origin-suggestion-${idx}`} role="option" aria-selected={originHighlightIndex === idx}>
-                            <button ref={idx === originHighlightIndex ? (el) => { originSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${originHighlightIndex === idx ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-blue-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }} onMouseEnter={() => setOriginHighlightIndex(idx)}>
+                            <button ref={idx === originHighlightIndex ? (el) => { originSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" title="Pick start" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${originHighlightIndex === idx ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-blue-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectOriginSuggestion(item); }} onMouseEnter={() => setOriginHighlightIndex(idx)}>
                               {item.display_name}
                             </button>
                           </li>
@@ -5752,6 +5767,7 @@ const App: React.FC = () => {
                       <input
                         className="flex-1 w-full text-xs outline-none text-slate-700 font-medium placeholder:text-slate-400 bg-transparent truncate min-w-0"
                         placeholder="End"
+                        title="End location"
                         value={destination}
                         onChange={(e) => { setDestination(e.target.value); destLocationRef.current = null; }}
                         onFocus={() => destinationSuggestions.length > 0 && setShowDestinationSuggestions(true)}
@@ -5793,7 +5809,7 @@ const App: React.FC = () => {
                       <ul className="absolute top-full left-0 w-[156%] mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[70] max-h-40 overflow-y-auto" role="listbox" aria-activedescendant={destinationHighlightIndex >= 0 ? `dest-suggestion-${destinationHighlightIndex}` : undefined}>
                         {destinationSuggestions.map((item, idx) => (
                           <li key={idx} id={`dest-suggestion-${idx}`} role="option" aria-selected={destinationHighlightIndex === idx}>
-                            <button ref={idx === destinationHighlightIndex ? (el) => { destSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${destinationHighlightIndex === idx ? 'bg-red-100 text-red-900' : 'text-slate-700 hover:bg-red-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }} onMouseEnter={() => setDestinationHighlightIndex(idx)}>
+                            <button ref={idx === destinationHighlightIndex ? (el) => { destSuggestionItemRef.current = el; el?.scrollIntoView({ block: 'nearest' }); } : undefined} type="button" title="Pick end" className={`w-full text-left px-2 py-1.5 text-[11px] truncate ${destinationHighlightIndex === idx ? 'bg-red-100 text-red-900' : 'text-slate-700 hover:bg-red-50'}`} onMouseDown={(e) => { e.preventDefault(); handleSelectDestinationSuggestion(item); }} onMouseEnter={() => setDestinationHighlightIndex(idx)}>
                               {item.display_name}
                             </button>
                           </li>
@@ -5830,6 +5846,7 @@ const App: React.FC = () => {
                     }}
                     className="speed-input-no-spinner w-[29px] h-6 text-[11px] font-bold text-center bg-white border border-slate-300 rounded-md text-slate-700 focus:outline-none focus:border-blue-500 px-1 shrink-0"
                     aria-label="Speed"
+                    title="Speed (km/h)"
                   />
                   <button type="button" onClick={() => setSpeedKmH((prev) => Math.min(70, prev + 1))} title="Faster" className="w-[19.2px] h-[19.2px] flex items-center justify-center rounded bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform shrink-0 disabled:opacity-50" disabled={speedKmH >= 70} aria-label="Increase speed"><Plus size={10} /></button>
                   <div className="flex items-center gap-1 ml-auto shrink-0">
@@ -5880,6 +5897,7 @@ const App: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setHistoryPanelTab('my_routes')}
+                      title="My routes"
                       className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'my_routes' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
                     >
                       My Routes
@@ -5887,6 +5905,7 @@ const App: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setHistoryPanelTab('explore')}
+                      title="Explore routes"
                       className={`shrink-0 text-[9px] font-bold tracking-wide pb-0.5 -mb-px border-b-2 transition-colors ${historyPanelTab === 'explore' ? 'text-slate-600 border-blue-500' : 'text-slate-400 border-transparent hover:text-slate-500'}`}
                     >
                       Explore Routes
@@ -5899,7 +5918,7 @@ const App: React.FC = () => {
                 {historyPanelTab === 'my_routes' ? (
                   favoriteRoutes.length > 0 ? favoriteRoutes.map((route) => (
                     <div key={route.id} className="flex items-center justify-between w-full gap-0.5 rounded px-1 py-[1px] transition-colors active:bg-slate-50">
-                      <button onClick={() => handleLoadFavorite(route)} title="Load" className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
+                      <button onClick={() => handleLoadFavorite(route)} title="Load route" className="text-left flex-1 min-w-0 truncate text-[10px] text-slate-600 leading-none">
                         <span className={`mr-1 text-[8px] font-black ${route.routePayload?.fullGeometry?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
                           {route.routePayload?.fullGeometry?.length ? 'READY' : 'SYNC'}
                         </span>

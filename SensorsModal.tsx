@@ -259,7 +259,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
             <Gauge size={18} className="text-blue-600" />
             Sensor settings
           </h2>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Close">
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Close" title="Close">
             <X size={18} />
           </button>
         </div>
@@ -274,6 +274,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <button
                 type="button"
                 onClick={() => setSensorDrive(false)}
+                title="Manual (no sensor)"
                 className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                   !prefs.sensorDriveEnabled ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                 }`}
@@ -284,6 +285,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
               <button
                 type="button"
                 onClick={() => setSensorDrive(true)}
+                title="Sensor mode"
                 className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                   prefs.sensorDriveEnabled ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                 }`}
@@ -312,6 +314,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   type="button"
                   onClick={() => void handleScan()}
                   disabled={scanning}
+                  title="Scan for sensors"
                   className="h-8 min-w-0 flex-1 flex items-center justify-center gap-1 px-2 rounded-md bg-blue-600 text-white text-[12px] font-bold disabled:opacity-50"
                 >
                   <Scan size={13} />
@@ -321,6 +324,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   <button
                     type="button"
                     className="h-8 shrink-0 px-2 text-[11px] font-bold text-slate-600 rounded-md border border-slate-200 bg-white whitespace-nowrap"
+                    title="Stop scan"
                     onClick={() => void hub.stopScan().then(() => bump((n) => n + 1))}
                   >
                     Stop scan
@@ -334,7 +338,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                     {connected.map((c) => (
                       <li key={c.deviceId} className="grid grid-cols-[1fr_auto] items-center gap-1.5 min-w-0">
                         <span className="truncate font-medium text-[11px] text-slate-800 min-w-0">{c.name}</span>
-                        <button type="button" className="h-7 text-[12px] font-bold text-red-700 bg-white border border-red-200 rounded-md px-2" onClick={() => void handleDisconnect(c.deviceId)}>
+                        <button type="button" title="Disconnect" className="h-7 text-[12px] font-bold text-red-700 bg-white border border-red-200 rounded-md px-2" onClick={() => void handleDisconnect(c.deviceId)}>
                           Disconnect
                         </button>
                       </li>
@@ -352,6 +356,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                         <button
                           type="button"
                           disabled={connected.some((c) => c.deviceId === d.deviceId)}
+                          title="Connect"
                           className="h-7 text-[12px] font-bold text-blue-700 bg-white border border-blue-200 rounded-md px-2 disabled:text-slate-400 disabled:border-slate-100"
                           onClick={() => void handleConnect(d.deviceId, d.name)}
                         >
@@ -376,6 +381,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   key={id}
                   type="button"
                   onClick={() => setFitnessLevel(id)}
+                  title={label}
                   className={`h-8 min-w-0 flex-1 flex items-center justify-center px-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${
                     prefs.fitnessLevel === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'
                   }`}
@@ -388,7 +394,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
           </section>
 
           <section className="space-y-1 border-t border-slate-200 pt-3 pb-1">
-            <button type="button" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
+            <button type="button" title="More options" className="h-8 flex items-center gap-1 text-[12px] font-bold text-slate-700" onClick={() => setAdvancedOpen((v) => !v)}>
               <ChevronDown size={14} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
               Others
             </button>
@@ -402,13 +408,14 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                   {!calibRunning ? (
                     <div className="space-y-2">
                       <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-                        <button type="button" onClick={startCalibration} className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
+                        <button type="button" onClick={startCalibration} title="Start calibration test" className="h-8 text-[12px] font-bold bg-gray-700 hover:bg-gray-600 text-white px-2 rounded-md border border-gray-800 shadow-sm">
                           Start Test
                         </button>
                         <span className="text-[10px] text-slate-500">{prefs.calibrationAvgRpm != null ? `${prefs.calibrationAvgRpm} RPM` : ''}</span>
                         {prefs.calibrationAvgRpm != null && (
                           <button
                             type="button"
+                            title="Clear calibration"
                             className="h-7 px-2 text-[12px] font-bold text-blue-600 border border-blue-200 rounded-md bg-white"
                             onClick={() => {
                               const next = {
@@ -437,7 +444,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                           ? `${Math.round(calibSnap.cadenceRpm)} RPM`
                           : '\u00a0'}
                       </span>
-                      <button type="button" onClick={cancelCalibration} className="shrink-0 h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
+                      <button type="button" onClick={cancelCalibration} title="Cancel" className="shrink-0 h-7 px-2 text-[12px] font-bold text-slate-600 border border-slate-200 rounded-md bg-white">
                         Cancel
                       </button>
                     </div>
@@ -448,6 +455,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                 <span className="text-[10px] text-slate-500">Bike</span>
                 <select
                   className="h-8 px-2 rounded-md border border-slate-200 text-[11px] bg-white"
+                  title="Bike type"
                   value={prefs.bikeProfile === 'unset' || prefs.bikeProfile === 'custom' ? 'spinbike' : prefs.bikeProfile}
                   onChange={(e) => setBikeProfile(e.target.value as Exclude<BikeProfile, 'unset' | 'custom'>)}
                 >
@@ -459,14 +467,15 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
                 </select>
 
                 <span className="text-[10px] text-slate-500">Reconnect</span>
-                <label className="h-8 px-2 rounded-md border border-slate-200 flex items-center gap-2 text-[11px] bg-white">
-                  <input type="checkbox" checked={prefs.autoReconnectEnabled} onChange={(e) => setAutoReconnect(e.target.checked)} />
+                <label className="h-8 px-2 rounded-md border border-slate-200 flex items-center gap-2 text-[11px] bg-white" title="Auto reconnect">
+                  <input type="checkbox" checked={prefs.autoReconnectEnabled} onChange={(e) => setAutoReconnect(e.target.checked)} title="Auto reconnect" />
                   Auto
                 </label>
 
                 <span className="text-[10px] text-slate-500">Sensor Speed Merge</span>
                 <select
                   className="h-8 px-2 rounded-md border border-slate-200 text-[11px] bg-white"
+                  title="Speed blend mode"
                   value={prefs.speedCadenceBlendMode}
                   onChange={(e) => setBlendMode(e.target.value as IndoorSensorPrefs['speedCadenceBlendMode'])}
                 >
@@ -477,7 +486,7 @@ export const SensorsModal: React.FC<SensorsModalProps> = ({ open, onClose, prefs
 
                 <span className="text-[10px] font-bold text-slate-500">Selected Riding Mode</span>
                 <div className="flex items-center gap-1">
-                  <button type="button" className="h-8 px-2 text-[12px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" onClick={saveCurrentModeAsDefault}>
+                  <button type="button" className="h-8 px-2 text-[12px] font-bold text-blue-700 border border-blue-200 rounded-md bg-white" title="Save default ride mode" onClick={saveCurrentModeAsDefault}>
                     Save
                   </button>
                   <span className="text-[10px] text-slate-400">{prefs.preferredRideMode === 'sensor' ? 'Sensor' : 'Manual'}</span>
