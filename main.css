@@ -13,6 +13,11 @@ html,
   overflow: hidden;
 }
 
+/* Mapbox 기본 ±줌·나침반(.mapboxgl-ctrl-top-right): top:0 이 상단 우측 커스텀 UI(햄버거/통계 영역과 맞닿는 맵 모서리)과 겹칠 수 있음 — 원형 버튼 반칸(1.2rem)만큼 하향 */
+#root .mapboxgl-ctrl-top-right {
+  top: calc(env(safe-area-inset-top, 0px) + 1.2rem);
+}
+
 /* Hide specific Google Maps UI elements for a cleaner look */
 .gm-svpc {
   display: none !important;
