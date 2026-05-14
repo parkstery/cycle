@@ -671,8 +671,9 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const rideCameraTargetRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number; zoom: number }>(null);
-  const rideCameraStateRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number; zoom: number }>(null);
+  /** 후방 추적 카메라 — center/bearing/pitch 만 RAF 보간. zoom 은 휠/제스처와 충돌하므로 jumpTo 에서 건드리지 않는다. */
+  const rideCameraTargetRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number }>(null);
+  const rideCameraStateRef = useRef<null | { lng: number; lat: number; bearing: number; pitch: number }>(null);
   const rideCameraRafRef = useRef<number | null>(null);
   const rideCameraLastFrameMsRef = useRef(0);
   /** 주행 중 후방 추적 카메라 — off 시 RAF 중단·맵은 사용자(마우스·터치) 조작 */
@@ -703,7 +704,6 @@ const App: React.FC = () => {
         lat: currentCenter.lat,
         bearing: map.getBearing(),
         pitch: map.getPitch(),
-        zoom: map.getZoom(),
       };
       const lastFrameMs = rideCameraLastFrameMsRef.current || now;
       const dt = Math.max(1, Math.min(80, now - lastFrameMs));
@@ -715,7 +715,6 @@ const App: React.FC = () => {
         lat: currentState.lat + (target.lat - currentState.lat) * t,
         bearing: currentState.bearing + bearingDelta * t,
         pitch: currentState.pitch + (target.pitch - currentState.pitch) * t,
-        zoom: currentState.zoom + (target.zoom - currentState.zoom) * t,
       };
 
       rideCameraStateRef.current = nextState;
@@ -723,13 +722,11 @@ const App: React.FC = () => {
         center: [nextState.lng, nextState.lat],
         bearing: nextState.bearing,
         pitch: nextState.pitch,
-        zoom: nextState.zoom,
       });
 
       const nearTarget =
         computeDistanceBetween({ lat: nextState.lat, lng: nextState.lng }, { lat: target.lat, lng: target.lng }) < 0.15 &&
         Math.abs(bearingDelta) < 0.2 &&
-        Math.abs(nextState.zoom - target.zoom) < 0.01 &&
         Math.abs(nextState.pitch - target.pitch) < 0.1;
       if (rideRearCameraFollowRef.current && (simulationActiveRef.current || !nearTarget)) {
         rideCameraRafRef.current = window.requestAnimationFrame(step);
@@ -764,12 +761,17 @@ const App: React.FC = () => {
       rideCameraStateRef.current = null;
       rideCameraLastFrameMsRef.current = 0;
     }
+    // 후방 시점이 너무 멀면 한 번만 끌어올림(RAF 에서 zoom 을 보간하지 않음 — 마우스 휠 줌과 충돌 방지).
+    try {
+      if (map.getZoom() < RIDE_CAMERA_ZOOM) map.setZoom(RIDE_CAMERA_ZOOM);
+    } catch {
+      /* no-op */
+    }
     rideCameraTargetRef.current = {
       lng: cameraPos.lng,
       lat: cameraPos.lat,
       bearing: heading,
       pitch: RIDE_CAMERA_PITCH,
-      zoom: Math.max(map.getZoom(), RIDE_CAMERA_ZOOM),
     };
     startRideCameraLoop();
   }, [startRideCameraLoop]);
